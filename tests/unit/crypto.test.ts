@@ -9,7 +9,6 @@ import type { PayloadContext } from "@/server/crypto/envelope";
 
 function configuration() {
   return {
-    FEITO_INSTALLATION_ID: randomUUID(),
     DATA_KEK_ACTIVE_VERSION: "1",
     DATA_KEK_V1: randomBytes(32).toString("base64"),
   };
@@ -39,14 +38,14 @@ describe("configuration", () => {
 });
 
 describe("AES-256-GCM envelope", () => {
-  it("authenticates the installation, tenant and both key versions", () => {
+  it("authenticates the tenant and both key versions using the configured KEK", () => {
     const config = readKeyConfig(configuration());
     const dek = randomBytes(32);
     const metadata = { tenantId: randomUUID(), version: 1, kekVersion: 1 };
     const envelope = { ...metadata, ...wrapDek(config, metadata, dek) };
     expect(unwrapDek(config, envelope)).toEqual(dek);
     expect(wrapDek(config, metadata, dek).nonce).not.toEqual(envelope.nonce);
-    expect(() => unwrapDek({ ...config, installationId: randomUUID() }, envelope)).toThrow(CipherError);
+    expect(() => unwrapDek(readKeyConfig(configuration()), envelope)).toThrow(CipherError);
     for (const altered of [{ tenantId: randomUUID() }, { version: 2 }, { kekVersion: 2 }, { tag: randomBytes(16) }]) {
       expect(() => unwrapDek(config, { ...envelope, ...altered })).toThrow(CipherError);
     }
@@ -64,26 +63,25 @@ describe("AES-256-GCM envelope", () => {
   });
 
   it("authenticates payload identity, relationships, versions, revision and ciphertext", () => {
-    const installation = randomUUID();
     const dek = randomBytes(32);
     const ctx: PayloadContext = {
       tenantId: randomUUID(), type: "task", id: randomUUID(),
-      dekVersion: 1, payloadVersion: 1, revision: 1, links: [randomUUID()],
+      dekVersion: 1, payloadVersion: 2, revision: 1, links: [randomUUID()],
     };
     const payload = { title: "Tarefa sintética" };
-    const sealed = sealPayload(installation, dek, ctx, payload);
-    expect(openPayload(installation, dek, ctx, sealed)).toEqual(payload);
-    expect(sealPayload(installation, dek, ctx, payload).nonce).not.toEqual(sealed.nonce);
+    const sealed = sealPayload(dek, ctx, payload);
+    expect(openPayload(dek, ctx, sealed)).toEqual(payload);
+    expect(sealPayload(dek, ctx, payload).nonce).not.toEqual(sealed.nonce);
 
     const changes: Partial<PayloadContext>[] = [
       { tenantId: randomUUID() }, { type: "project" }, { id: randomUUID() }, { links: [randomUUID()] },
-      { dekVersion: 2 }, { payloadVersion: 2 }, { revision: 2 },
+      { dekVersion: 2 }, { payloadVersion: 1 }, { revision: 2 },
     ];
     for (const changed of changes) {
-      expect(() => openPayload(installation, dek, { ...ctx, ...changed }, sealed)).toThrow(CipherError);
+      expect(() => openPayload(dek, { ...ctx, ...changed }, sealed)).toThrow(CipherError);
     }
     const ciphertext = Buffer.from(sealed.ciphertext);
     ciphertext[0] ^= 1;
-    expect(() => openPayload(installation, dek, ctx, { ...sealed, ciphertext })).toThrow(CipherError);
+    expect(() => openPayload(dek, ctx, { ...sealed, ciphertext })).toThrow(CipherError);
   });
 });

@@ -89,10 +89,12 @@ export const tenantKeys = domain.table("tenant_keys", {
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   version: integer("version").notNull(),
   kekVersion: integer("kek_version").notNull(),
+  aadVersion: integer("aad_version").notNull().default(2),
   ...cipherColumns(),
 }, (row) => [
   primaryKey({ columns: [row.tenantId, row.version] }),
   check("key_versions_positive", sql`${row.version} > 0 AND ${row.kekVersion} > 0`),
+  check("key_aad_version", sql`${row.aadVersion} IN (1, 2)`),
   check("wrapped_key_lengths", sql`octet_length(${row.nonce}) = 12 AND octet_length(${row.tag}) = 16 AND octet_length(${row.ciphertext}) = 32`),
   tenantPolicy(row.tenantId),
 ]).enableRLS();
@@ -155,3 +157,9 @@ export const kekUsage = cryptoOps.table("kek_usage", {
 }, (row) => [
   check("kek_usage_budget", sql`${row.version} > 0 AND ${row.invocations} >= 0 AND ${row.invocations} < 16777216`),
 ]);
+
+// A compatibility value supplied only when upgrading data written before AAD v2.
+export const legacyAad = cryptoOps.table("legacy_aad", {
+  singleton: boolean("singleton").primaryKey().default(true),
+  binding: uuid("binding").notNull(),
+}, (row) => [check("legacy_aad_singleton", sql`${row.singleton}`)]);

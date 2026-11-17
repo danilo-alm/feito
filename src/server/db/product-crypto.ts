@@ -2,10 +2,10 @@ import "server-only";
 import { and, eq, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { KeyConfig } from "@/server/crypto/config";
-import { CipherError, MAX_INVOCATIONS, openPayload, unwrapDek } from "@/server/crypto/envelope";
+import { CipherError, MAX_INVOCATIONS, PAYLOAD_VERSION, openPayload, unwrapDek } from "@/server/crypto/envelope";
 import type { Ciphertext, PayloadContext } from "@/server/crypto/envelope";
 import type { Database, Transaction } from "./client";
-import { dekUsage, tenantKeys, tenants } from "./schema";
+import { dekUsage, legacyAad, tenantKeys, tenants } from "./schema";
 import { lockTenant, withTenant } from "./tenant";
 
 export class KeyBudgetError extends Error {}
@@ -17,17 +17,24 @@ export async function reserveKek(db: Database, version: number) {
   if (!result.rows[0]?.reserved) throw new KeyBudgetError();
 }
 
+export type OpenDek = { key: Buffer; legacyBinding: () => Promise<string> };
+
 export async function useDek<T>(
-  tx: Transaction, keys: KeyConfig, tenantId: string, version: number, run: (dek: Buffer) => Promise<T>,
+  tx: Transaction, keys: KeyConfig, tenantId: string, version: number, run: (dek: OpenDek) => Promise<T>,
 ) {
   const [envelope] = await tx.select().from(tenantKeys)
     .where(and(eq(tenantKeys.tenantId, tenantId), eq(tenantKeys.version, version)));
   if (!envelope) throw new CipherError();
-  const dek = unwrapDek(keys, envelope);
+  let binding: Promise<string> | undefined;
+  const legacyBinding = () => binding ??= tx.select({ binding: legacyAad.binding }).from(legacyAad).then(([legacy]) => {
+    if (!legacy) throw new CipherError();
+    return legacy.binding;
+  });
+  const key = unwrapDek(keys, envelope, envelope.aadVersion === 1 ? await legacyBinding() : undefined);
   try {
-    return await run(dek);
+    return await run({ key, legacyBinding });
   } finally {
-    dek.fill(0);
+    key.fill(0);
   }
 }
 
@@ -36,7 +43,7 @@ export async function withDekWrite<T>(
   keys: KeyConfig,
   tenantId: string,
   count: number,
-  run: (tx: Transaction, version: number, dek: Buffer) => Promise<T>,
+  run: (tx: Transaction, version: number, dek: OpenDek) => Promise<T>,
 ): Promise<T> {
   if (!Number.isInteger(count) || count < 1 || count > MAX_INVOCATIONS) throw new KeyBudgetError();
   for (;;) {
@@ -64,11 +71,13 @@ export async function withDekWrite<T>(
   }
 }
 
-export function decodeProduct<T>(
-  keys: KeyConfig, dek: Buffer, ctx: PayloadContext, data: Ciphertext, schema: z.ZodType<T>,
+export async function decodeProduct<T>(
+  dek: OpenDek, ctx: PayloadContext, data: Ciphertext, schema: z.ZodType<T>,
 ) {
-  if (ctx.payloadVersion !== 1) throw new CipherError();
-  const parsed = schema.safeParse(openPayload(keys.installationId, dek, ctx, data));
+  let binding: string | undefined;
+  if (ctx.payloadVersion === 1) binding = await dek.legacyBinding();
+  else if (ctx.payloadVersion !== PAYLOAD_VERSION) throw new CipherError();
+  const parsed = schema.safeParse(openPayload(dek.key, ctx, data, binding));
   if (!parsed.success) throw new CipherError();
   return parsed.data;
 }

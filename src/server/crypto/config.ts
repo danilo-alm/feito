@@ -49,8 +49,6 @@ export function readAuthConfig(env: Environment = process.env) {
 const keyName = /^DATA_KEK_V([1-9]\d*)$/;
 
 export function readKeyConfig(env: Environment = process.env) {
-  const installationId = z.uuid().safeParse(env.FEITO_INSTALLATION_ID);
-  if (!installationId.success) throw new ConfigurationError("FEITO_INSTALLATION_ID");
   const activeVersion = Number(env.DATA_KEK_ACTIVE_VERSION);
   if (!/^[1-9]\d*$/.test(env.DATA_KEK_ACTIVE_VERSION ?? "") || activeVersion > 2147483647) {
     throw new ConfigurationError("DATA_KEK_ACTIVE_VERSION");
@@ -81,7 +79,7 @@ export function readKeyConfig(env: Environment = process.env) {
     keys.set(version, key);
   }
   if (!keys.has(activeVersion)) throw new ConfigurationError(`DATA_KEK_V${activeVersion}`);
-  return { installationId: installationId.data, activeVersion, keys };
+  return { activeVersion, keys };
 }
 
 export type AuthConfig = ReturnType<typeof readAuthConfig>;

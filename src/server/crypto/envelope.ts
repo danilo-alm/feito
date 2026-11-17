@@ -2,6 +2,7 @@ import "server-only";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import type { KeyConfig } from "./config";
 
+export const PAYLOAD_VERSION = 2;
 export const MAX_INVOCATIONS = 2 ** 24 - 1;
 
 export type Ciphertext = { nonce: Buffer; tag: Buffer; ciphertext: Buffer };
@@ -38,20 +39,20 @@ function open(key: Buffer, sealed: Ciphertext, aad: readonly AadValue[]): Buffer
 
 type EnvelopeContext = { tenantId: string; version: number; kekVersion: number };
 
-function envelopeAad(config: KeyConfig, envelope: EnvelopeContext) {
-  return ["feito:dek", config.installationId, envelope.tenantId, envelope.version, envelope.kekVersion];
+function envelopeAad(envelope: EnvelopeContext, legacyBinding?: string) {
+  return ["feito:dek", ...(legacyBinding ? [legacyBinding] : []), envelope.tenantId, envelope.version, envelope.kekVersion];
 }
 
 export function wrapDek(config: KeyConfig, envelope: EnvelopeContext, dek: Buffer) {
   const kek = config.keys.get(envelope.kekVersion);
   if (!kek || dek.length !== 32) throw new CipherError();
-  return seal(kek, dek, envelopeAad(config, envelope));
+  return seal(kek, dek, envelopeAad(envelope));
 }
 
-export function unwrapDek(config: KeyConfig, envelope: EnvelopeContext & Ciphertext): Buffer {
+export function unwrapDek(config: KeyConfig, envelope: EnvelopeContext & Ciphertext, legacyBinding?: string): Buffer {
   const kek = config.keys.get(envelope.kekVersion);
   if (!kek || envelope.ciphertext.length !== 32) throw new CipherError();
-  return open(kek, envelope, envelopeAad(config, envelope));
+  return open(kek, envelope, envelopeAad(envelope, legacyBinding));
 }
 
 export type PayloadContext = {
@@ -64,26 +65,26 @@ export type PayloadContext = {
   links: readonly AadValue[];
 };
 
-function payloadAad(installationId: string, ctx: PayloadContext) {
+function payloadAad(ctx: PayloadContext, legacyBinding?: string) {
   return [
-    "feito:payload", installationId, ctx.tenantId, ctx.type, ctx.id,
+    "feito:payload", ...(legacyBinding ? [legacyBinding] : []), ctx.tenantId, ctx.type, ctx.id,
     ctx.dekVersion, ctx.payloadVersion, ctx.revision, ...ctx.links,
   ];
 }
 
-export function sealPayload(installationId: string, dek: Buffer, ctx: PayloadContext, value: object) {
+export function sealPayload(dek: Buffer, ctx: PayloadContext, value: object) {
   const bytes = Buffer.from(JSON.stringify(value));
   try {
-    return seal(dek, bytes, payloadAad(installationId, ctx));
+    return seal(dek, bytes, payloadAad(ctx));
   } finally {
     bytes.fill(0);
   }
 }
 
 export function openPayload(
-  installationId: string, dek: Buffer, ctx: PayloadContext, sealed: Ciphertext,
+  dek: Buffer, ctx: PayloadContext, sealed: Ciphertext, legacyBinding?: string,
 ): unknown {
-  const bytes = open(dek, sealed, payloadAad(installationId, ctx));
+  const bytes = open(dek, sealed, payloadAad(ctx, legacyBinding));
   try {
     return JSON.parse(bytes.toString("utf8"));
   } catch {

@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { defaultPreferences } from "@/domain/preferences";
 import type { KeyConfig } from "@/server/crypto/config";
-import { sealPayload, wrapDek } from "@/server/crypto/envelope";
+import { PAYLOAD_VERSION, sealPayload, wrapDek } from "@/server/crypto/envelope";
 import type { PayloadContext } from "@/server/crypto/envelope";
 import { preferences as preferencesSchema, type Preferences } from "@/validation/account";
 import type { Database, Transaction } from "./client";
@@ -40,15 +40,15 @@ export async function ensureWorkspace(db: Database, keys: KeyConfig, tenantId: s
       // A new, unpublished DEK is discarded on rollback and is never used again.
       await tx.insert(dekUsage).values({ tenantId, dekVersion: version, invocations: 2 });
 
-      const metadata = { tenantId, dekVersion: version, payloadVersion: 1, revision: 1 };
+      const metadata = { tenantId, dekVersion: version, payloadVersion: PAYLOAD_VERSION, revision: 1 };
       await tx.insert(preferences).values({
         ...metadata,
-        ...sealPayload(keys.installationId, dek, preferenceContext(metadata), defaultPreferences),
+        ...sealPayload(dek, preferenceContext(metadata), defaultPreferences),
       });
       const inbox = { ...metadata, id: randomUUID(), isInbox: true };
       await tx.insert(projects).values({
         ...inbox,
-        ...sealPayload(keys.installationId, dek, {
+        ...sealPayload(dek, {
           ...metadata, type: "project", id: inbox.id, links: [inbox.isInbox],
         }, {
           name: "Caixa de entrada",
@@ -70,7 +70,7 @@ async function preferenceRow(tx: Transaction, tenantId: string) {
 
 async function readPreferences(tx: Transaction, keys: KeyConfig, row: typeof preferences.$inferSelect) {
   return useDek(tx, keys, row.tenantId, row.dekVersion, async (dek) =>
-    decodeProduct(keys, dek, preferenceContext(row), row, preferencesSchema));
+    decodeProduct(dek, preferenceContext(row), row, preferencesSchema));
 }
 
 export function readWorkspace(db: Database, keys: KeyConfig, tenantId: string) {
@@ -93,13 +93,13 @@ export async function persistPreferences(
   return withDekWrite(db, keys, tenantId, 1, async (tx, version, dek) => {
     const row = await preferenceRow(tx, tenantId);
     const current = row.dekVersion === version
-      ? decodeProduct(keys, dek, preferenceContext(row), row, preferencesSchema)
+      ? await decodeProduct(dek, preferenceContext(row), row, preferencesSchema)
       : await readPreferences(tx, keys, row);
     const updated = { ...current, ...patch };
-    const metadata = { dekVersion: version, payloadVersion: 1, revision: row.revision + 1 };
+    const metadata = { dekVersion: version, payloadVersion: PAYLOAD_VERSION, revision: row.revision + 1 };
     await tx.update(preferences).set({
       ...metadata,
-      ...sealPayload(keys.installationId, dek, preferenceContext({ tenantId, ...metadata }), updated),
+      ...sealPayload(dek.key, preferenceContext({ tenantId, ...metadata }), updated),
     }).where(eq(preferences.tenantId, tenantId));
     return updated;
   });

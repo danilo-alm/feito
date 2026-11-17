@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { KeyConfig } from "@/server/crypto/config";
-import { sealPayload } from "@/server/crypto/envelope";
+import { PAYLOAD_VERSION, sealPayload } from "@/server/crypto/envelope";
 import type { PayloadContext } from "@/server/crypto/envelope";
 import { notFound } from "@/server/errors";
 import { taskPayload, type TaskPayload } from "@/validation/task-payload";
@@ -23,9 +23,9 @@ export function insertTask(
   return withDekWrite(db, keys, tenantId, 1, async (tx, dekVersion, dek) => {
     const [project] = await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId));
     if (!project) throw notFound();
-    const row = { id: randomUUID(), tenantId, projectId, dekVersion, payloadVersion: 1, revision: 1 };
+    const row = { id: randomUUID(), tenantId, projectId, dekVersion, payloadVersion: PAYLOAD_VERSION, revision: 1 };
     await tx.insert(tasks).values({
-      ...row, ...sealPayload(keys.installationId, dek, taskContext(row), payload),
+      ...row, ...sealPayload(dek.key, taskContext(row), payload),
     });
     return row.id;
   });
@@ -36,6 +36,6 @@ export function readTask(db: Database, keys: KeyConfig, tenantId: string, id: st
     const [row] = await tx.select().from(tasks).where(eq(tasks.id, id));
     if (!row) throw notFound();
     return useDek(tx, keys, tenantId, row.dekVersion, async (dek) =>
-      decodeProduct(keys, dek, taskContext(row), row, taskPayload));
+      decodeProduct(dek, taskContext(row), row, taskPayload));
   });
 }
