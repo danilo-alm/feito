@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: feito
+      POSTGRES_PASSWORD: ${POSTGRES_BOOTSTRAP_PASSWORD:?Defina POSTGRES_BOOTSTRAP_PASSWORD}
+      POSTGRES_MIGRATOR_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD:?Defina POSTGRES_MIGRATOR_PASSWORD}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?Defina POSTGRES_APP_PASSWORD}
+      POSTGRES_AUTH_PASSWORD: ${POSTGRES_AUTH_PASSWORD:?Defina POSTGRES_AUTH_PASSWORD}
+      POSTGRES_IDENTITY_ADMIN_PASSWORD: ${POSTGRES_IDENTITY_ADMIN_PASSWORD:?Defina POSTGRES_IDENTITY_ADMIN_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+      - -c
+      - log_min_error_statement=panic
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/00-roles.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "feito_migrator", "-d", "feito"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+volumes:
+  pgdata:
