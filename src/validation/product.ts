@@ -3,7 +3,7 @@ import { Temporal } from "@js-temporal/polyfill";
 
 export const entityId = z.uuid().transform((value) => value.toLowerCase());
 export const revision = z.number().int().min(1).max(2147483647);
-const position = z.number().int().nonnegative();
+export const position = z.number().int().nonnegative();
 function boundedText(schema: z.ZodString, max: number) {
   return schema.refine((value) => value.isWellFormed() && [...value].length <= max);
 }
@@ -21,7 +21,7 @@ export const civilDate = z.iso.date().refine((value) => {
   }
 });
 export const localTime = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
-const instant = z.iso.datetime();
+export const instant = z.iso.datetime();
 const frequency = z.enum(["daily", "weekly", "monthly"]);
 const recurrenceInput = z.strictObject({
   frequency,

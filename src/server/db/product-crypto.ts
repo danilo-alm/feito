@@ -47,10 +47,12 @@ export type ProductReader = <T>(row: Ciphertext & { dekVersion: number }, ctx: P
 
 export async function withProductReader<T>(
   tx: Transaction, keys: KeyConfig, tenantId: string, run: (reader: ProductReader) => Promise<T>,
+  active?: { version: number; dek: OpenDek },
 ) {
   const byVersion = new Map<number, Promise<OpenDek>>();
   try {
     return await run(async (row, ctx, schema) => {
+      if (active && row.dekVersion === active.version) return decodeProduct(active.dek, ctx, row, schema);
       let opened = byVersion.get(row.dekVersion);
       if (!opened) {
         opened = openDek(tx, keys, tenantId, row.dekVersion);

@@ -1,9 +1,11 @@
 import "server-only";
 import { sql, type SQLWrapper } from "drizzle-orm";
 import {
-  boolean, check, customType, foreignKey, index, integer, pgPolicy, pgSchema,
+  boolean, check, customType, foreignKey, index, integer, jsonb, pgPolicy, pgSchema,
   primaryKey, text, timestamp, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
+
+import type { ImportCounts } from "@/validation/portability";
 
 export const identity = pgSchema("identity");
 export const domain = pgSchema("domain");
@@ -210,6 +212,18 @@ export const taskLabels = domain.table("task_labels", {
   index("task_label_idx").on(row.tenantId, row.labelId, row.taskId),
   foreignKey({ columns: [row.tenantId, row.taskId], foreignColumns: [tasks.tenantId, tasks.id] }).onDelete("cascade"),
   foreignKey({ columns: [row.tenantId, row.labelId], foreignColumns: [labels.tenantId, labels.id] }).onDelete("cascade"),
+  tenantPolicy(row.tenantId),
+]).enableRLS();
+
+export const importOperations = domain.table("import_operations", {
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  operationId: uuid("operation_id").notNull(),
+  fingerprint: bytea("fingerprint").notNull(),
+  summary: jsonb("summary").$type<ImportCounts>().notNull(),
+  createdAt: timestampUtc("created_at").notNull().defaultNow(),
+}, (row) => [
+  primaryKey({ columns: [row.tenantId, row.operationId] }),
+  check("import_fingerprint_size", sql`octet_length(${row.fingerprint}) = 32`),
   tenantPolicy(row.tenantId),
 ]).enableRLS();
 

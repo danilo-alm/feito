@@ -7,7 +7,7 @@ import type { KeyConfig } from "@/server/crypto/config";
 import { PAYLOAD_VERSION, sealPayload, type PayloadContext } from "@/server/crypto/envelope";
 import { ApiError } from "@/server/errors";
 import { preferences as preferenceSchema } from "@/validation/account";
-import { labelPayload, projectPayload, sectionPayload, taskPayload } from "@/validation/product";
+import { completedOccurrencePayload, labelPayload, projectPayload, sectionPayload, taskPayload } from "@/validation/product";
 import type { Database, Transaction } from "./client";
 import { withDekWrite, withProductReader, type OpenDek, type ProductReader } from "./product-crypto";
 import { completedOccurrences, labels, preferences, projects, sections, taskLabels, tasks, tenants } from "./schema";
@@ -34,10 +34,17 @@ export async function mapRows<Row extends { id: string }, Value>(rows: Row[], de
   return map;
 }
 
-export async function readCalendar(reader: ProductReader, preference: typeof preferences.$inferSelect) {
-  const { timezone } = await reader(preference, preferenceContext(preference), preferenceSchema);
+export function readPreferenceRecord(reader: ProductReader, row: typeof preferences.$inferSelect) {
+  return reader(row, preferenceContext(row), preferenceSchema);
+}
+
+function calendar(timezone: string) {
   const now = Temporal.Now.instant();
   return { timezone, now, referenceDate: referenceDate(timezone, now) };
+}
+
+export async function readCalendar(reader: ProductReader, preference: typeof preferences.$inferSelect) {
+  return calendar((await readPreferenceRecord(reader, preference)).timezone);
 }
 
 export async function readProjectRecord(reader: ProductReader, row: typeof projects.$inferSelect): Promise<Project> {
@@ -79,28 +86,56 @@ export function mapTaskLabels(links: Pick<typeof taskLabels.$inferSelect, "taskI
   return taskLabelIds;
 }
 
+function occurrenceContext(row: Metadata & OccurrenceReference) {
+  return context({ ...row, id: row.occurrenceId }, "completed_occurrence", [row.taskId]);
+}
+
+export async function readOccurrenceRecord(
+  reader: ProductReader, row: typeof completedOccurrences.$inferSelect,
+): Promise<CompletedOccurrence> {
+  return {
+    taskId: row.taskId, occurrenceId: row.occurrenceId,
+    data: await reader(row, occurrenceContext(row), completedOccurrencePayload),
+  };
+}
+
+async function loadProduct(tx: Transaction, reader: ProductReader) {
+  const [preference] = await tx.select().from(preferences);
+  if (!preference) throw new Error("Preferências indisponíveis.");
+  const settings = await readPreferenceRecord(reader, preference);
+  const product: Product = {
+    ...calendar(settings.timezone),
+    projects: await mapRows(await tx.select().from(projects), (row) => readProjectRecord(reader, row)),
+    sections: await mapRows(await tx.select().from(sections), (row) => readSectionRecord(reader, row)),
+    tasks: await mapRows(await tx.select().from(tasks), (row) => readTaskRecord(reader, row)),
+    labels: await mapRows(await tx.select().from(labels), (row) => readLabelRecord(reader, row)),
+    taskLabels: mapTaskLabels(await tx.select().from(taskLabels)),
+  };
+  return { product, settings };
+}
+
+const readOnlySnapshot = { isolationLevel: "repeatable read", accessMode: "read only" } as const;
+
 async function readSnapshot({ db, keys, tenantId }: ProductAccess, occurrence?: OccurrenceReference) {
   return withTenant(db, tenantId, async (tx) => {
     const [tenant] = await tx.select().from(tenants).where(eq(tenants.id, tenantId));
-    const [preference] = await tx.select().from(preferences);
-    if (!tenant || !preference) throw new Error("Conta indisponível.");
-    const projectRows = await tx.select().from(projects);
-    const sectionRows = await tx.select().from(sections);
-    const taskRows = await tx.select().from(tasks);
-    const labelRows = await tx.select().from(labels);
-    const links = await tx.select().from(taskLabels);
-
+    if (!tenant) throw new Error("Conta indisponível.");
     const recorded = occurrence ? await occurrenceExists(tx, occurrence) : false;
-    const product: Product = await withProductReader(tx, keys, tenantId, async (reader) => ({
-      ...await readCalendar(reader, preference),
-      projects: await mapRows(projectRows, (row) => readProjectRecord(reader, row)),
-      sections: await mapRows(sectionRows, (row) => readSectionRecord(reader, row)),
-      tasks: await mapRows(taskRows, (row) => readTaskRecord(reader, row)),
-      labels: await mapRows(labelRows, (row) => readLabelRecord(reader, row)),
-      taskLabels: mapTaskLabels(links),
-    }));
+    const { product } = await withProductReader(tx, keys, tenantId, (reader) => loadProduct(tx, reader));
     return { revision: tenant.productRevision, product, recorded };
-  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  }, readOnlySnapshot);
+}
+
+export async function readExportSnapshot({ db, keys, tenantId }: ProductAccess) {
+  await ensureWorkspace(db, keys, tenantId);
+  return withTenant(db, tenantId, (tx) => withProductReader(tx, keys, tenantId, async (reader) => {
+    const snapshot = await loadProduct(tx, reader);
+    const occurrences: CompletedOccurrence[] = [];
+    for (const row of await tx.select().from(completedOccurrences)) {
+      occurrences.push(await readOccurrenceRecord(reader, row));
+    }
+    return { ...snapshot, occurrences };
+  }), readOnlySnapshot);
 }
 
 async function occurrenceExists(tx: Transaction, { taskId, occurrenceId }: OccurrenceReference) {
@@ -144,44 +179,66 @@ function changes(original: Product, current: Product, occurrence?: CompletedOccu
 
 type Changes = ReturnType<typeof changes>;
 
+export function productEncoder(tenantId: string, version: number, key: Buffer) {
+  const fields = (revision: number) => ({ dekVersion: version, payloadVersion: PAYLOAD_VERSION, revision });
+  return {
+    project(project: Project) {
+      const metadata = fields(project.revision);
+      const aad = context({ tenantId, ...metadata, id: project.id }, "project", [project.isInbox]);
+      return { ...metadata, ...sealPayload(key, aad, project.data) };
+    },
+    section(section: Section) {
+      const metadata = fields(section.revision);
+      const aad = context({ tenantId, ...metadata, id: section.id }, "section", [section.projectId]);
+      return { ...metadata, ...sealPayload(key, aad, section.data) };
+    },
+    label(label: Label) {
+      const metadata = fields(label.revision);
+      const aad = context({ tenantId, ...metadata, id: label.id }, "label");
+      return { ...metadata, ...sealPayload(key, aad, label.data) };
+    },
+    task(task: Task) {
+      const metadata = fields(task.revision);
+      const { projectId, sectionId, parentId, occurrenceId } = task;
+      const links = { projectId, sectionId, parentId, occurrenceId };
+      return {
+        ...metadata, ...links,
+        ...sealPayload(key, taskContext({ tenantId, ...metadata, ...links, id: task.id }), task.data),
+      };
+    },
+    occurrence(occurrence: CompletedOccurrence) {
+      const metadata = fields(1);
+      const { taskId, occurrenceId, data } = occurrence;
+      const aad = occurrenceContext({ tenantId, ...metadata, taskId, occurrenceId });
+      return { ...metadata, taskId, occurrenceId, ...sealPayload(key, aad, data) };
+    },
+  };
+}
+
 async function writeEncrypted(tx: Transaction, tenantId: string, version: number, dek: OpenDek, plan: Changes) {
-  const fields = (revision: number) => ({ tenantId, dekVersion: version, payloadVersion: PAYLOAD_VERSION, revision });
+  const encode = productEncoder(tenantId, version, dek.key);
   for (const { previous, next } of plan.project.upsert) {
-    const metadata = fields(next.revision);
-    const encrypted = { dekVersion: version, payloadVersion: PAYLOAD_VERSION, revision: next.revision, ...sealPayload(dek.key,
-      context({ ...metadata, id: next.id }, "project", [next.isInbox]), next.data) };
+    const encrypted = encode.project(next);
     if (previous) await tx.update(projects).set(encrypted).where(eq(projects.id, next.id));
     else await tx.insert(projects).values({ tenantId, ...encrypted, id: next.id, isInbox: next.isInbox });
   }
   for (const { previous, next } of plan.section.upsert) {
-    const metadata = fields(next.revision);
-    const encrypted = { dekVersion: version, payloadVersion: PAYLOAD_VERSION, revision: next.revision, ...sealPayload(dek.key,
-      context({ ...metadata, id: next.id }, "section", [next.projectId]), next.data) };
+    const encrypted = encode.section(next);
     if (previous) await tx.update(sections).set(encrypted).where(eq(sections.id, next.id));
     else await tx.insert(sections).values({ tenantId, ...encrypted, id: next.id, projectId: next.projectId });
   }
   for (const { previous, next } of plan.label.upsert) {
-    const metadata = fields(next.revision);
-    const encrypted = { dekVersion: version, payloadVersion: PAYLOAD_VERSION, revision: next.revision, ...sealPayload(dek.key,
-      context({ ...metadata, id: next.id }, "label"), next.data) };
+    const encrypted = encode.label(next);
     if (previous) await tx.update(labels).set(encrypted).where(eq(labels.id, next.id));
     else await tx.insert(labels).values({ tenantId, ...encrypted, id: next.id });
   }
   for (const { previous, next } of plan.task.upsert) {
-    const metadata = fields(next.revision);
-    const { projectId, sectionId, parentId, occurrenceId } = next;
-    const links = { projectId, sectionId, parentId, occurrenceId };
-    const encrypted = { dekVersion: version, payloadVersion: PAYLOAD_VERSION, revision: next.revision, ...sealPayload(dek.key, taskContext({ ...metadata, ...links, id: next.id }), next.data) };
-    if (previous) await tx.update(tasks).set({ ...encrypted, ...links }).where(eq(tasks.id, next.id));
-    else await tx.insert(tasks).values({ tenantId, ...encrypted, ...links, id: next.id });
+    const encrypted = encode.task(next);
+    if (previous) await tx.update(tasks).set(encrypted).where(eq(tasks.id, next.id));
+    else await tx.insert(tasks).values({ tenantId, ...encrypted, id: next.id });
   }
   if (plan.occurrence) {
-    const { taskId, occurrenceId, data } = plan.occurrence;
-    const metadata = fields(1);
-    const aad = context({ ...metadata, id: occurrenceId }, "completed_occurrence", [taskId]);
-    await tx.insert(completedOccurrences).values({
-      ...metadata, taskId, occurrenceId, ...sealPayload(dek.key, aad, data),
-    });
+    await tx.insert(completedOccurrences).values({ tenantId, ...encode.occurrence(plan.occurrence) });
   }
 }
 

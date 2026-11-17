@@ -1,6 +1,8 @@
 import type { Temporal } from "@js-temporal/polyfill";
 import type { CompletedOccurrencePayload, LabelPayload, ProjectPayload, SectionPayload, TaskPayload } from "@/validation/product";
 
+export const inboxName = "Caixa de entrada";
+
 type RecordData<T> = { id: string; revision: number; data: T };
 export type Project = RecordData<ProjectPayload> & { isInbox: boolean };
 export type Section = RecordData<SectionPayload> & { projectId: string };

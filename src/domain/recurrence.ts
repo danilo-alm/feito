@@ -20,3 +20,12 @@ export function nextOccurrenceDate(
     ? candidate
     : anchor.add({ months: monthsSinceAnchor + 1 })).toString();
 }
+
+export function validNominalDate(rule: RecurrenceRule) {
+  if (rule.nominalDate < rule.anchorDate) return false;
+  if (rule.frequency === "daily") return true;
+  const anchor = Temporal.PlainDate.from(rule.anchorDate);
+  const nominal = Temporal.PlainDate.from(rule.nominalDate);
+  if (rule.frequency === "weekly") return nominal.dayOfWeek === anchor.dayOfWeek;
+  return nominal.day === Math.min(anchor.day, nominal.daysInMonth);
+}
