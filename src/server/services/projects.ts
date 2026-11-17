@@ -45,7 +45,7 @@ export function getProject(access: ProductAccess, id: string, includeCompleted?:
 export function createProject(access: ProductAccess, name: string) {
   const id = randomUUID();
   return mutateProduct(access, (product) => {
-    const createdAt = Temporal.Now.instant().toString();
+    const createdAt = product.now.toString();
     const project = { id, revision: 1, isInbox: false, data: { name, createdAt, archived: false, view: defaultsForView } };
     product.projects.set(id, project);
     return projectSummary(product, project);

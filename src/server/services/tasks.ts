@@ -1,10 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { Temporal } from "@js-temporal/polyfill";
 import { childrenOf, groupTasks, isActive, sameGroup, type Product, type Task, type TaskGroup } from "@/domain/product";
+import { nextOccurrenceDate } from "@/domain/recurrence";
 import { mutateProduct, readProduct, type ProductAccess } from "@/server/db/product";
 import { ApiError } from "@/server/errors";
-import type { CompleteTaskInput, CreateTaskInput, EditTaskInput, TaskMoveInput } from "@/validation/product";
+import { civilDate, type CompleteTaskInput, type CreateTaskInput, type EditTaskInput, type SetRecurrenceInput, type TaskMoveInput } from "@/validation/product";
 import { inboxProject, taskDetail, taskItem } from "./product-dto";
 import {
   labelSelection, nextRevision, requireRevision, validateSection, validation, visibleRecord, writableProject, writableTask,
@@ -81,7 +81,7 @@ export function createTask(access: ProductAccess, input: CreateTaskInput) {
         title: input.title,
         description: input.description ?? "",
         priority: input.priority ?? 4,
-        createdAt: Temporal.Now.instant().toString(),
+        createdAt: product.now.toString(),
         completedAt: null,
         dueDate, dueTime, position, recurrenceRule,
       },
@@ -115,20 +115,82 @@ export function editTask(access: ProductAccess, id: string, input: EditTaskInput
   });
 }
 
-export function completeTask(access: ProductAccess, id: string, input: CompleteTaskInput) {
+export function setRecurrence(access: ProductAccess, id: string, input: SetRecurrenceInput) {
+  const occurrenceId = randomUUID();
   return mutateProduct(access, (product, original) => {
     const task = writableTask(loadedTask(product, id));
     taskRevision(product, task, input.revision);
-    if (task.occurrenceId) {
-      throw validation("occurrenceId", "A conclusão de ocorrências estará disponível na Fase 3.");
+    if (task.parentId || childrenOf(product, id).length) throw notAllowedRecurrence();
+    const { anchorDate, frequency, time = null } = input;
+    const updated = saveTask(product, original, {
+      ...task,
+      occurrenceId,
+      data: {
+        ...task.data, dueDate: anchorDate, dueTime: time,
+        recurrenceRule: { frequency, anchorDate, nominalDate: anchorDate, time },
+      },
+    });
+    return taskDetail(product, updated);
+  });
+}
+
+export function removeRecurrence(access: ProductAccess, id: string, revision: number) {
+  return mutateProduct(access, (product, original) => {
+    const task = writableTask(loadedTask(product, id));
+    taskRevision(product, task, revision);
+    if (!task.occurrenceId) return taskDetail(product, task);
+    const updated = saveTask(product, original, {
+      ...task, occurrenceId: null, data: { ...task.data, recurrenceRule: null },
+    });
+    return taskDetail(product, updated);
+  });
+}
+
+export function completeTask(access: ProductAccess, id: string, input: CompleteTaskInput) {
+  const nextId = randomUUID();
+  const occurrence = input.occurrenceId ? { taskId: id, occurrenceId: input.occurrenceId } : undefined;
+  return mutateProduct(access, (product, original, history) => {
+    const task = visibleRecord(product.tasks, id);
+    if (history.recorded) {
+      return { task: taskItem(product, task), completedChildIds: [], alreadyProcessed: true };
     }
+
+    projectFor(product, task.projectId);
+    writableTask(task);
+    if (occurrence && occurrence.occurrenceId !== task.occurrenceId) {
+      throw new ApiError(409, "OCCURRENCE_STALE", "A ocorrência mudou. Atualize a tarefa e tente de novo.");
+    }
+    if (task.occurrenceId && !occurrence) {
+      throw validation("occurrenceId", "Informe a ocorrência a concluir.");
+    }
+    taskRevision(product, task, input.revision);
+
+    const completedAt = product.now.toString();
+    if (occurrence) {
+      const { recurrenceRule, dueDate, dueTime } = task.data;
+      if (!recurrenceRule || !dueDate) throw new Error("Ocorrência sem agendamento.");
+      const date = nextOccurrenceDate(recurrenceRule, dueDate, product.referenceDate);
+      if (!civilDate.safeParse(date).success) throw validation("dueDate", "A próxima data excede o intervalo disponível.");
+      history.completion = { ...occurrence, data: {
+        nominalDate: recurrenceRule.nominalDate, dueDate, dueTime, completedAt,
+      } };
+      const updated = saveTask(product, original, {
+        ...task,
+        occurrenceId: nextId,
+        data: {
+          ...task.data, dueDate: date, dueTime: recurrenceRule.time,
+          recurrenceRule: { ...recurrenceRule, nominalDate: date },
+        },
+      });
+      return { task: taskItem(product, updated), completedChildIds: [], alreadyProcessed: false };
+    }
+
     const activeChildren = childrenOf(product, id).filter(isActive);
     if (activeChildren.length && !input.includeChildren) {
       throw new ApiError(409, "HAS_ACTIVE_CHILDREN", "Confirme a conclusão das subtarefas ativas.", {
         activeChildCount: activeChildren.length,
       });
     }
-    const completedAt = Temporal.Now.instant().toString();
     for (const child of activeChildren) {
       saveTask(product, original, { ...child, data: { ...child.data, completedAt } });
     }
@@ -138,7 +200,7 @@ export function completeTask(access: ProductAccess, id: string, input: CompleteT
       completedChildIds: activeChildren.map((child) => child.id),
       alreadyProcessed: false,
     };
-  });
+  }, occurrence);
 }
 
 export function reopenTask(access: ProductAccess, id: string, revision: number) {
