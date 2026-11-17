@@ -13,12 +13,11 @@ import { hashPassword } from "@/server/auth/password";
 import { MAX_INVOCATIONS, unwrapDek } from "@/server/crypto/envelope";
 import { connectDatabase } from "@/server/db/client";
 import { account, dekUsage, preferences, projects, tasks, tenantKeys, tenants, user } from "@/server/db/schema";
-import { insertTask, readTask } from "@/server/db/tasks";
+import { createTask, getTask } from "@/server/services/tasks";
 import { withTenant } from "@/server/db/tenant";
 import { getRuntime } from "@/server/runtime";
 import { administerAccount, createAccount, listAccounts } from "@/server/services/admin";
 import { replacePassword } from "@/server/services/identity";
-import type { TaskPayload } from "@/validation/task-payload";
 
 let runtime: ReturnType<typeof getRuntime>;
 let admin: ReturnType<typeof connectDatabase>;
@@ -303,7 +302,7 @@ describe("PostgreSQL roles, RLS and encrypted storage", () => {
         from pg_class join pg_namespace on pg_namespace.oid = relnamespace
         where nspname = 'domain' and relkind = 'r'
     `);
-    expect(policies.rows).toHaveLength(6);
+    expect(policies.rows).toHaveLength(9);
     for (const row of policies.rows) expect(row).toEqual({ rls: true, forced: true, owned: false });
     await expect(db.select().from(user)).rejects.toMatchObject({ cause: { code: "42501" } });
     await expect(identity.db.select().from(tenants)).rejects.toMatchObject({ cause: { code: "42501" } });
@@ -329,20 +328,19 @@ describe("PostgreSQL roles, RLS and encrypted storage", () => {
     await expectError(await patch(b.cookie, { tenantId: a.tenantId, theme: "dark" }), 422, "VALIDATION_FAILED");
     await expectError(await patch(b.cookie, { timezone: "Etc/Invalid" }), 422, "VALIDATION_FAILED");
 
-    const payload: TaskPayload = {
-      title: "Título sintético", description: "Descrição sintética", priority: 4,
-      position: 0, createdAt: "2026-11-17T12:30:00Z",
-    };
-    const taskA = await insertTask(db, keys, a.tenantId, a.inboxProjectId, payload);
-    const taskB = await insertTask(db, keys, b.tenantId, b.inboxProjectId, payload);
-    await expect(readTask(db, keys, a.tenantId, taskA)).resolves.toEqual(payload);
-    await expect(readTask(db, keys, b.tenantId, taskB)).resolves.toEqual(payload);
+    const payload = { title: "Título sintético", description: "Descrição sintética", priority: 4 } as const;
+    const accessA = { db, keys, tenantId: a.tenantId };
+    const accessB = { db, keys, tenantId: b.tenantId };
+    const taskA = (await createTask(accessA, { ...payload, projectId: a.inboxProjectId })).id;
+    const taskB = (await createTask(accessB, { ...payload, projectId: b.inboxProjectId })).id;
+    await expect(getTask(accessA, taskA)).resolves.toMatchObject(payload);
+    await expect(getTask(accessB, taskB)).resolves.toMatchObject(payload);
     for (const foreignId of [taskA, randomUUID()]) {
-      await expect(readTask(db, keys, b.tenantId, foreignId)).rejects.toMatchObject({
+      await expect(getTask(accessB, foreignId)).rejects.toMatchObject({
         status: 404, code: "NOT_FOUND", message: "Recurso não encontrado.",
       });
     }
-    await expect(insertTask(db, keys, b.tenantId, a.inboxProjectId, payload))
+    await expect(createTask(accessB, { ...payload, projectId: a.inboxProjectId }))
       .rejects.toMatchObject({ status: 404, code: "NOT_FOUND" });
 
     const [storedA] = await withTenant(db, a.tenantId, (tx) => tx.select().from(tasks));

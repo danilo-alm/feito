@@ -27,9 +27,9 @@ export function requireOrigin(request: Request, origin: string) {
 const badJson = () => new ApiError(400, "MALFORMED_REQUEST", "Envie um corpo JSON válido.");
 const bodyTooLarge = () => new ApiError(413, "PAYLOAD_TOO_LARGE", "O corpo excede o limite permitido.");
 
-export async function readJson<T>(request: Request, schema: z.ZodType<T>) {
+export async function readJson<T>(request: Request, schema: z.ZodType<T>, maxBytes = MAX_JSON_BYTES) {
   if (!request.body) throw badJson();
-  if (Number(request.headers.get("content-length")) > MAX_JSON_BYTES) throw bodyTooLarge();
+  if (Number(request.headers.get("content-length")) > maxBytes) throw bodyTooLarge();
 
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -45,7 +45,7 @@ export async function readJson<T>(request: Request, schema: z.ZodType<T>) {
       const next = await reader.read();
       if (next.done) break;
       bytes += next.value.byteLength;
-      if (bytes > MAX_JSON_BYTES) {
+      if (bytes > maxBytes) {
         void reader.cancel().catch(() => {});
         throw bodyTooLarge();
       }
@@ -62,6 +62,10 @@ export async function readJson<T>(request: Request, schema: z.ZodType<T>) {
     reader.releaseLock();
   }
 
+  return validate(value, schema);
+}
+
+function validate<T>(value: unknown, schema: z.ZodType<T>) {
   const result = schema.safeParse(value);
   if (!result.success) {
     const fieldErrors = Object.fromEntries(result.error.issues.map(({ path }) => [
@@ -72,14 +76,26 @@ export async function readJson<T>(request: Request, schema: z.ZodType<T>) {
   return result.data;
 }
 
-export function route(path: string, operation: string, handle: (request: Request) => Promise<Response>) {
-  return async (request: Request) => {
+export function readQuery<T>(request: Request, schema: z.ZodType<T>) {
+  const entries = [...new URL(request.url).searchParams];
+  if (new Set(entries.map(([name]) => name)).size !== entries.length) {
+    throw new ApiError(422, "VALIDATION_FAILED", "Revise os parâmetros enviados.", {
+      fieldErrors: { _query: "Cada parâmetro deve ser informado apenas uma vez." },
+    });
+  }
+  return validate(Object.fromEntries(entries), schema);
+}
+
+export function route<Context extends unknown[]>(
+  path: string, operation: string, handle: (request: Request, ...context: Context) => Promise<Response>,
+) {
+  return async (request: Request, ...context: Context) => {
     const requestId = randomUUID();
     const start = performance.now();
     let response: Response;
     let code: string | undefined;
     try {
-      response = await handle(request);
+      response = await handle(request, ...context);
     } catch (error) {
       const known = error instanceof ApiError;
       const failure = known ? error : new ApiError(500, "INTERNAL_ERROR", "Não foi possível concluir a operação.");

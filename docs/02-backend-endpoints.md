@@ -154,7 +154,7 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 - Normalizar o e-mail com `trim` e caixa baixa antes de consultar.
 - Cadastro público fica desligado. As rotas internas do Better Auth não fazem parte do contrato e a interface não as chama.
 - O limite de tentativas vale por e-mail canônico e por IP. O servidor pode limitar também a concorrência do login.
-- Os corpos JSON da Fase 1 têm limite de 16 KiB.
+- Os corpos JSON da Fase 1 têm limite de 16 KiB. As rotas de produto da Fase 2 aceitam até 256 KiB.
 
 ### 3.2 Conta, navegação e preferências
 
@@ -190,6 +190,7 @@ type ProjectPage = {
 };
 ```
 
+- A coleção `GET /projects` lista projetos comuns. A Caixa de entrada é identificada por `/me` ou `/navigation` e consultada pelo mesmo endpoint individual.
 - Lista e Painel usam a mesma resposta: cada grupo é uma seção na Lista e uma coluna no Painel. O layout não altera dados.
 - `sortMode` `date` ordena as raízes de cada grupo por data e hora, sem data por último. `priority` ordena de P1 a P4. Empate: posição manual e depois `id`. Filhos ficam sempre na ordem manual. A ordem manual persistida não muda; voltar a `manual` a recupera.
 - Com `includeCompleted`, as concluídas aparecem na seção e posição originais, com `status: "completed"`.
@@ -243,6 +244,8 @@ type CreateTask = {
 - A identidade da tarefa nunca muda em edição ou movimento.
 
 **Regras de conclusão.**
+
+- A Fase 2 conclui tarefas avulsas. A criação com regra inicial já é aceita, mas concluir uma ocorrência retorna `422 VALIDATION_FAILED` até a Fase 3.
 
 - Tarefa avulsa: registra `completedAt` e sai das listas ativas, mantendo seção e posição para reabertura.
 - Pai com filhos ativos: sem `includeChildren: true`, `409 HAS_ACTIVE_CHILDREN` com `{ activeChildCount }`. Com ele, conclui pai e filhos na mesma transação. Concluir todos os filhos isoladamente não conclui o pai.
@@ -299,7 +302,7 @@ type MoveResponse = {
 
 1. Tarefa concluída: `409 TASK_COMPLETED`. Projeto de origem ou destino arquivado: `409 PROJECT_ARCHIVED`.
 2. `beforeId` ou `afterId` com o projeto de destino fora de `manual`: `409 SORT_NOT_MANUAL`. Sem âncora, a mudança de seção, de projeto e a criação de subtarefa continuam permitidas em ordenação automática.
-3. A âncora precisa estar no grupo de destino (mesmo projeto, seção e pai) e ser outra tarefa: senão `422 INVALID_ANCHOR`.
+3. Uma âncora que não resolve no tenant responde `404 NOT_FOUND`. Uma âncora visível precisa estar no grupo de destino (mesmo projeto, seção e pai) e ser outra tarefa: senão `422 INVALID_ANCHOR`. A mesma regra vale para âncoras de seção.
 4. Com `parentId`: o pai precisa ser raiz ativa, não recorrente, do mesmo projeto e diferente da própria tarefa (`422 INVALID_PARENT`). A tarefa movida não pode ter filhos nem recorrência (`422 DEPTH_EXCEEDED` ou `422 RECURRENCE_NOT_ALLOWED`). A nova subtarefa assume a seção do pai.
 5. Subtarefa enviada a outro projeto ou seção sem passar por `promote`: `422 MUST_PROMOTE_FIRST`. Trocar de pai dentro da mesma seção é permitido.
 6. Raiz movida leva os filhos, atualizando projeto e seção de todos.
@@ -325,6 +328,8 @@ type MoveResponse = {
 | `PATCH /api/v1/labels/{id}` | 2 | `{ revision, name }` | `200 Label`. |
 | `DELETE /api/v1/labels/{id}?revision=N` | 2 | Vazio. | `204`. Remove os vínculos de tarefas ativas e concluídas e preserva as tarefas. Reabrir uma tarefa não recria a etiqueta. |
 | `GET /api/v1/labels/{id}/tasks` | 2 | `?cursor=&limit=` | `200 { referenceDate, tasks: TaskItem[] com origin, nextCursor }`. Só tarefas ativas de projetos ativos e da Caixa de entrada. |
+
+A listagem por etiqueta emite um cursor vinculado à etiqueta. Um cursor inválido responde `422 VALIDATION_FAILED`.
 
 Unicidade: comparar o nome depois de `trim`, normalização Unicode e caixa baixa, preservando acentos. Serializar criação e renomeação no bloqueio do tenant.
 

@@ -1,6 +1,6 @@
 # Feito
 
-Backend self-hosted de tarefas pessoais. A Fase 1 entrega a base de identidade, sessão, isolamento, armazenamento cifrado e preferências. O [contrato HTTP](docs/02-backend-endpoints.md) e a [arquitetura](docs/01-architecture-and-stack.md) descrevem as fases seguintes.
+Backend self-hosted de tarefas pessoais. O backend entrega identidade, sessão, isolamento e armazenamento cifrado, além de navegação, projetos, seções, tarefas avulsas e etiquetas. O [contrato HTTP](docs/02-backend-endpoints.md) e a [arquitetura](docs/01-architecture-and-stack.md) descrevem as fases seguintes.
 
 ## Rodar localmente
 
@@ -91,4 +91,4 @@ docker compose -p feito-test --env-file "$FEITO_TEST_ENV" up -d --wait postgres
 )
 ```
 
-A Fase 1 não expõe HTTP para tarefas ou projetos. A suíte verifica o `404 NOT_FOUND` de IDs alheios pelo repositório cifrado de tarefas, além de testar as políticas e as chaves estrangeiras no PostgreSQL.
+A suíte verifica isolamento entre contas pelo HTTP e pelas políticas do PostgreSQL. Também cobre revisões concorrentes, arquivamento, ordenação, seções, movimentação de tarefas e vínculos com etiquetas.
