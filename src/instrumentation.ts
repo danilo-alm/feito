@@ -1,0 +1,8 @@
+import "server-only";
+
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { getRuntime } = await import("@/server/runtime");
+    getRuntime();
+  }
+}

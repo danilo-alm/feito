@@ -65,7 +65,9 @@ Contrato HTTP proposto em 17 de novembro de 2026 para o MVP descrito em [Arquite
 | 422 | `INBOX_PROTECTED` | Renomear, arquivar ou excluir a Caixa de entrada, ou criar seção nela. |
 | 422 | `WEAK_PASSWORD` | Senha fora da política de 15 a 128 caracteres. |
 | 422 | `IMPORT_INVALID` | Arquivo com erros de validação. `details.errors` lista os caminhos. |
-| 429 | `RATE_LIMITED` | Excesso de tentativas de login. Enviar `Retry-After`. |
+| 429 | `RATE_LIMITED` | Excesso de tentativas ou de logins simultâneos. Enviar `Retry-After`. |
+| 500 | `INTERNAL_ERROR` | Falha inesperada. Mensagem genérica, sem detalhes internos. |
+| 503 | `SERVICE_UNAVAILABLE` | O banco de identidade ou de domínio está indisponível na checagem de saúde. |
 
 ## 2. Objetos de resposta
 
@@ -143,15 +145,16 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
-| `GET /api/health` | 1 | Sem autenticação. | `200 { "status": "ok" }`, sem detalhes internos. |
+| `GET /api/health` | 1 | Sem autenticação. | `200 { "status": "ok" }` com os dois acessos ao banco disponíveis. Caso contrário, `503 SERVICE_UNAVAILABLE`. Sem detalhes internos. |
 | `POST /api/v1/auth/login` | 1 | `{ email, password }` | `200 { user: { id, email }, mustChangePassword }` e cookie de sessão. `401 INVALID_CREDENTIALS`, `429 RATE_LIMITED`. |
 | `POST /api/v1/auth/logout` | 1 | Vazio. | `204`. Revoga só a sessão atual. |
 | `GET /api/v1/auth/session` | 1 | Vazio. | `200 { user, mustChangePassword }` ou `401`. |
-| `POST /api/v1/auth/password` | 1 | `{ currentPassword, newPassword }` | `204`. Limpa `mustChangePassword` e revoga as outras sessões. `401 INVALID_CREDENTIALS` se a senha atual falhar, `422 WEAK_PASSWORD`. |
+| `POST /api/v1/auth/password` | 1 | `{ currentPassword, newPassword }` | `204`. Limpa `mustChangePassword` e revoga as outras sessões. `401 INVALID_CREDENTIALS` se a senha atual falhar, `422 WEAK_PASSWORD` fora da política e `422 VALIDATION_FAILED` se a nova senha for igual à atual. |
 
 - Normalizar o e-mail com `trim` e caixa baixa antes de consultar.
 - Cadastro público fica desligado. As rotas internas do Better Auth não fazem parte do contrato e a interface não as chama.
-- O limite de tentativas vale por e-mail canônico e por IP.
+- O limite de tentativas vale por e-mail canônico e por IP. O servidor pode limitar também a concorrência do login.
+- Os corpos JSON da Fase 1 têm limite de 16 KiB.
 
 ### 3.2 Conta, navegação e preferências
 
