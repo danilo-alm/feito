@@ -11,7 +11,7 @@ import { decodeProduct, reserveKek, useDek, withDekWrite } from "./product-crypt
 import { dekUsage, preferences, projects, tenantKeys, tenants } from "./schema";
 import { lockTenant, withTenant } from "./tenant";
 
-function preferenceContext(row: Pick<typeof preferences.$inferSelect,
+export function preferenceContext(row: Pick<typeof preferences.$inferSelect,
   "tenantId" | "dekVersion" | "payloadVersion" | "revision">): PayloadContext {
   return { ...row, type: "preferences", id: row.tenantId, links: [] };
 }

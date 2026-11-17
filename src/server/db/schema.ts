@@ -77,6 +77,7 @@ const tenantPolicy = (tenantId: SQLWrapper) => {
 export const tenants = domain.table("tenants", {
   id: uuid("id").primaryKey(),
   activeDekVersion: integer("active_dek_version").notNull().default(1),
+  productRevision: integer("product_revision").notNull().default(0),
 }, (row) => [tenantPolicy(row.id)]).enableRLS();
 
 const cipherColumns = () => ({
@@ -137,16 +138,64 @@ export const projects = domain.table("projects", {
   tenantPolicy(row.tenantId),
 ]).enableRLS();
 
+export const sections = domain.table("sections", {
+  tenantId: uuid("tenant_id").notNull(),
+  projectId: uuid("project_id").notNull(),
+  id: uuid("id").notNull(),
+  ...payloadColumns(),
+}, (row) => [
+  primaryKey({ columns: [row.tenantId, row.id] }),
+  uniqueIndex("section_project_identity").on(row.tenantId, row.projectId, row.id),
+  foreignKey({ columns: [row.tenantId, row.projectId], foreignColumns: [projects.tenantId, projects.id] })
+    .onDelete("cascade"),
+  foreignKey({ columns: [row.tenantId, row.dekVersion], foreignColumns: [tenantKeys.tenantId, tenantKeys.version] }),
+  tenantPolicy(row.tenantId),
+]).enableRLS();
+
 export const tasks = domain.table("tasks", {
   tenantId: uuid("tenant_id").notNull(),
   id: uuid("id").notNull(),
   projectId: uuid("project_id").notNull(),
+  sectionId: uuid("section_id"),
+  parentId: uuid("parent_id"),
+  occurrenceId: uuid("occurrence_id"),
   ...payloadColumns(),
 }, (row) => [
   primaryKey({ columns: [row.tenantId, row.id] }),
-  index("task_project_idx").on(row.tenantId, row.projectId),
+  uniqueIndex("task_project_identity").on(row.tenantId, row.projectId, row.id),
+  index("task_parent_idx").on(row.tenantId, row.parentId),
+  index("task_section_idx").on(row.tenantId, row.projectId, row.sectionId),
+  check("task_not_own_parent", sql`${row.parentId} IS DISTINCT FROM ${row.id}`),
   foreignKey({ columns: [row.tenantId, row.projectId], foreignColumns: [projects.tenantId, projects.id] }),
+  foreignKey({ columns: [row.tenantId, row.projectId, row.sectionId], foreignColumns: [sections.tenantId, sections.projectId, sections.id] }),
+  foreignKey({
+    name: "task_parent_in_project",
+    columns: [row.tenantId, row.projectId, row.parentId],
+    foreignColumns: [row.tenantId, row.projectId, row.id],
+  }).onDelete("cascade"),
   foreignKey({ columns: [row.tenantId, row.dekVersion], foreignColumns: [tenantKeys.tenantId, tenantKeys.version] }),
+  tenantPolicy(row.tenantId),
+]).enableRLS();
+
+export const labels = domain.table("labels", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull(),
+  ...payloadColumns(),
+}, (row) => [
+  primaryKey({ columns: [row.tenantId, row.id] }),
+  foreignKey({ columns: [row.tenantId, row.dekVersion], foreignColumns: [tenantKeys.tenantId, tenantKeys.version] }),
+  tenantPolicy(row.tenantId),
+]).enableRLS();
+
+export const taskLabels = domain.table("task_labels", {
+  tenantId: uuid("tenant_id").notNull(),
+  taskId: uuid("task_id").notNull(),
+  labelId: uuid("label_id").notNull(),
+}, (row) => [
+  primaryKey({ columns: [row.tenantId, row.taskId, row.labelId] }),
+  index("task_label_idx").on(row.tenantId, row.labelId, row.taskId),
+  foreignKey({ columns: [row.tenantId, row.taskId], foreignColumns: [tasks.tenantId, tasks.id] }).onDelete("cascade"),
+  foreignKey({ columns: [row.tenantId, row.labelId], foreignColumns: [labels.tenantId, labels.id] }).onDelete("cascade"),
   tenantPolicy(row.tenantId),
 ]).enableRLS();
 

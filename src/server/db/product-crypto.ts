@@ -43,7 +43,7 @@ export async function withDekWrite<T>(
   keys: KeyConfig,
   tenantId: string,
   count: number,
-  run: (tx: Transaction, version: number, dek: OpenDek) => Promise<T>,
+  run: (tx: Transaction, version: number, dek: OpenDek, tenant: typeof tenants.$inferSelect) => Promise<T>,
 ): Promise<T> {
   if (!Number.isInteger(count) || count < 1 || count > MAX_INVOCATIONS) throw new KeyBudgetError();
   for (;;) {
@@ -65,7 +65,7 @@ export async function withDekWrite<T>(
     const result = await withTenant(db, tenantId, async (tx) => {
       const tenant = await lockTenant(tx, tenantId);
       if (tenant.activeDekVersion !== version) return null;
-      return { value: await useDek(tx, keys, tenantId, version, (dek) => run(tx, version, dek)) };
+      return { value: await useDek(tx, keys, tenantId, version, (dek) => run(tx, version, dek, tenant)) };
     });
     if (result) return result.value;
   }

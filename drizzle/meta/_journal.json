@@ -15,6 +15,13 @@
       "when": 1794950931158,
       "tag": "0001_remove_installation_id",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794951130230,
+      "tag": "0002_workspace_entities",
+      "breakpoints": true
     }
   ]
 }
