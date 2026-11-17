@@ -154,7 +154,7 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 - Normalizar o e-mail com `trim` e caixa baixa antes de consultar.
 - Cadastro público fica desligado. As rotas internas do Better Auth não fazem parte do contrato e a interface não as chama.
 - O limite de tentativas vale por e-mail canônico e por IP. O servidor pode limitar também a concorrência do login.
-- Os corpos JSON da Fase 1 têm limite de 16 KiB. As rotas de produto da Fase 2 aceitam até 256 KiB.
+- Os corpos JSON da Fase 1 têm limite de 16 KiB. As rotas de produto aceitam até 256 KiB.
 
 ### 3.2 Conta, navegação e preferências
 
@@ -245,11 +245,9 @@ type CreateTask = {
 
 **Regras de conclusão.**
 
-- A Fase 2 conclui tarefas avulsas. A criação com regra inicial já é aceita, mas concluir uma ocorrência retorna `422 VALIDATION_FAILED` até a Fase 3.
-
 - Tarefa avulsa: registra `completedAt` e sai das listas ativas, mantendo seção e posição para reabertura.
 - Pai com filhos ativos: sem `includeChildren: true`, `409 HAS_ACTIVE_CHILDREN` com `{ activeChildCount }`. Com ele, conclui pai e filhos na mesma transação. Concluir todos os filhos isoladamente não conclui o pai.
-- Recorrente: `occurrenceId` obrigatório. Na mesma transação, gravar a ocorrência concluída única por `(tenant, tarefa, occurrenceId)` e avançar a tarefa para a primeira data da regra estritamente posterior a `max(data nominal, data efetiva, dia local da conclusão)`, com novo `occurrenceId` e o horário da regra. A resposta traz a tarefa já avançada, ainda `active`. Repetir a mesma conclusão devolve `200` com `alreadyProcessed: true` e o estado atual. `occurrenceId` diferente do aberto e sem registro: `409 OCCURRENCE_STALE`.
+- Recorrente: `occurrenceId` obrigatório. Na mesma transação, gravar a ocorrência concluída única por `(tenant, tarefa, occurrenceId)` e avançar a tarefa para a primeira data da regra estritamente posterior a `max(data nominal, data efetiva, dia local da conclusão)`, com novo `occurrenceId` e o horário da regra. A resposta traz a tarefa já avançada, ainda `active`. Repetir uma conclusão registrada devolve `200` com `alreadyProcessed: true` e o estado atual, inclusive após alterar ou encerrar a regra. `occurrenceId` diferente do aberto e sem registro: `409 OCCURRENCE_STALE`.
 - Exemplos que precisam passar: diária de ontem concluída hoje vai para amanhã; semanal de segunda antecipada para o domingo anterior e concluída nesse domingo vai para a segunda da semana seguinte à nominal; mensal de 31 de janeiro vai para o último dia de fevereiro e depois volta a 31 de março.
 
 **Regras de reabertura.** Só tarefas avulsas concluídas. A tarefa volta à mesma seção e posição; com data passada, aparece como atrasada. Reabrir um filho reabre o pai concluído e informa `reopenedParentId`. Desfazer conclusão de recorrente fica fora do MVP: `422 VALIDATION_FAILED`.
@@ -343,8 +341,8 @@ Unicidade: comparar o nome depois de `trim`, normalização Unicode e caixa baix
 - Entram só tarefas ativas de projetos ativos e da Caixa de entrada, incluindo subtarefas com data própria. Cada tarefa aparece uma vez; subtarefa traz `origin.parentTitle`.
 - Atrasada: data efetiva anterior a `referenceDate`. Horário já passado no mesmo dia continua em Hoje.
 - `overdue` em ordem de data crescente. Cada dia de Hoje e Em breve: horários crescentes, depois itens sem horário, depois prioridade de P1 a P4 e desempate estável.
-- Em breve exclui atrasadas e tarefas sem data. A interface avança de sete em sete dias pelo parâmetro `start`.
-- `completedToday` traz as concluídas cujo `completedAt` cai no dia local de referência.
+- Em breve exclui atrasadas e tarefas sem data. A interface avança de sete em sete dias pelo parâmetro `start`. A janela inteira deve caber no formato `YYYY-MM-DD`.
+- `completedToday` traz tarefas avulsas cujo `completedAt` cai no dia local de referência. O histórico de recorrências permanece fora da agenda.
 
 ### 3.10 Busca e filtros temporários
 
@@ -367,10 +365,11 @@ type SearchRequest = {
 ```
 
 - Comparar título e descrição com a mesma normalização Unicode, sem acentos e em caixa baixa, tratando o texto como substring literal.
-- Critérios presentes combinam por interseção. Sem nenhum critério, responder `200` com lista vazia.
+- Critérios presentes combinam por interseção. Sem nenhum critério, responder `200` com lista vazia. Texto vazio, paginação e `includeCompleted` sozinhos não são critérios.
 - Ativas antes de concluídas. `overdue` considera só ativas, mesmo com `includeCompleted`.
 - Projetos arquivados ficam de fora. Subtarefas entram nas mesmas condições, com `origin.parentTitle`.
 - Avaliar todo o conjunto autorizado antes de cortar a página, para não perder resultados.
+- O cursor é vinculado à conta e aos filtros da busca. Com `today` ou `overdue`, o cursor vale para a data local de referência. Cursor incompatível ou inválido responde `422 VALIDATION_FAILED`.
 
 ### 3.11 Exportação e importação
 

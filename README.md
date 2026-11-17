@@ -1,6 +1,6 @@
 # Feito
 
-Backend self-hosted de tarefas pessoais. O backend entrega identidade, sessão, isolamento e armazenamento cifrado, além de navegação, projetos, seções, tarefas avulsas e etiquetas. O [contrato HTTP](docs/02-backend-endpoints.md) e a [arquitetura](docs/01-architecture-and-stack.md) descrevem as fases seguintes.
+Backend self-hosted de tarefas pessoais. O backend entrega identidade, sessão, isolamento e armazenamento cifrado, além de navegação, projetos, seções, tarefas, etiquetas, recorrência, agenda e busca. O [contrato HTTP](docs/02-backend-endpoints.md) e a [arquitetura](docs/01-architecture-and-stack.md) descrevem as fases seguintes.
 
 ## Rodar localmente
 
@@ -91,4 +91,16 @@ docker compose -p feito-test --env-file "$FEITO_TEST_ENV" up -d --wait postgres
 )
 ```
 
-A suíte verifica isolamento entre contas pelo HTTP e pelas políticas do PostgreSQL. Também cobre revisões concorrentes, arquivamento, ordenação, seções, movimentação de tarefas e vínculos com etiquetas.
+A suíte verifica isolamento entre contas pelo HTTP e pelas políticas do PostgreSQL. Também cobre revisões concorrentes, arquivamento, ordenação, seções, movimentação de tarefas, vínculos com etiquetas, conclusão idempotente de ocorrências, virada de dia no fuso da conta e busca paginada.
+
+### Medição local da Fase 3
+
+Next.js compilado, PostgreSQL 18 em Docker Compose e cliente HTTP no mesmo host ARM64. Cada cenário teve três chamadas de aquecimento e 20 medições sequenciais. A massa tinha 60% de tarefas concluídas, distribuídas em cinco grupos de projeto contando a Caixa de entrada, com descrições sintéticas de tamanhos variados. Hoje foi medido com `includeCompleted=true`. A busca seletiva filtrou por projeto, etiqueta e texto. A busca ampla comparou um trecho de descrição em toda a conta.
+
+| Tarefas | Hoje p95 | Em breve p95 | Busca seletiva p95 | Busca ampla p95 |
+| ---: | ---: | ---: | ---: | ---: |
+| 1.000 | 69 ms | 38 ms | 11 ms | 33 ms |
+| 5.000 | 235 ms | 165 ms | 93 ms | 200 ms |
+| 10.000 | 559 ms | 389 ms | 27 ms | 416 ms |
+
+Na busca seletiva, foram decifradas 19, 91 e 182 tarefas, respectivamente, com 0,02, 0,09 e 0,18 MiB de dados cifrados. Na busca ampla, os volumes foram 1,01, 5,05 e 10,11 MiB. A decifragem e validação das tarefas da busca ampla teve p95 de 7, 61 e 130 ms. O pico de RSS amostrado do processo Next.js em cada massa foi de 490, 564 e 570 MiB.

@@ -94,6 +94,11 @@ export function taskItem(
   };
 }
 
+export function taskItemsWithOrigin(product: Product) {
+  const children = childrenByParent(product.tasks.values());
+  return (task: Task) => taskItem(product, task, { origin: true, children: children.get(task.id) ?? [] });
+}
+
 export function taskDetail(product: Product, task: Task) {
   const children = childrenOf(product, task.id);
   return {

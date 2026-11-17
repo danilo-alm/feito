@@ -1,10 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { childrenByParent, normalizeLabelName, type Product } from "@/domain/product";
+import { normalizeLabelName, type Product } from "@/domain/product";
 import { mutateProduct, readProduct, type ProductAccess } from "@/server/db/product";
 import { ApiError } from "@/server/errors";
-import { labelDto, orderedLabels, taskItem, visibleTask } from "./product-dto";
+import { labelDto, orderedLabels, taskItemsWithOrigin, visibleTask } from "./product-dto";
 import { nextRevision, requireRevision, validation, visibleRecord } from "./product-rules";
 
 export function listLabels(access: ProductAccess) {
@@ -83,10 +83,9 @@ export function listLabelTasks(access: ProductAccess, id: string, limit: number,
       .filter((task) => task.id > after && product.taskLabels.get(task.id)?.includes(id) && visibleTask(product, task))
       .sort((a, b) => a.id.localeCompare(b.id)).slice(0, limit + 1);
     const page = candidates.slice(0, limit);
-    const children = childrenByParent(product.tasks.values());
     return {
       referenceDate: product.referenceDate,
-      tasks: page.map((task) => taskItem(product, task, { origin: true, children: children.get(task.id) ?? [] })),
+      tasks: page.map(taskItemsWithOrigin(product)),
       nextCursor: candidates.length > limit ? encodeCursor(id, page.at(-1)!.id) : null,
     };
   });
