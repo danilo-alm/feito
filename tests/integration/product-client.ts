@@ -25,6 +25,11 @@ import * as today from "@/app/api/v1/views/today/route";
 import * as upcoming from "@/app/api/v1/views/upcoming/route";
 import * as search from "@/app/api/v1/search/route";
 import * as preferences from "@/app/api/v1/preferences/route";
+import * as me from "@/app/api/v1/me/route";
+import * as download from "@/app/api/v1/export/route";
+import * as preview from "@/app/api/v1/import/preview/route";
+import * as confirm from "@/app/api/v1/import/confirm/route";
+import * as operation from "@/app/api/v1/import/operations/[id]/route";
 import { connectDatabase } from "@/server/db/client";
 import { user } from "@/server/db/schema";
 import { getRuntime } from "@/server/runtime";
@@ -64,6 +69,11 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "/views/upcoming": upcoming,
   "/search": search,
   "/preferences": preferences,
+  "/me": me,
+  "/export": download,
+  "/import/preview": preview,
+  "/import/confirm": confirm,
+  "/import/operations/:id": operation,
 };
 
 let runtime: ReturnType<typeof getRuntime>;
@@ -79,19 +89,24 @@ afterAll(async () => {
   await Promise.all([runtime?.close(), admin?.close()]);
 });
 
-export function send(method: Method, path: string, cookie?: string, body?: unknown, originAllowed = true) {
+type RequestOptions = { raw?: string | Uint8Array<ArrayBuffer>; headers?: HeadersInit };
+
+export function send(
+  method: Method, path: string, cookie?: string, body?: unknown, originAllowed = true, options: RequestOptions = {},
+) {
   const origin = runtime.identity.config.origin;
   const addr = randomBytes(4).toString("hex");
   const headers = new Headers({ "x-feito-test-ip": `2001:db8::${addr.slice(0, 4)}:${addr.slice(4)}` });
   if (originAllowed) headers.set("Origin", origin);
   if (cookie) headers.set("Cookie", cookie);
-  if (body !== undefined) headers.set("Content-Type", "application/json");
+  if (body !== undefined || options.raw !== undefined) headers.set("Content-Type", "application/json");
+  new Headers(options.headers).forEach((value, name) => headers.set(name, value));
   const request = new Request(origin + "/api/v1" + path, {
-    method, headers, body: body === undefined ? undefined : JSON.stringify(body),
+    method, headers, body: options.raw ?? (body === undefined ? undefined : JSON.stringify(body)),
   });
   const [pathname] = path.split("?");
-  const id = pathname.split("/")[2] ?? "";
-  const pattern = ["/projects/", "/sections/", "/tasks/", "/labels/"].some((prefix) => pathname.startsWith(prefix))
+  const id = pathname.startsWith("/import/operations/") ? pathname.split("/").at(-1)! : pathname.split("/")[2] ?? "";
+  const pattern = ["/projects/", "/sections/", "/tasks/", "/labels/", "/import/operations/"].some((prefix) => pathname.startsWith(prefix))
     ? pathname.replace(`/${id}`, "/:id") : pathname;
   const handler = routes[pattern]?.[method];
   if (!handler) throw new Error(`Missing test route ${method} ${pattern}`);
@@ -120,7 +135,8 @@ export async function accountFixture(provisional = false) {
   expect(response.status).toBe(200);
   const cookie = response.headers.getSetCookie().find((value) => value.startsWith("__Secure-feito.session_token="))?.split(";")[0];
   expect(cookie).toBeDefined();
-  const call = (method: Method, path: string, body?: unknown) => send(method, path, cookie, body);
+  const call = (method: Method, path: string, body?: unknown, options?: RequestOptions) =>
+    send(method, path, cookie, body, true, options);
   if (!provisional) {
     const updated = await call("POST", "/auth/password", {
       currentPassword: password, newPassword: randomBytes(24).toString("base64url"),
