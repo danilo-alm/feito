@@ -187,6 +187,20 @@ export const labels = domain.table("labels", {
   tenantPolicy(row.tenantId),
 ]).enableRLS();
 
+export const completedOccurrences = domain.table("completed_occurrences", {
+  tenantId: uuid("tenant_id").notNull(),
+  taskId: uuid("task_id").notNull(),
+  occurrenceId: uuid("occurrence_id").notNull(),
+  ...payloadColumns(),
+}, (row) => [
+  primaryKey({ columns: [row.tenantId, row.taskId, row.occurrenceId] }),
+  foreignKey({ name: "occurrence_task", columns: [row.tenantId, row.taskId], foreignColumns: [tasks.tenantId, tasks.id] })
+    .onDelete("cascade"),
+  foreignKey({ name: "occurrence_dek", columns: [row.tenantId, row.dekVersion],
+    foreignColumns: [tenantKeys.tenantId, tenantKeys.version] }),
+  tenantPolicy(row.tenantId),
+]).enableRLS();
+
 export const taskLabels = domain.table("task_labels", {
   tenantId: uuid("tenant_id").notNull(),
   taskId: uuid("task_id").notNull(),

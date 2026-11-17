@@ -1,23 +1,21 @@
 import "server-only";
+import { Temporal } from "@js-temporal/polyfill";
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
 import { referenceDate } from "@/domain/preferences";
-import type { Label, Product, Project, Section, Task } from "@/domain/product";
+import type { CompletedOccurrence, Label, OccurrenceReference, Product, Project, Section, Task } from "@/domain/product";
 import type { KeyConfig } from "@/server/crypto/config";
-import { PAYLOAD_VERSION, sealPayload, type Ciphertext, type PayloadContext } from "@/server/crypto/envelope";
+import { PAYLOAD_VERSION, sealPayload, type PayloadContext } from "@/server/crypto/envelope";
 import { ApiError } from "@/server/errors";
 import { preferences as preferenceSchema } from "@/validation/account";
 import { labelPayload, projectPayload, sectionPayload, taskPayload } from "@/validation/product";
 import type { Database, Transaction } from "./client";
-import { decodeProduct, useDek, withDekWrite, type OpenDek } from "./product-crypto";
-import { labels, preferences, projects, sections, taskLabels, tasks, tenants } from "./schema";
-import { lockTenant, withTenant } from "./tenant";
+import { withDekWrite, withProductReader, type OpenDek, type ProductReader } from "./product-crypto";
+import { completedOccurrences, labels, preferences, projects, sections, taskLabels, tasks, tenants } from "./schema";
+import { advanceProductRevision, lockTenant, withTenant } from "./tenant";
 import { ensureWorkspace, preferenceContext } from "./workspace";
 
 export type ProductAccess = { db: Database; keys: KeyConfig; tenantId: string };
 type Metadata = Pick<PayloadContext, "tenantId" | "dekVersion" | "payloadVersion" | "revision">;
-type PayloadRow = Metadata & Ciphertext;
-type VersionReader = <T>(row: PayloadRow, ctx: PayloadContext, schema: z.ZodType<T>) => Promise<T>;
 
 function context(row: Metadata & { id: string }, type: PayloadContext["type"], links: PayloadContext["links"] = []) {
   return { ...row, type, links };
@@ -30,51 +28,58 @@ function taskContext(row: Metadata & Pick<Task, "id" | "projectId" | "sectionId"
   return context(row, "task", links);
 }
 
-async function mapRows<Row extends { id: string }, Value>(rows: Row[], decode: (row: Row) => Promise<Value>) {
+export async function mapRows<Row extends { id: string }, Value>(rows: Row[], decode: (row: Row) => Promise<Value>) {
   const map = new Map<string, Value>();
   for (const row of rows) map.set(row.id, await decode(row));
   return map;
 }
 
-async function decodeWorkspace(
-  reader: VersionReader,
-  projectRows: (typeof projects.$inferSelect)[],
-  sectionRows: (typeof sections.$inferSelect)[],
-  taskRows: (typeof tasks.$inferSelect)[],
-  labelRows: (typeof labels.$inferSelect)[],
-  preference: typeof preferences.$inferSelect,
-  links: (typeof taskLabels.$inferSelect)[],
-): Promise<Product> {
+export async function readCalendar(reader: ProductReader, preference: typeof preferences.$inferSelect) {
   const { timezone } = await reader(preference, preferenceContext(preference), preferenceSchema);
-  const taskLabelIds = new Map<string, string[]>();
-  for (const link of links) {
-    const existing = taskLabelIds.get(link.taskId);
-    if (existing) existing.push(link.labelId);
-    else taskLabelIds.set(link.taskId, [link.labelId]);
-  }
+  const now = Temporal.Now.instant();
+  return { timezone, now, referenceDate: referenceDate(timezone, now) };
+}
+
+export async function readProjectRecord(reader: ProductReader, row: typeof projects.$inferSelect): Promise<Project> {
   return {
-    projects: await mapRows(projectRows, async (row): Promise<Project> => ({
-      id: row.id, revision: row.revision, isInbox: row.isInbox,
-      data: await reader(row, context(row, "project", [row.isInbox]), projectPayload),
-    })),
-    sections: await mapRows(sectionRows, async (row): Promise<Section> => ({
-      id: row.id, revision: row.revision, projectId: row.projectId,
-      data: await reader(row, context(row, "section", [row.projectId]), sectionPayload),
-    })),
-    tasks: await mapRows(taskRows, async (row): Promise<Task> => ({
-      id: row.id, revision: row.revision, projectId: row.projectId, sectionId: row.sectionId,
-      parentId: row.parentId, occurrenceId: row.occurrenceId,
-      data: await reader(row, taskContext(row), taskPayload),
-    })),
-    labels: await mapRows(labelRows, async (row): Promise<Label> => ({
-      id: row.id, revision: row.revision, data: await reader(row, context(row, "label"), labelPayload),
-    })),
-    taskLabels: taskLabelIds,
-    referenceDate: referenceDate(timezone),
+    id: row.id, revision: row.revision, isInbox: row.isInbox,
+    data: await reader(row, context(row, "project", [row.isInbox]), projectPayload),
   };
 }
 
-async function readSnapshot({ db, keys, tenantId }: ProductAccess) {
+export async function readSectionRecord(reader: ProductReader, row: typeof sections.$inferSelect): Promise<Section> {
+  return {
+    id: row.id, revision: row.revision, projectId: row.projectId,
+    data: await reader(row, context(row, "section", [row.projectId]), sectionPayload),
+  };
+}
+
+export async function readTaskRecord(reader: ProductReader, row: typeof tasks.$inferSelect): Promise<Task> {
+  return {
+    id: row.id, revision: row.revision, projectId: row.projectId, sectionId: row.sectionId,
+    parentId: row.parentId, occurrenceId: row.occurrenceId,
+    data: await reader(row, taskContext(row), taskPayload),
+  };
+}
+
+export async function readLabelRecord(reader: ProductReader, row: typeof labels.$inferSelect): Promise<Label> {
+  return {
+    id: row.id, revision: row.revision,
+    data: await reader(row, context(row, "label"), labelPayload),
+  };
+}
+
+export function mapTaskLabels(links: Pick<typeof taskLabels.$inferSelect, "taskId" | "labelId">[]) {
+  const taskLabelIds = new Map<string, string[]>();
+  for (const { taskId, labelId } of links) {
+    const existing = taskLabelIds.get(taskId);
+    if (existing) existing.push(labelId);
+    else taskLabelIds.set(taskId, [labelId]);
+  }
+  return taskLabelIds;
+}
+
+async function readSnapshot({ db, keys, tenantId }: ProductAccess, occurrence?: OccurrenceReference) {
   return withTenant(db, tenantId, async (tx) => {
     const [tenant] = await tx.select().from(tenants).where(eq(tenants.id, tenantId));
     const [preference] = await tx.select().from(preferences);
@@ -85,25 +90,24 @@ async function readSnapshot({ db, keys, tenantId }: ProductAccess) {
     const labelRows = await tx.select().from(labels);
     const links = await tx.select().from(taskLabels);
 
-    const versions = [...new Set([preference, ...projectRows, ...sectionRows, ...taskRows, ...labelRows]
-      .map((row) => row.dekVersion))];
-    const opened = new Map<number, OpenDek>();
-    async function readWithKeys(index: number): Promise<Product> {
-      const version = versions[index];
-      if (version === undefined) {
-        return decodeWorkspace(
-          (row, aad, schema) => decodeProduct(opened.get(row.dekVersion)!, aad, row, schema),
-          projectRows, sectionRows, taskRows, labelRows, preference, links,
-        );
-      }
-      return useDek(tx, keys, tenantId, version, async (dek) => {
-        opened.set(version, dek);
-        return readWithKeys(index + 1);
-      });
-    }
-
-    return { revision: tenant.productRevision, product: await readWithKeys(0) };
+    const recorded = occurrence ? await occurrenceExists(tx, occurrence) : false;
+    const product: Product = await withProductReader(tx, keys, tenantId, async (reader) => ({
+      ...await readCalendar(reader, preference),
+      projects: await mapRows(projectRows, (row) => readProjectRecord(reader, row)),
+      sections: await mapRows(sectionRows, (row) => readSectionRecord(reader, row)),
+      tasks: await mapRows(taskRows, (row) => readTaskRecord(reader, row)),
+      labels: await mapRows(labelRows, (row) => readLabelRecord(reader, row)),
+      taskLabels: mapTaskLabels(links),
+    }));
+    return { revision: tenant.productRevision, product, recorded };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
+async function occurrenceExists(tx: Transaction, { taskId, occurrenceId }: OccurrenceReference) {
+  const [match] = await tx.select({ occurrenceId: completedOccurrences.occurrenceId })
+    .from(completedOccurrences)
+    .where(and(eq(completedOccurrences.taskId, taskId), eq(completedOccurrences.occurrenceId, occurrenceId)));
+  return !!match;
 }
 
 export async function readProduct<T>(access: ProductAccess, select: (product: Product) => T) {
@@ -125,15 +129,17 @@ function diff<T>(original: Map<string, T>, current: Map<string, T>): Delta<T> {
   return { upsert, removed };
 }
 
-function changes(original: Product, current: Product) {
+function changes(original: Product, current: Product, occurrence?: CompletedOccurrence) {
   const project = diff(original.projects, current.projects);
   const section = diff(original.sections, current.sections);
   const task = diff(original.tasks, current.tasks);
   const label = diff(original.labels, current.labels);
   const links = diff(original.taskLabels, current.taskLabels);
-  const encryptions = project.upsert.length + section.upsert.length + task.upsert.length + label.upsert.length;
-  const hasChanges = [project, section, task, label, links].some((delta) => delta.upsert.length || delta.removed.length);
-  return { project, section, task, label, links, encryptions, hasChanges };
+  const encryptions = project.upsert.length + section.upsert.length + task.upsert.length + label.upsert.length
+    + Number(occurrence !== undefined);
+  const hasChanges = encryptions > 0 || [project, section, task, label, links].some((delta) => delta.removed.length)
+    || links.upsert.length > 0;
+  return { project, section, task, label, links, occurrence, encryptions, hasChanges };
 }
 
 type Changes = ReturnType<typeof changes>;
@@ -169,6 +175,14 @@ async function writeEncrypted(tx: Transaction, tenantId: string, version: number
     if (previous) await tx.update(tasks).set({ ...encrypted, ...links }).where(eq(tasks.id, next.id));
     else await tx.insert(tasks).values({ tenantId, ...encrypted, ...links, id: next.id });
   }
+  if (plan.occurrence) {
+    const { taskId, occurrenceId, data } = plan.occurrence;
+    const metadata = fields(1);
+    const aad = context({ ...metadata, id: occurrenceId }, "completed_occurrence", [taskId]);
+    await tx.insert(completedOccurrences).values({
+      ...metadata, taskId, occurrenceId, ...sealPayload(dek.key, aad, data),
+    });
+  }
 }
 
 async function writeRelationships(tx: Transaction, tenantId: string, plan: Changes) {
@@ -199,19 +213,24 @@ function copyProduct(product: Product): Product {
   };
 }
 
+type MutationHistory = { recorded: boolean; completion?: CompletedOccurrence };
+
 export async function mutateProduct<T>(
-  access: ProductAccess, apply: (draft: Product, original: Product) => T,
+  access: ProductAccess,
+  apply: (draft: Product, original: Product, history: MutationHistory) => T,
+  occurrence?: OccurrenceReference,
 ): Promise<T> {
   const { db, keys, tenantId } = access;
   await ensureWorkspace(db, keys, tenantId);
   for (;;) {
-    const { product: original, revision } = await readSnapshot(access);
+    const { product: original, revision, recorded } = await readSnapshot(access, occurrence);
     const draft = copyProduct(original);
     let outcome: { value: T } | { error: ApiError };
     let plan: Changes | undefined;
     try {
-      outcome = { value: apply(draft, original) };
-      plan = changes(original, draft);
+      const history: MutationHistory = { recorded };
+      outcome = { value: apply(draft, original, history) };
+      plan = changes(original, draft, history.completion);
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
       outcome = { error };
@@ -231,7 +250,7 @@ export async function mutateProduct<T>(
         await writeEncrypted(tx, tenantId, version, dek, plan);
       }
       await writeRelationships(tx, tenantId, plan);
-      await tx.update(tenants).set({ productRevision: revision + 1 }).where(eq(tenants.id, tenantId));
+      await advanceProductRevision(tx, tenant);
       return outcome;
     };
     const result = plan?.encryptions

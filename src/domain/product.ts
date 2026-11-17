@@ -1,4 +1,5 @@
-import type { LabelPayload, ProjectPayload, SectionPayload, TaskPayload } from "@/validation/product";
+import type { Temporal } from "@js-temporal/polyfill";
+import type { CompletedOccurrencePayload, LabelPayload, ProjectPayload, SectionPayload, TaskPayload } from "@/validation/product";
 
 type RecordData<T> = { id: string; revision: number; data: T };
 export type Project = RecordData<ProjectPayload> & { isInbox: boolean };
@@ -7,6 +8,9 @@ export type Label = RecordData<LabelPayload>;
 export type TaskGroup = { projectId: string; sectionId: string | null; parentId: string | null };
 export type Task = RecordData<TaskPayload> & TaskGroup & { occurrenceId: string | null };
 
+export type OccurrenceReference = { taskId: string; occurrenceId: string };
+export type CompletedOccurrence = OccurrenceReference & { data: CompletedOccurrencePayload };
+
 export type Product = {
   projects: Map<string, Project>;
   sections: Map<string, Section>;
@@ -14,6 +18,8 @@ export type Product = {
   labels: Map<string, Label>;
   taskLabels: Map<string, string[]>;
   referenceDate: string;
+  timezone: string;
+  now: Temporal.Instant;
 };
 
 export function byPosition<T extends { id: string; data: { position: number } }>(a: T, b: T) {

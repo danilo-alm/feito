@@ -19,9 +19,7 @@ export async function reserveKek(db: Database, version: number) {
 
 export type OpenDek = { key: Buffer; legacyBinding: () => Promise<string> };
 
-export async function useDek<T>(
-  tx: Transaction, keys: KeyConfig, tenantId: string, version: number, run: (dek: OpenDek) => Promise<T>,
-) {
+async function openDek(tx: Transaction, keys: KeyConfig, tenantId: string, version: number): Promise<OpenDek> {
   const [envelope] = await tx.select().from(tenantKeys)
     .where(and(eq(tenantKeys.tenantId, tenantId), eq(tenantKeys.version, version)));
   if (!envelope) throw new CipherError();
@@ -31,10 +29,39 @@ export async function useDek<T>(
     return legacy.binding;
   });
   const key = unwrapDek(keys, envelope, envelope.aadVersion === 1 ? await legacyBinding() : undefined);
+  return { key, legacyBinding };
+}
+
+export async function useDek<T>(
+  tx: Transaction, keys: KeyConfig, tenantId: string, version: number, run: (dek: OpenDek) => Promise<T>,
+) {
+  const dek = await openDek(tx, keys, tenantId, version);
   try {
-    return await run({ key, legacyBinding });
+    return await run(dek);
   } finally {
-    key.fill(0);
+    dek.key.fill(0);
+  }
+}
+
+export type ProductReader = <T>(row: Ciphertext & { dekVersion: number }, ctx: PayloadContext, schema: z.ZodType<T>) => Promise<T>;
+
+export async function withProductReader<T>(
+  tx: Transaction, keys: KeyConfig, tenantId: string, run: (reader: ProductReader) => Promise<T>,
+) {
+  const byVersion = new Map<number, Promise<OpenDek>>();
+  try {
+    return await run(async (row, ctx, schema) => {
+      let opened = byVersion.get(row.dekVersion);
+      if (!opened) {
+        opened = openDek(tx, keys, tenantId, row.dekVersion);
+        byVersion.set(row.dekVersion, opened);
+      }
+      return decodeProduct(await opened, ctx, row, schema);
+    });
+  } finally {
+    for (const key of await Promise.allSettled(byVersion.values())) {
+      if (key.status === "fulfilled") key.value.key.fill(0);
+    }
   }
 }
 

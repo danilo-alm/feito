@@ -9,7 +9,7 @@ import { preferences as preferencesSchema, type Preferences } from "@/validation
 import type { Database, Transaction } from "./client";
 import { decodeProduct, reserveKek, useDek, withDekWrite } from "./product-crypto";
 import { dekUsage, preferences, projects, tenantKeys, tenants } from "./schema";
-import { lockTenant, withTenant } from "./tenant";
+import { advanceProductRevision, lockTenant, withTenant } from "./tenant";
 
 export function preferenceContext(row: Pick<typeof preferences.$inferSelect,
   "tenantId" | "dekVersion" | "payloadVersion" | "revision">): PayloadContext {
@@ -90,7 +90,7 @@ export async function persistPreferences(
 ) {
   if (!Object.keys(patch).length) return (await readWorkspace(db, keys, tenantId)).preferences;
 
-  return withDekWrite(db, keys, tenantId, 1, async (tx, version, dek) => {
+  return withDekWrite(db, keys, tenantId, 1, async (tx, version, dek, tenant) => {
     const row = await preferenceRow(tx, tenantId);
     const current = row.dekVersion === version
       ? await decodeProduct(dek, preferenceContext(row), row, preferencesSchema)
@@ -101,6 +101,7 @@ export async function persistPreferences(
       ...metadata,
       ...sealPayload(dek.key, preferenceContext({ tenantId, ...metadata }), updated),
     }).where(eq(preferences.tenantId, tenantId));
+    await advanceProductRevision(tx, tenant);
     return updated;
   });
 }

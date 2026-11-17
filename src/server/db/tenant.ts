@@ -17,3 +17,7 @@ export async function lockTenant(tx: Transaction, tenantId: string) {
   if (!tenant) throw new Error("Contexto de tenant indisponível.");
   return tenant;
 }
+
+export async function advanceProductRevision(tx: Transaction, tenant: typeof tenants.$inferSelect) {
+  await tx.update(tenants).set({ productRevision: tenant.productRevision + 1 }).where(eq(tenants.id, tenant.id));
+}

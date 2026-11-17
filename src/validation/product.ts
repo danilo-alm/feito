@@ -35,6 +35,20 @@ export const recurrenceRule = z.strictObject({
   nominalDate: civilDate,
 });
 
+export const setRecurrenceInput = z.strictObject({
+  revision,
+  frequency,
+  anchorDate: civilDate,
+  time: localTime.nullable().optional(),
+});
+
+export const completedOccurrencePayload = z.strictObject({
+  nominalDate: civilDate,
+  dueDate: civilDate,
+  dueTime: localTime.nullable(),
+  completedAt: instant,
+});
+
 export const projectView = z.strictObject({
   layout: z.enum(["list", "board"]),
   sortMode: z.enum(["manual", "date", "priority"]),
@@ -122,6 +136,24 @@ export const labelTasksQuery = z.strictObject({
     .transform((value) => value ?? 50),
 });
 
+export const todayQuery = z.strictObject({ includeCompleted: queryBool.optional() });
+export const upcomingQuery = z.strictObject({ start: civilDate.optional() });
+export const searchDate = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.enum(["today", "overdue", "none"]) }),
+  z.strictObject({ kind: z.literal("range"), from: civilDate, to: civilDate })
+    .refine(({ from, to }) => from <= to, { path: ["to"] }),
+]);
+export const searchInput = z.strictObject({
+  text: z.string().refine((value) => value.isWellFormed()).optional(),
+  projectId: entityId.optional(),
+  labelId: entityId.optional(),
+  priority: priority.optional(),
+  date: searchDate.optional(),
+  includeCompleted: z.boolean().default(false),
+  cursor: z.string().min(1).max(128).optional(),
+  limit: z.number().int().min(1).max(200).default(50),
+});
+
 export type ProjectPayload = z.infer<typeof projectPayload>;
 export type SectionPayload = z.infer<typeof sectionPayload>;
 export type TaskPayload = z.infer<typeof taskPayload>;
@@ -131,3 +163,7 @@ export type EditTaskInput = z.infer<typeof editTaskInput>;
 export type TaskMoveInput = z.infer<typeof taskMoveInput>;
 export type CompleteTaskInput = z.infer<typeof completeTaskInput>;
 export type ProjectView = z.infer<typeof projectView>;
+export type RecurrenceRule = z.infer<typeof recurrenceRule>;
+export type SetRecurrenceInput = z.infer<typeof setRecurrenceInput>;
+export type CompletedOccurrencePayload = z.infer<typeof completedOccurrencePayload>;
+export type SearchInput = z.infer<typeof searchInput>;
