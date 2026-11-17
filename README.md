@@ -1,6 +1,6 @@
 # Feito
 
-Backend self-hosted de tarefas pessoais. O backend entrega identidade, sessão, isolamento e armazenamento cifrado, além de navegação, projetos, seções, tarefas, etiquetas, recorrência, agenda e busca. O [contrato HTTP](docs/02-backend-endpoints.md) e a [arquitetura](docs/01-architecture-and-stack.md) descrevem as fases seguintes.
+Backend self-hosted de tarefas pessoais. O backend entrega identidade, sessão, isolamento e armazenamento cifrado, além de navegação, projetos, seções, tarefas, etiquetas, recorrência, agenda, busca e portabilidade. O [contrato HTTP](docs/02-backend-endpoints.md) e a [arquitetura](docs/01-architecture-and-stack.md) definem o comportamento da API e a operação local.
 
 ## Rodar localmente
 
@@ -10,6 +10,7 @@ Crie um arquivo privado **fora do checkout** a partir de [`.env.example`](.env.e
 
 - `FEITO_ORIGIN` com a origem HTTPS exata, por exemplo `https://127.0.0.1:3000`, sem barra final.
 - `BETTER_AUTH_SECRET` com um segredo independente de pelo menos 32 caracteres. Use `openssl rand -hex 32`. Defina `DATA_KEK_ACTIVE_VERSION` como `1` e gere outro segredo para `DATA_KEK_V1` com `openssl rand -base64 32`. Use uma KEK distinta em cada ambiente.
+- `IMPORT_PREVIEW_SECRET` com um terceiro segredo independente, gerado com `openssl rand -hex 32`. Opcionalmente, configure `IMPORT_MAX_BYTES` em bytes. O padrão é 32 MiB e o máximo configurável é 64 MiB.
 - As cinco senhas `POSTGRES_*_PASSWORD` com valores distintos. Use `openssl rand -hex 32` para cada uma. O Compose inicializa as roles ao criar o volume.
 - As URLs de conexão no formato `postgresql://ROLE:SENHA@127.0.0.1:5432/feito`, usando a porta de `POSTGRES_PORT` se configurada. Cada URL usa a senha correspondente à role.
 
@@ -45,7 +46,7 @@ Gere um certificado local, mantenha sua chave no diretório privado e suba o Nex
    -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' \
    -keyout "$FEITO_LOCAL/tls.key" -out "$FEITO_LOCAL/tls.crt")
 (
-  unset MIGRATION_DATABASE_URL IDENTITY_ADMIN_DATABASE_URL
+  unset MIGRATION_DATABASE_URL IDENTITY_ADMIN_DATABASE_URL KEY_MAINTENANCE_DATABASE_URL
   unset POSTGRES_BOOTSTRAP_PASSWORD POSTGRES_MIGRATOR_PASSWORD POSTGRES_IDENTITY_ADMIN_PASSWORD
   unset POSTGRES_APP_PASSWORD POSTGRES_AUTH_PASSWORD
   pnpm dev --port 3000 \
@@ -91,7 +92,7 @@ docker compose -p feito-test --env-file "$FEITO_TEST_ENV" up -d --wait postgres
 )
 ```
 
-A suíte verifica isolamento entre contas pelo HTTP e pelas políticas do PostgreSQL. Também cobre revisões concorrentes, arquivamento, ordenação, seções, movimentação de tarefas, vínculos com etiquetas, conclusão idempotente de ocorrências, virada de dia no fuso da conta e busca paginada.
+A suíte verifica isolamento entre contas pelo HTTP e pelas políticas do PostgreSQL. Também cobre revisões concorrentes, arquivamento, ordenação, seções, movimentação de tarefas, vínculos com etiquetas, conclusão idempotente de ocorrências, virada de dia no fuso da conta, busca paginada e portabilidade entre contas com chaves de dados distintas.
 
 ### Medição local da Fase 3
 
@@ -104,3 +105,45 @@ Next.js compilado, PostgreSQL 18 em Docker Compose e cliente HTTP no mesmo host 
 | 10.000 | 559 ms | 389 ms | 27 ms | 416 ms |
 
 Na busca seletiva, foram decifradas 19, 91 e 182 tarefas, respectivamente, com 0,02, 0,09 e 0,18 MiB de dados cifrados. Na busca ampla, os volumes foram 1,01, 5,05 e 10,11 MiB. A decifragem e validação das tarefas da busca ampla teve p95 de 7, 61 e 130 ms. O pico de RSS amostrado do processo Next.js em cada massa foi de 490, 564 e 570 MiB.
+
+## Backup e chaves
+
+A portabilidade exporta um JSON legível com os dados de uma conta. O backup PostgreSQL contém também identidades, hashes de senha e chaves de dados encapsuladas. Mantenha o backup cifrado e as versões da KEK em armazenamento recuperável separado.
+
+Após a migração, execute [`scripts/postgres-maintenance.sql`](scripts/postgres-maintenance.sql) com `psql` como DBA no banco do Feito. O script concede leitura global a `feito_backup` e operações de manutenção cifrada a `feito_keys`. Crie logins separados como membros dessas roles, com senha definida pelo prompt `\password` do `psql`. Use o login de manutenção somente na configuração privada de `KEY_MAINTENANCE_DATABASE_URL`.
+
+### Backup e restauração isolada
+
+Com o PostgreSQL 18, configure os parâmetros `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e `PGPASSFILE` para o login de backup. O Restic pode receber o dump diretamente e cancelar o snapshot se o comando falhar. [PostgreSQL pg_dump](https://www.postgresql.org/docs/18/app-pgdump.html), [Restic e saída de comandos](https://restic.readthedocs.io/en/stable/040_backup.html#reading-data-from-a-command)
+
+```sh
+restic backup --stdin-from-command --stdin-filename feito.dump -- \
+  pg_dump --format=custom --role=feito_backup
+```
+
+Para recuperar, use um banco vazio e isolado com os nomes de role do [bootstrap](scripts/postgres-init.sql) e execute `scripts/postgres-maintenance.sql` com `psql -v roles_only=1` para criar as roles operacionais antes do dump ser restaurado. A restauração usa uma conexão de DBA e preserva as permissões do snapshot. Aponte os parâmetros `PG*` para esse destino antes de executar. [PostgreSQL pg_restore](https://www.postgresql.org/docs/18/app-pgrestore.html), [Restic dump](https://restic.readthedocs.io/en/stable/050_restore.html#printing-files-to-stdout)
+
+```sh
+set -o pipefail
+restic dump "$SNAPSHOT_ID" feito.dump | pg_restore --exit-on-error --single-transaction
+```
+
+Invalide as sessões recuperadas com `DELETE FROM identity.session;` no banco isolado e verifique leitura com as KEKs originais. Se o snapshot reverteu contadores de cifragem, abra uma versão nova de KEK e ative uma nova DEK **para cada tenant antes de retomar escritas**. Confirme login e leitura e gravação de produto antes de abrir o acesso.
+
+### Rotação local
+
+Em um terminal de manutenção, carregue as KEKs antigas e a nova versão, com `DATA_KEK_ACTIVE_VERSION` apontando para a nova. Obtenha o UUID de tenant no schema de identidade por uma conexão administrativa.
+
+```sh
+pnpm keys kek:rewrap --tenant "$TENANT_ID"
+pnpm keys dek:activate --tenant "$TENANT_ID"
+pnpm keys dek:rekey --tenant "$TENANT_ID"
+```
+
+`kek:rewrap` reencapsula as DEKs em lotes, preservando os payloads. `dek:activate` cria uma versão nova a cada execução bem-sucedida. `dek:rekey` recifra os registros com a versão ativa e preserva IDs e revisões. Execute novamente `kek:rewrap` ou `dek:rekey` para retomar lotes interrompidos. Mantenha as KEKs necessárias aos snapshots retidos na custódia de backup.
+
+### Validação local da Fase 4
+
+O ciclo por HTTPS com 10.000 tarefas sintéticas exportou 12.504.889 bytes. A exportação levou 573 ms, a prévia 367 ms e a confirmação 903 ms em um host local ARM64. A reexportação da conta de destino preservou o conteúdo. Em um segundo ensaio, o mesmo volume de tarefas foi transferido com um corpo JSON de exatamente 32 MiB, completado com espaços. A prévia e a confirmação aceitaram esse corpo. Com um byte a mais, a prévia respondeu `413`.
+
+O ensaio de recuperação usou `pg_dump` com a role dedicada e `pg_restore` em um segundo PostgreSQL 18, com o material da KEK carregado separadamente. A transferência e a restauração SQL da massa pequena levaram 174 ms. Foram verificados a revogação das sessões restauradas, o reenvelopamento de KEK, a recifragem de DEK e um novo login e uma nova gravação.

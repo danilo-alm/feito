@@ -11,6 +11,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "db:generate": "node --conditions=react-server node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "drizzle-kit migrate",
+    "keys": "node --conditions=react-server --import=tsx scripts/keys.ts",
     "admin": "node --conditions=react-server --import=tsx scripts/admin.ts",
     "test": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration"
