@@ -1,0 +1,442 @@
+# Guia de endpoints do backend
+
+Contrato HTTP proposto em 17 de novembro de 2026 para o MVP descrito em [Arquitetura e stack](01-architecture-and-stack.md). Este guia orienta quem vai implementar o backend. A interface web será construída depois, consumindo exatamente este contrato. As telas de referência estão no design do MVP (Hoje, Em breve, Caixa de entrada, Projeto em Lista e Painel, Detalhe, Criação rápida, Busca, Ajustes e Entrar).
+
+**Decisão.** Todas as leituras interativas e mutações são expostas por Route Handlers JSON em `/api/v1`, no mesmo deploy Next.js. Isso substitui o uso de Server Actions previsto antes e permite desenvolver e testar o backend sem a interface. Os Route Handlers continuam finos: validam a entrada com Zod, resolvem sessão e tenant e chamam os casos de uso em `src/server/services`. Server Components podem chamar os mesmos casos de uso diretamente na carga inicial, desde que devolvam os mesmos DTOs.
+
+## 1. Convenções
+
+| Tema | Regra |
+| --- | --- |
+| Base e formato | Prefixo `/api/v1`. Corpo e resposta em JSON UTF-8 com chaves em `camelCase`. Exceções: download da exportação e corpo bruto da importação. |
+| Autenticação | Cookie de sessão opaco emitido pelo login (`HttpOnly`, `Secure`, `SameSite=Lax`). Toda rota, exceto `POST /auth/login` e `GET /api/health`, exige sessão válida e conta ativa. Sem sessão: `401 UNAUTHENTICATED`. |
+| Senha provisória | Enquanto a conta tiver `mustChangePassword`, só respondem `GET /auth/session`, `GET /me`, `POST /auth/password` e `POST /auth/logout`. As demais devolvem `403 PASSWORD_CHANGE_REQUIRED`. |
+| Origem | Métodos que alteram estado (`POST`, `PATCH`, `PUT`, `DELETE`) exigem `Origin` igual à origem configurada da instalação. Caso contrário: `403 FORBIDDEN_ORIGIN`. |
+| Tenant | O tenant vem sempre da sessão, nunca do corpo ou da URL. IDs de outra conta, inexistentes ou de entidades excluídas respondem `404 NOT_FOUND`, sem distinguir os casos. |
+| Cache | Todas as respostas usam `Cache-Control: private, no-store`. Nenhum conteúdo pessoal vai para query string: busca e filtros usam corpo `POST`. |
+| IDs | UUIDs opacos gerados pelo servidor. O cliente só gera `operationId` da importação. |
+| Concorrência | Cada entidade editável tem `revision` inteiro. Mutações recebem a `revision` observada. Divergência: `409 REVISION_CONFLICT` com o estado atual em `error.details.current`. |
+| Datas | Data civil `YYYY-MM-DD`, horário local `HH:mm` no fuso do perfil e instantes em ISO 8601 UTC (`2026-11-17T12:30:00Z`). O servidor calcula o dia de referência; respostas de agenda e listas incluem `referenceDate`. |
+| Prioridade | Inteiro `1` a `4`. `1` é a mais alta; `4` é o padrão e significa sem prioridade. |
+| Texto | Títulos passam por `trim` e não podem ficar vazios. Descrição é texto simples com várias linhas, sem HTML. Limites sugeridos: título até 500 caracteres, descrição até 10 000, nomes de projeto, seção e etiqueta até 120. |
+| Listas longas | Busca e listas transversais paginam por `cursor` opaco e `limit` (padrão 50, máximo 200). Listas de projeto e agenda respondem completas. |
+| Logs | Registrar rota, operação, duração, contagens e código de erro. Nunca registrar corpo, títulos, descrições, e-mail, cookies, tokens ou arquivos. |
+
+### Formato de erro
+
+```json
+{
+  "error": {
+    "code": "DEPTH_EXCEEDED",
+    "message": "Subtarefas aceitam apenas um nível.",
+    "details": {}
+  }
+}
+```
+
+`message` é um texto curto em português que a interface pode exibir. A interface decide pelo `code`.
+
+| HTTP | `code` | Quando |
+| --- | --- | --- |
+| 400 | `MALFORMED_REQUEST` | JSON inválido ou corpo ausente. |
+| 401 | `UNAUTHENTICATED` | Sessão ausente, expirada ou revogada. |
+| 401 | `INVALID_CREDENTIALS` | Login recusado, inclusive conta desativada. Mensagem sempre genérica. |
+| 403 | `PASSWORD_CHANGE_REQUIRED` | Conta com senha provisória. |
+| 403 | `FORBIDDEN_ORIGIN` | Mutação sem a origem esperada. |
+| 404 | `NOT_FOUND` | Entidade inexistente ou de outro tenant. |
+| 409 | `REVISION_CONFLICT` | Revisão desatualizada. |
+| 409 | `TASK_COMPLETED` | Edição ou movimento de tarefa concluída sem reabrir. |
+| 409 | `PROJECT_ARCHIVED` | Mutação em projeto arquivado ou em suas seções e tarefas. |
+| 409 | `PROJECT_NOT_EMPTY` | Exclusão de projeto com tarefas ativas ou concluídas. |
+| 409 | `HAS_ACTIVE_CHILDREN` | Conclusão de pai com filhos ativos sem `includeChildren`. |
+| 409 | `HAS_CHILDREN` | Exclusão de pai sem `withChildren=true`. |
+| 409 | `SORT_NOT_MANUAL` | Reordenação por posição com o projeto em ordenação automática. |
+| 409 | `OCCURRENCE_STALE` | Conclusão recorrente com `occurrenceId` que não é o aberto e não foi registrado. |
+| 409 | `LABEL_EXISTS` | Nome de etiqueta já usado na conta. |
+| 409 | `DESTINATION_NOT_EMPTY` | Importação em conta com dados. |
+| 410 | `PREVIEW_EXPIRED` | Token de prévia da importação vencido. |
+| 413 | `PAYLOAD_TOO_LARGE` | Arquivo ou corpo acima do limite configurado. |
+| 422 | `VALIDATION_FAILED` | Campos inválidos. `details.fieldErrors` traz `{ campo: mensagem }`. |
+| 422 | `DEPTH_EXCEEDED` | Movimento ou criação que geraria mais de um nível de subtarefas. |
+| 422 | `INVALID_PARENT` | Pai inválido: é subtarefa, é a própria tarefa, está concluído, é recorrente ou está em outro projeto. |
+| 422 | `MUST_PROMOTE_FIRST` | Subtarefa enviada para outro projeto ou seção sem antes virar tarefa raiz. |
+| 422 | `INVALID_ANCHOR` | `beforeId` ou `afterId` fora do grupo de destino. |
+| 422 | `RECURRENCE_NOT_ALLOWED` | Recorrência em subtarefa ou em tarefa com filhos. |
+| 422 | `INBOX_PROTECTED` | Renomear, arquivar ou excluir a Caixa de entrada, ou criar seção nela. |
+| 422 | `WEAK_PASSWORD` | Senha fora da política de 15 a 128 caracteres. |
+| 422 | `IMPORT_INVALID` | Arquivo com erros de validação. `details.errors` lista os caminhos. |
+| 429 | `RATE_LIMITED` | Excesso de tentativas de login. Enviar `Retry-After`. |
+
+## 2. Objetos de resposta
+
+```ts
+type Priority = 1 | 2 | 3 | 4;
+type Frequency = "daily" | "weekly" | "monthly";
+
+// Linha da Lista, cartão do Painel e item de agenda ou busca
+type TaskItem = {
+  id: string;
+  revision: number;
+  title: string;
+  descriptionExcerpt: string | null; // primeira linha não vazia, até 140 caracteres
+  priority: Priority;
+  status: "active" | "completed";
+  completedAt: string | null;        // instante UTC
+  dueDate: string | null;            // data efetiva da agenda
+  dueTime: string | null;
+  overdue: boolean;                  // ativa e dueDate < referenceDate
+  recurrence: { frequency: Frequency } | null;
+  occurrenceId: string | null;       // obrigatório para concluir recorrente
+  projectId: string;
+  sectionId: string | null;
+  parentId: string | null;
+  childIds: string[];                // ordem manual dos filhos; vazio em subtarefas
+  subtasks: { total: number; completed: number };
+  labels: { id: string; name: string }[];
+  origin?: {                         // só em vistas transversais (Hoje, Em breve, busca, etiqueta)
+    projectName: string;
+    isInbox: boolean;
+    sectionName: string | null;
+    parentTitle: string | null;
+  };
+};
+
+type TaskDetail = TaskItem & {
+  description: string;
+  createdAt: string;
+  recurrenceRule: {
+    frequency: Frequency;
+    anchorDate: string;
+    time: string | null;
+    nominalDate: string;             // data da regra para a ocorrência aberta
+  } | null;
+  children: TaskItem[];
+};
+
+type Section = { id: string; revision: number; name: string; taskCount: number };
+
+type ProjectView = {
+  layout: "list" | "board";          // Caixa de entrada aceita só "list"
+  sortMode: "manual" | "date" | "priority";
+  showCompleted: boolean;
+};
+
+type ProjectSummary = {
+  id: string;
+  revision: number;
+  name: string;
+  isInbox: boolean;
+  status: "active" | "archived";
+  activeCount: number;               // tarefas e subtarefas ativas
+};
+
+type Label = { id: string; revision: number; name: string; activeCount: number };
+
+type Preferences = { timezone: string; theme: "light" | "dark" | "system" };
+```
+
+## 3. Endpoints
+
+A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10-plano-recomendado-de-implementação).
+
+### 3.1 Saúde e sessão
+
+| Método e rota | Fase | Entrada | Resposta |
+| --- | --- | --- | --- |
+| `GET /api/health` | 1 | Sem autenticação. | `200 { "status": "ok" }`, sem detalhes internos. |
+| `POST /api/v1/auth/login` | 1 | `{ email, password }` | `200 { user: { id, email }, mustChangePassword }` e cookie de sessão. `401 INVALID_CREDENTIALS`, `429 RATE_LIMITED`. |
+| `POST /api/v1/auth/logout` | 1 | Vazio. | `204`. Revoga só a sessão atual. |
+| `GET /api/v1/auth/session` | 1 | Vazio. | `200 { user, mustChangePassword }` ou `401`. |
+| `POST /api/v1/auth/password` | 1 | `{ currentPassword, newPassword }` | `204`. Limpa `mustChangePassword` e revoga as outras sessões. `401 INVALID_CREDENTIALS` se a senha atual falhar, `422 WEAK_PASSWORD`. |
+
+- Normalizar o e-mail com `trim` e caixa baixa antes de consultar.
+- Cadastro público fica desligado. As rotas internas do Better Auth não fazem parte do contrato e a interface não as chama.
+- O limite de tentativas vale por e-mail canônico e por IP.
+
+### 3.2 Conta, navegação e preferências
+
+| Método e rota | Fase | Entrada | Resposta |
+| --- | --- | --- | --- |
+| `GET /api/v1/me` | 1 | Vazio. | `200 { user, mustChangePassword, preferences, inboxProjectId, referenceDate }`. Provisiona de forma idempotente tenant, DEK, preferências e Caixa de entrada no primeiro acesso. |
+| `GET /api/v1/navigation` | 2 | Vazio. | `200 { inbox: { projectId, activeCount }, todayCount, projects: ProjectSummary[], archivedCount, labels: Label[], referenceDate }`. Alimenta a barra lateral e a navegação do celular. `todayCount` soma atrasadas e de hoje. Projetos ativos na ordem de criação. |
+| `PATCH /api/v1/preferences` | 1 | `{ timezone?, theme? }` | `200 Preferences`. `timezone` precisa ser um identificador IANA válido. Trocar o fuso muda o cálculo de Hoje sem alterar datas e horas gravadas. |
+
+### 3.3 Projetos
+
+| Método e rota | Fase | Entrada | Resposta |
+| --- | --- | --- | --- |
+| `GET /api/v1/projects?status=active\|archived` | 2 | Padrão `active`. | `200 { projects: ProjectSummary[] }`. |
+| `POST /api/v1/projects` | 2 | `{ name }` | `201 ProjectSummary`. View inicial: `list`, `manual`, `showCompleted: false`. |
+| `GET /api/v1/projects/{id}` | 2 | `?includeCompleted=true\|false`. Padrão: o `showCompleted` salvo. | `200 ProjectPage` (abaixo). Funciona também para a Caixa de entrada e para projetos arquivados, em modo leitura. |
+| `PATCH /api/v1/projects/{id}` | 2 | `{ revision, name }` | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
+| `PATCH /api/v1/projects/{id}/view` | 2 | `{ layout?, sortMode?, showCompleted? }` | `200 ProjectView`. Sem `revision`: vale a última escrita. Caixa de entrada com `board`: `422 VALIDATION_FAILED`. |
+| `POST /api/v1/projects/{id}/archive` | 2 | `{ revision }` | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
+| `POST /api/v1/projects/{id}/unarchive` | 2 | `{ revision }` | `200 ProjectSummary`. Tarefas voltam com os mesmos estados, datas e posições. |
+| `DELETE /api/v1/projects/{id}?revision=N` | 2 | Vazio. | `204`. Só sem tarefas ativas ou concluídas; seções vazias vão junto. Senão `409 PROJECT_NOT_EMPTY` com `{ activeCount, completedCount }`. |
+
+```ts
+type ProjectPage = {
+  referenceDate: string;
+  project: ProjectSummary & { view: ProjectView };
+  sections: Section[];                 // ordem manual das seções
+  groups: {
+    sectionId: string | null;          // null = grupo "Sem seção", sempre primeiro
+    rootIds: string[];                 // raízes já na ordem do sortMode
+  }[];
+  tasks: TaskItem[];                   // raízes e filhos referenciados por rootIds e childIds
+};
+```
+
+- Lista e Painel usam a mesma resposta: cada grupo é uma seção na Lista e uma coluna no Painel. O layout não altera dados.
+- `sortMode` `date` ordena as raízes de cada grupo por data e hora, sem data por último. `priority` ordena de P1 a P4. Empate: posição manual e depois `id`. Filhos ficam sempre na ordem manual. A ordem manual persistida não muda; voltar a `manual` a recupera.
+- Com `includeCompleted`, as concluídas aparecem na seção e posição originais, com `status: "completed"`.
+- Projetos arquivados ficam fora de agendas, busca, contagens e destinos de movimento até a reativação.
+
+### 3.4 Seções
+
+| Método e rota | Fase | Entrada | Resposta |
+| --- | --- | --- | --- |
+| `POST /api/v1/projects/{id}/sections` | 2 | `{ name, afterSectionId? \| beforeSectionId? }`. Sem âncora: fim. | `201 Section`. Caixa de entrada: `422 INBOX_PROTECTED`. |
+| `PATCH /api/v1/sections/{id}` | 2 | `{ revision, name }` | `200 Section`. |
+| `POST /api/v1/sections/{id}/move` | 2 | `{ revision, afterSectionId? \| beforeSectionId? }` | `200 { sectionIds }` com a nova ordem do projeto. |
+| `DELETE /api/v1/sections/{id}?revision=N` | 2 | Vazio. | `200 { movedTaskCount }`. As árvores da seção vão para o fim do grupo Sem seção, mantendo ordem relativa, filhos, etiquetas e estados. |
+
+`Section.taskCount` (ativas e concluídas, com subtarefas) permite à interface avisar o impacto antes de excluir.
+
+### 3.5 Tarefas
+
+| Método e rota | Fase | Entrada | Resposta |
+| --- | --- | --- | --- |
+| `POST /api/v1/tasks` | 2 | `CreateTask` (abaixo). | `201 TaskDetail`. |
+| `GET /api/v1/tasks/{id}` | 2 | Vazio. | `200 TaskDetail`. Abre o detalhe; inclui tarefas concluídas e de projetos arquivados. |
+| `PATCH /api/v1/tasks/{id}` | 2 e 3 | `{ revision, title?, description?, priority?, dueDate?, dueTime?, labelIds? }` | `200 TaskDetail`. |
+| `POST /api/v1/tasks/{id}/complete` | 2 e 3 | `{ revision, occurrenceId?, includeChildren? }` | `200 { task: TaskItem, completedChildIds: string[], alreadyProcessed: boolean }`. |
+| `POST /api/v1/tasks/{id}/reopen` | 2 | `{ revision }` | `200 { task: TaskItem, reopenedParentId: string \| null }`. |
+| `DELETE /api/v1/tasks/{id}?revision=N&withChildren=true` | 2 | Vazio. | `204`. Com filhos e sem `withChildren=true`: `409 HAS_CHILDREN` com `{ childCount }`. |
+
+```ts
+type CreateTask = {
+  title: string;
+  description?: string;
+  projectId?: string;           // padrão: Caixa de entrada
+  sectionId?: string | null;
+  parentId?: string | null;     // cria subtarefa; herda projeto e seção do pai
+  priority?: Priority;          // padrão 4
+  dueDate?: string | null;
+  dueTime?: string | null;
+  labelIds?: string[];
+  recurrence?: { frequency: Frequency; anchorDate?: string; time?: string | null } | null;
+};
+```
+
+**Regras de criação.** A nova tarefa vai para o fim do seu grupo (seção do projeto ou lista de irmãos). Com `parentId`, o pai precisa ser raiz ativa, não recorrente e de projeto ativo; `projectId` e `sectionId` enviados são ignorados em favor dos do pai. `dueTime` exige `dueDate`. `recurrence` só vale sem `parentId`; `anchorDate` padrão é `dueDate` e, sem nenhum dos dois, `422`. Projeto arquivado: `409 PROJECT_ARCHIVED`.
+
+**Regras de edição.**
+
+- Tarefa concluída: qualquer `PATCH`, movimento ou recorrência devolve `409 TASK_COMPLETED`. A interface reabre antes.
+- `dueDate: null` remove também o horário. Mudar só `dueDate` preserva o horário atual. `dueTime` sem data: `422`.
+- Em tarefa recorrente, `dueDate` e `dueTime` mudam apenas a ocorrência aberta (data e hora efetivas) e mantêm `occurrenceId` e a data nominal. `dueDate: null` em recorrente: `422`; para encerrar a série, usar `DELETE /recurrence`.
+- `labelIds` substitui o conjunto inteiro. IDs de etiquetas de outra conta: `404`.
+- A identidade da tarefa nunca muda em edição ou movimento.
+
+**Regras de conclusão.**
+
+- Tarefa avulsa: registra `completedAt` e sai das listas ativas, mantendo seção e posição para reabertura.
+- Pai com filhos ativos: sem `includeChildren: true`, `409 HAS_ACTIVE_CHILDREN` com `{ activeChildCount }`. Com ele, conclui pai e filhos na mesma transação. Concluir todos os filhos isoladamente não conclui o pai.
+- Recorrente: `occurrenceId` obrigatório. Na mesma transação, gravar a ocorrência concluída única por `(tenant, tarefa, occurrenceId)` e avançar a tarefa para a primeira data da regra estritamente posterior a `max(data nominal, data efetiva, dia local da conclusão)`, com novo `occurrenceId` e o horário da regra. A resposta traz a tarefa já avançada, ainda `active`. Repetir a mesma conclusão devolve `200` com `alreadyProcessed: true` e o estado atual. `occurrenceId` diferente do aberto e sem registro: `409 OCCURRENCE_STALE`.
+- Exemplos que precisam passar: diária de ontem concluída hoje vai para amanhã; semanal de segunda antecipada para o domingo anterior e concluída nesse domingo vai para a segunda da semana seguinte à nominal; mensal de 31 de janeiro vai para o último dia de fevereiro e depois volta a 31 de março.
+
+**Regras de reabertura.** Só tarefas avulsas concluídas. A tarefa volta à mesma seção e posição; com data passada, aparece como atrasada. Reabrir um filho reabre o pai concluído e informa `reopenedParentId`. Desfazer conclusão de recorrente fica fora do MVP: `422 VALIDATION_FAILED`.
+
+**Regras de exclusão.** Exclusão permanente, inclusive de concluídas, apagando filhos, vínculos de etiqueta e histórico de ocorrências. Não existe lixeira no MVP.
+
+### 3.6 Mover, reordenar e criar subtarefa
+
+Um único endpoint atende arrastar e soltar na Lista e no Painel, o menu “Mover para…”, os comandos de teclado e a criação de subtarefa por arraste.
+
+`POST /api/v1/tasks/{id}/move` · Fase 2
+
+```ts
+type MoveRequest = {
+  revision: number;
+  target:
+    | {
+        type: "position";
+        projectId: string;
+        sectionId: string | null;
+        parentId: string | null;   // preenchido = vira ou continua subtarefa desse pai
+        beforeId?: string;         // no máximo um dos dois;
+        afterId?: string;          // sem nenhum = fim do grupo
+      }
+    | { type: "promote" };         // subtarefa vira raiz logo depois do pai
+};
+
+type MoveResponse = {
+  task: TaskItem;
+  groups: {                        // ordem canônica de cada grupo afetado
+    projectId: string;
+    sectionId: string | null;
+    parentId: string | null;
+    orderedIds: string[];
+  }[];
+};
+```
+
+| Gesto na interface | Requisição |
+| --- | --- |
+| Reordenar na mesma seção (linha de inserção) | `position` com o mesmo projeto, seção e pai, e `beforeId` ou `afterId` do vizinho. |
+| Arrastar cartão para outra coluna do Painel | `position` com o `sectionId` da coluna; com âncora se soltou entre cartões, sem âncora se soltou no fundo da coluna. |
+| Soltar sobre o centro de uma tarefa raiz | `position` com `parentId` dessa raiz e sem âncora. |
+| “Mover para…” outro projeto ou seção | `position` com o destino e sem âncora. Projeto sem seção escolhida: `sectionId: null`. |
+| Alt+↑ e Alt+↓ | `position` com `beforeId` do irmão anterior ou `afterId` do seguinte. |
+| Alt+→ (tornar subtarefa da anterior) | `position` com `parentId` da raiz anterior. |
+| Alt+← (promover) | `promote`. |
+
+**Validação no servidor, em transação com bloqueio do tenant:**
+
+1. Tarefa concluída: `409 TASK_COMPLETED`. Projeto de origem ou destino arquivado: `409 PROJECT_ARCHIVED`.
+2. `beforeId` ou `afterId` com o projeto de destino fora de `manual`: `409 SORT_NOT_MANUAL`. Sem âncora, a mudança de seção, de projeto e a criação de subtarefa continuam permitidas em ordenação automática.
+3. A âncora precisa estar no grupo de destino (mesmo projeto, seção e pai) e ser outra tarefa: senão `422 INVALID_ANCHOR`.
+4. Com `parentId`: o pai precisa ser raiz ativa, não recorrente, do mesmo projeto e diferente da própria tarefa (`422 INVALID_PARENT`). A tarefa movida não pode ter filhos nem recorrência (`422 DEPTH_EXCEEDED` ou `422 RECURRENCE_NOT_ALLOWED`). A nova subtarefa assume a seção do pai.
+5. Subtarefa enviada a outro projeto ou seção sem passar por `promote`: `422 MUST_PROMOTE_FIRST`. Trocar de pai dentro da mesma seção é permitido.
+6. Raiz movida leva os filhos, atualizando projeto e seção de todos.
+7. Reescrever as posições do grupo de origem e do de destino e devolver `groups` com a ordem final. A interface aplica a mudança de forma otimista e substitui pelo resultado; em erro, restaura a posição original.
+
+### 3.7 Recorrência
+
+| Método e rota | Fase | Entrada | Resposta |
+| --- | --- | --- | --- |
+| `PUT /api/v1/tasks/{id}/recurrence` | 3 | `{ revision, frequency, anchorDate, time? }` | `200 TaskDetail`. Define ou substitui a regra, com novo `occurrenceId` e datas nominal e efetiva iguais à âncora. O histórico anterior permanece. |
+| `DELETE /api/v1/tasks/{id}/recurrence?revision=N` | 3 | Vazio. | `200 TaskDetail`. Remove a regra e mantém a data e o horário efetivos como tarefa avulsa. |
+
+- `daily`: todo dia a partir da âncora. `weekly`: mesmo dia da semana da âncora. `monthly`: mesmo dia do mês da âncora, usando o último dia nos meses mais curtos e voltando ao dia original quando possível.
+- Só tarefas raiz sem filhos: senão `422 RECURRENCE_NOT_ALLOWED`. Uma recorrente também não recebe filhos.
+- Listas e agendas mostram apenas a ocorrência aberta de cada série.
+
+### 3.8 Etiquetas
+
+| Método e rota | Fase | Entrada | Resposta |
+| --- | --- | --- | --- |
+| `GET /api/v1/labels` | 2 | Vazio. | `200 { labels: Label[] }` em ordem alfabética. |
+| `POST /api/v1/labels` | 2 | `{ name }` | `201 Label`. Duplicata: `409 LABEL_EXISTS` com o `id` existente em `details`. |
+| `PATCH /api/v1/labels/{id}` | 2 | `{ revision, name }` | `200 Label`. |
+| `DELETE /api/v1/labels/{id}?revision=N` | 2 | Vazio. | `204`. Remove os vínculos de tarefas ativas e concluídas e preserva as tarefas. Reabrir uma tarefa não recria a etiqueta. |
+| `GET /api/v1/labels/{id}/tasks` | 2 | `?cursor=&limit=` | `200 { referenceDate, tasks: TaskItem[] com origin, nextCursor }`. Só tarefas ativas de projetos ativos e da Caixa de entrada. |
+
+Unicidade: comparar o nome depois de `trim`, normalização Unicode e caixa baixa, preservando acentos. Serializar criação e renomeação no bloqueio do tenant.
+
+### 3.9 Agenda: Hoje e Em breve
+
+| Método e rota | Fase | Entrada | Resposta |
+| --- | --- | --- | --- |
+| `GET /api/v1/views/today` | 3 | `?includeCompleted=true\|false`, padrão `false`. | `200 { referenceDate, timezone, overdue: TaskItem[], today: TaskItem[], completedToday?: TaskItem[] }`, todos com `origin`. |
+| `GET /api/v1/views/upcoming` | 3 | `?start=YYYY-MM-DD`, padrão amanhã. | `200 { referenceDate, start, days: { date, tasks: TaskItem[] }[] }` com sete dias consecutivos, inclusive os vazios. `start` antes de amanhã: `422`. |
+
+- Entram só tarefas ativas de projetos ativos e da Caixa de entrada, incluindo subtarefas com data própria. Cada tarefa aparece uma vez; subtarefa traz `origin.parentTitle`.
+- Atrasada: data efetiva anterior a `referenceDate`. Horário já passado no mesmo dia continua em Hoje.
+- `overdue` em ordem de data crescente. Cada dia de Hoje e Em breve: horários crescentes, depois itens sem horário, depois prioridade de P1 a P4 e desempate estável.
+- Em breve exclui atrasadas e tarefas sem data. A interface avança de sete em sete dias pelo parâmetro `start`.
+- `completedToday` traz as concluídas cujo `completedAt` cai no dia local de referência.
+
+### 3.10 Busca e filtros temporários
+
+`POST /api/v1/search` · Fase 3
+
+```ts
+type SearchRequest = {
+  text?: string;                   // trecho literal; sem curingas
+  projectId?: string;              // projeto ou Caixa de entrada
+  labelId?: string;
+  priority?: Priority;
+  date?:
+    | { kind: "today" | "overdue" | "none" }
+    | { kind: "range"; from: string; to: string };   // inclusivo
+  includeCompleted?: boolean;      // padrão false
+  cursor?: string;
+  limit?: number;
+};
+// Resposta: { referenceDate, results: TaskItem[] com origin, nextCursor }
+```
+
+- Comparar título e descrição com a mesma normalização Unicode, sem acentos e em caixa baixa, tratando o texto como substring literal.
+- Critérios presentes combinam por interseção. Sem nenhum critério, responder `200` com lista vazia.
+- Ativas antes de concluídas. `overdue` considera só ativas, mesmo com `includeCompleted`.
+- Projetos arquivados ficam de fora. Subtarefas entram nas mesmas condições, com `origin.parentTitle`.
+- Avaliar todo o conjunto autorizado antes de cortar a página, para não perder resultados.
+
+### 3.11 Exportação e importação
+
+| Método e rota | Fase | Entrada | Resposta |
+| --- | --- | --- | --- |
+| `GET /api/v1/export` | 4 | Vazio. | `200 application/json` com `Content-Disposition: attachment; filename="feito-dados-YYYY-MM-DD.json"`. Documento versionado com todos os dados de produto da conta, incluindo arquivados, concluídas e ocorrências, conforme o [contrato da versão 1](01-architecture-and-stack.md#7-exportação-e-importação). |
+| `POST /api/v1/import/preview` | 4 | Corpo bruto `application/json` com o arquivo. | `200 ImportPreview`. Arquivo grande demais: `413`. |
+| `POST /api/v1/import/confirm` | 4 | Corpo bruto com o mesmo arquivo e cabeçalhos `X-Preview-Token` e `X-Operation-Id` (UUID gerado pela interface). | `200 { operationId, summary }`. Repetir a mesma operação já registrada devolve o mesmo resumo. |
+| `GET /api/v1/import/operations/{operationId}` | 4 | Vazio. | `200 { operationId, status: "completed", summary }` ou `404`. Serve para recuperar o resultado se a resposta da confirmação se perder. |
+
+```ts
+type ImportCounts = {
+  projects: number; archivedProjects: number; sections: number;
+  tasks: number; completedTasks: number; labels: number; occurrences: number;
+};
+
+type ImportPreview = {
+  schemaVersion: number | null;
+  counts: ImportCounts | null;
+  errors: { path: string; message: string }[];   // vazio quando válido
+  destinationEmpty: boolean;
+  previewToken: string | null;   // só quando válido e destino vazio
+  expiresAt: string | null;
+};
+```
+
+- Conta vazia: só a Caixa de entrada inicial, sem tarefas, e preferências iniciais. Com dados, a prévia responde `destinationEmpty: false` sem token, e a confirmação devolve `409 DESTINATION_NOT_EMPTY`.
+- O token é assinado, temporário e vinculado à sessão, ao tenant, à operação e ao hash dos bytes. Na confirmação, revalidar tudo: arquivo diferente devolve `422 IMPORT_INVALID`; token vencido, `410 PREVIEW_EXPIRED`.
+- Importar em uma transação: remapear IDs, reutilizar a Caixa de entrada provisionada, cifrar com a DEK do destino e gravar o recibo da operação. Qualquer falha mantém a conta como estava.
+- Não gravar o arquivo em disco nem em logs.
+
+## 4. Comandos administrativos
+
+A administração de contas não tem rota HTTP no MVP. Implementar como comandos locais (por exemplo, `pnpm admin <comando>`) que usam o mesmo serviço de identidade e registram quem executou, a conta, o momento e o resultado.
+
+| Comando | Efeito |
+| --- | --- |
+| `account:create --email` | Pede a senha provisória por prompt protegido, cria a conta com `mustChangePassword` e não inicia sessão. |
+| `account:list` | Lista e-mail, estado e criação, sem conteúdo de produto. |
+| `account:reset-password --email` | Define senha provisória por prompt, marca `mustChangePassword` e revoga todas as sessões na mesma transação. |
+| `account:revoke-sessions --email` | Revoga todas as sessões. |
+| `account:disable --email` e `account:enable --email` | Bloqueia ou libera o login e revoga as sessões ao desativar. |
+
+Senhas nunca entram em argumentos, histórico de shell, logs ou arquivos.
+
+## 5. Telas e endpoints usados
+
+| Tela | Carga | Ações |
+| --- | --- | --- |
+| Entrar e troca de senha | `GET /auth/session` | `POST /auth/login`, `POST /auth/password` |
+| Barra lateral e navegação do celular | `GET /navigation` | `POST /projects` |
+| Hoje | `GET /views/today` | `complete`, `reopen`, `PATCH` de data, `POST /tasks` com `dueDate` de hoje |
+| Em breve | `GET /views/upcoming` | `complete`, `PATCH` de data |
+| Caixa de entrada | `GET /me` e `GET /projects/{inboxProjectId}` | `POST /tasks`, `move`, `complete`, `reopen`, `PATCH /projects/{id}/view` |
+| Projeto em Lista ou Painel | `GET /projects/{id}` | `move`, `PATCH /projects/{id}/view`, seções, `complete`, `reopen`, `POST /tasks` |
+| Menu de visualização | estado de `project.view` | `PATCH /projects/{id}/view` e nova leitura do projeto |
+| Detalhe da tarefa | `GET /tasks/{id}`, `GET /labels` | `PATCH /tasks/{id}`, `recurrence`, `move`, `POST /tasks` com `parentId`, `DELETE` |
+| Criação rápida | `GET /navigation`, `GET /labels` | `POST /tasks` |
+| Busca e filtros | `GET /navigation` para os seletores | `POST /search` |
+| Ajustes e dados | `GET /me`, `GET /projects?status=archived` | `PATCH /preferences`, `unarchive`, `GET /export`, `import/preview`, `import/confirm`, `POST /auth/password`, `POST /auth/logout` |
+
+Ajuste de design: o botão “Reagendar” do grupo Atrasadas sugere adiamento em lote, que fica fora do MVP. A interface vai oferecer o reagendamento por tarefa, com `PATCH /tasks/{id}`.
+
+## 6. Entrega e aceite
+
+Entregar por fase, com testes de integração em PostgreSQL real e a role de execução, conforme a [estratégia de testes](01-architecture-and-stack.md#9-estratégia-de-testes).
+
+| Fase | Endpoints | Aceite mínimo |
+| --- | --- | --- |
+| 1 | `health`, `auth/*`, `me`, `preferences` | Duas contas na mesma instalação; a conta B recebe `404` em qualquer ID da conta A; senha provisória bloqueia as demais rotas; logout revoga a sessão. |
+| 2 | `navigation`, `projects/*`, `sections/*`, `tasks` (criar, ler, editar, concluir, reabrir, excluir), `move`, `labels/*` | Seis projetos ativos; arquivar e reativar preservando estados; `move` cobre reordenação, troca de coluna, subtarefa por soltura, promoção e cada erro da seção 3.6; `SORT_NOT_MANUAL` com ordenação automática; voltar a `manual` recupera a ordem. |
+| 3 | `recurrence`, `views/today`, `views/upcoming`, `search` | Exemplos de recorrência da seção 3.5; conclusão repetida e simultânea avança uma única vez; virada do dia no fuso do perfil move tarefas para Atrasadas; busca com e sem acento combinando critérios. |
+| 4 | `export`, `import/*` | Exportar a conta A, importar na B vazia com outra DEK e exportar B gera documentos equivalentes, exceto IDs e instante; arquivo inválido ou destino preenchido não altera nada; confirmação repetida devolve o mesmo resumo. |
+
+## 7. Fora do MVP
+
+Não criar rotas para: prazo final, filtros salvos, lixeira ou restauração de excluídas, desfazer conclusão recorrente, adiamento em lote, arraste entre dias de Em breve, calendário, tabela, agrupamento por etiqueta ou prioridade, reordenação de projetos, cor e favoritos, anexos, lembretes, colaboração, painel administrativo web e fusão de importações. Quando entrarem, acrescentar ao contrato `v1` sem quebrar campos existentes ou abrir `/api/v2`.
