@@ -376,7 +376,7 @@ type SearchRequest = {
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
 | `GET /api/v1/export` | 4 | Vazio. | `200 application/json` com `Content-Disposition: attachment; filename="feito-dados-YYYY-MM-DD.json"`. Documento versionado com todos os dados de produto da conta, incluindo arquivados, concluídas e ocorrências, conforme o [contrato da versão 1](01-architecture-and-stack.md#7-exportação-e-importação). |
-| `POST /api/v1/import/preview` | 4 | Corpo bruto `application/json` com o arquivo. | `200 ImportPreview`. Arquivo grande demais: `413`. |
+| `POST /api/v1/import/preview` | 4 | Corpo bruto `application/json` com o arquivo. Cabeçalho `X-Operation-Id` opcional (UUID). | `200 ImportPreview`. Se houver token, a resposta inclui `X-Operation-Id`. Arquivo grande demais: `413`. |
 | `POST /api/v1/import/confirm` | 4 | Corpo bruto com o mesmo arquivo e cabeçalhos `X-Preview-Token` e `X-Operation-Id` (UUID gerado pela interface). | `200 { operationId, summary }`. Repetir a mesma operação já registrada devolve o mesmo resumo. |
 | `GET /api/v1/import/operations/{operationId}` | 4 | Vazio. | `200 { operationId, status: "completed", summary }` ou `404`. Serve para recuperar o resultado se a resposta da confirmação se perder. |
 
@@ -397,8 +397,9 @@ type ImportPreview = {
 ```
 
 - Conta vazia: só a Caixa de entrada inicial, sem tarefas, e preferências iniciais. Com dados, a prévia responde `destinationEmpty: false` sem token, e a confirmação devolve `409 DESTINATION_NOT_EMPTY`.
-- O token é assinado, temporário e vinculado à sessão, ao tenant, à operação e ao hash dos bytes. Na confirmação, revalidar tudo: arquivo diferente devolve `422 IMPORT_INVALID`; token vencido, `410 PREVIEW_EXPIRED`.
+- O token é assinado, dura 15 minutos e é vinculado à sessão, ao tenant, à operação e ao hash dos bytes. Se a interface omitir o ID na prévia, o servidor gera um. Na confirmação, use o ID devolvido e reenvie os bytes originais. Arquivo ou vínculo diferente devolve `422 IMPORT_INVALID`. Após `410 PREVIEW_EXPIRED`, consulte o recibo com a rota de operações.
 - Importar em uma transação: remapear IDs, reutilizar a Caixa de entrada provisionada, cifrar com a DEK do destino e gravar o recibo da operação. Qualquer falha mantém a conta como estava.
+- Prévia e confirmação têm limite padrão de 32 MiB, configurável até 64 MiB com `IMPORT_MAX_BYTES` em bytes. Um documento estruturalmente inválido retorna erros por caminho na prévia, sem token. `counts.projects` inclui a Caixa de entrada.
 - Não gravar o arquivo em disco nem em logs.
 
 ## 4. Comandos administrativos

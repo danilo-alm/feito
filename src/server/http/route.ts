@@ -27,7 +27,7 @@ export function requireOrigin(request: Request, origin: string) {
 const badJson = () => new ApiError(400, "MALFORMED_REQUEST", "Envie um corpo JSON válido.");
 const bodyTooLarge = () => new ApiError(413, "PAYLOAD_TOO_LARGE", "O corpo excede o limite permitido.");
 
-export async function readJson<T>(request: Request, schema: z.ZodType<T>, maxBytes = MAX_JSON_BYTES) {
+export async function readBody(request: Request, maxBytes: number, timeoutMs: number) {
   if (!request.body) throw badJson();
   if (Number(request.headers.get("content-length")) > maxBytes) throw bodyTooLarge();
 
@@ -38,8 +38,7 @@ export async function readJson<T>(request: Request, schema: z.ZodType<T>, maxByt
   const timer = setTimeout(() => {
     timedOut = true;
     void reader.cancel().catch(() => {});
-  }, 5_000);
-  let value: unknown;
+  }, timeoutMs);
   try {
     for (;;) {
       const next = await reader.read();
@@ -52,8 +51,7 @@ export async function readJson<T>(request: Request, schema: z.ZodType<T>, maxByt
       chunks.push(next.value);
     }
     if (timedOut) throw badJson();
-    const raw = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks, bytes));
-    value = JSON.parse(raw);
+    return Buffer.concat(chunks, bytes);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw badJson();
@@ -61,7 +59,18 @@ export async function readJson<T>(request: Request, schema: z.ZodType<T>, maxByt
     clearTimeout(timer);
     reader.releaseLock();
   }
+}
 
+export async function readJson<T>(request: Request, schema: z.ZodType<T>, maxBytes = MAX_JSON_BYTES) {
+  const bytes = await readBody(request, maxBytes, 5_000);
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    throw badJson();
+  } finally {
+    bytes.fill(0);
+  }
   return validate(value, schema);
 }
 

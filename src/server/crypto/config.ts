@@ -46,6 +46,17 @@ export function readAuthConfig(env: Environment = process.env) {
   return { secret: secretValue, origin: origin.data, clientIpHeader };
 }
 
+export function readPortabilityConfig(env: Environment = process.env) {
+  const previewSecret = secret("IMPORT_PREVIEW_SECRET", env);
+  if (previewSecret.length < 32) throw new ConfigurationError("IMPORT_PREVIEW_SECRET");
+  const size = env.IMPORT_MAX_BYTES || String(32 * 1024 * 1024);
+  const maxBytes = Number(size);
+  if (!/^[1-9]\d*$/.test(size) || maxBytes > 64 * 1024 * 1024) {
+    throw new ConfigurationError("IMPORT_MAX_BYTES");
+  }
+  return { previewSecret, maxBytes };
+}
+
 const keyName = /^DATA_KEK_V([1-9]\d*)$/;
 
 export function readKeyConfig(env: Environment = process.env) {
