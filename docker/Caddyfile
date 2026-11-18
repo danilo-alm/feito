@@ -1,0 +1,15 @@
+# Terminação TLS na frente do Next.js (dev e prod).
+# FEITO_ORIGIN é o próprio endereço do site: um domínio público obtém
+# certificado via ACME; localhost ou IP usa a CA interna do Caddy.
+{
+	admin off
+	skip_install_trust
+}
+
+{$FEITO_ORIGIN} {
+	encode zstd gzip
+	reverse_proxy app:3000 {
+		# Valor único e sobrescrito pelo proxy, lido via AUTH_CLIENT_IP_HEADER.
+		header_up X-Real-IP {remote_host}
+	}
+}

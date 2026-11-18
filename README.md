@@ -80,6 +80,47 @@ INSERT INTO crypto_ops.legacy_aad (binding) VALUES ('<UUID original>');
 
 O valor fica vinculado ao banco e permite abrir os registros existentes. A aplicação lê a configuração atual somente pelas versões e valores das KEKs.
 
+## Docker
+
+O [`Dockerfile`](Dockerfile) é multi-stage. `dev` roda `next dev` com o código montado do host, `tools` contém o código completo e as devDependencies para migração e CLIs, e `prod` leva só a saída standalone do Next.js, sem devDependencies, executando como usuário `node`. Cada Compose parte do stage correspondente. Em ambos, o [Caddy](docker/Caddyfile) termina o TLS na frente do Next.js e sobrescreve `X-Real-IP`, lido via `AUTH_CLIENT_IP_HEADER`. Um serviço `migrate` aplica `pnpm db:migrate` antes de a aplicação subir.
+
+O arquivo privado de ambiente é o mesmo da seção anterior, mas as URLs de conexão não são usadas: o Compose as monta a partir das senhas `POSTGRES_*_PASSWORD`, apontando para o serviço `postgres`, e entrega a cada processo só as credenciais dele. As KEKs aceitas são `DATA_KEK_V1` a `DATA_KEK_V3`.
+
+### Desenvolvimento
+
+```sh
+docker compose -f compose.dev.yaml --env-file "$FEITO_ENV" up --build
+```
+
+A origem padrão é `https://localhost:3000`; para outra porta, defina `FEITO_ORIGIN` e `FEITO_HTTPS_PORT` juntos. Use `localhost`, não `127.0.0.1`: o Next.js só aceita o websocket de live reload de origens permitidas. Alterações em `src/` recarregam o navegador sem reiniciar o contêiner. `node_modules` vive num volume do contêiner, com binários para Linux. Depois de mudar `package.json` ou `pnpm-lock.yaml`, rode `up --build -V`.
+
+O certificado vem da CA interna do Caddy. Para o navegador confiar nele, exporte a raiz e adicione-a ao chaveiro do sistema:
+
+```sh
+docker compose -f compose.dev.yaml cp caddy:/data/caddy/pki/authorities/local/root.crt ./feito-dev-ca.crt
+```
+
+O projeto Compose se chama `feito-dev`. O PostgreSQL continua publicado em `127.0.0.1:${POSTGRES_PORT:-5432}` para ferramentas no host.
+
+### Produção
+
+```sh
+docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --build --wait
+```
+
+`FEITO_ORIGIN` é o endereço do site no Caddy. Com um domínio público (`https://feito.example.org`) e as portas 80 e 443 acessíveis, o certificado vem via ACME. Com `localhost` ou um IP, vem da CA interna. Para uma porta HTTPS diferente de 443, inclua-a em `FEITO_ORIGIN` e defina `FEITO_HTTPS_PORT` com o mesmo valor. O Next.js e o PostgreSQL não publicam portas no host. O contêiner da aplicação roda com sistema de arquivos somente leitura, sem capabilities, e tem healthcheck em `/api/health`.
+
+### CLIs
+
+O serviço `cli` pertence ao perfil `tools` e não sobe com `up`. Ele recebe as credenciais de administração de identidade e, se configurada, `KEY_MAINTENANCE_DATABASE_URL`:
+
+```sh
+docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" run --rm cli pnpm admin account:create --email pessoa@example.org
+docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" run --rm cli pnpm keys kek:rewrap --tenant "$TENANT_ID"
+```
+
+Em desenvolvimento, troque `compose.prod.yaml` por `compose.dev.yaml`. O [`compose.yaml`](compose.yaml) segue disponível para subir só o banco, como nos fluxos de integração acima.
+
 ## Verificação
 
 ```sh

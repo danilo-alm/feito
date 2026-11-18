@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 export default {
+  // Servidor autocontido usado pela imagem de produção (Dockerfile, stage prod).
+  output: "standalone",
   serverExternalPackages: ["@node-rs/argon2", "pg", "pino"],
   logging: false,
   devIndicators: false,

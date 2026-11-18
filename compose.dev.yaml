@@ -1,0 +1,88 @@
+# Ambiente de desenvolvimento com live reload.
+#
+#   docker compose -f compose.dev.yaml --env-file "$FEITO_ENV" up --build
+#
+# O código do checkout é montado em /app; o Next.js (Turbopack) recompila a cada
+# alteração. node_modules fica num volume do contêiner, com binários para Linux:
+# depois de mudar package.json ou pnpm-lock.yaml, rode `up --build -V`.
+name: feito-dev
+
+x-app-image: &app-image
+  build:
+    context: .
+    target: dev
+  image: feito:dev
+  volumes:
+    - .:/app
+    - /app/node_modules
+    - next-dev:/app/.next
+
+x-runtime-env: &runtime-env
+  FEITO_ORIGIN: ${FEITO_ORIGIN:-https://localhost:3000}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Defina BETTER_AUTH_SECRET}
+  DATA_KEK_ACTIVE_VERSION: ${DATA_KEK_ACTIVE_VERSION:-1}
+  DATA_KEK_V1: ${DATA_KEK_V1:?Defina DATA_KEK_V1}
+  DATA_KEK_V2: ${DATA_KEK_V2:-}
+  DATA_KEK_V3: ${DATA_KEK_V3:-}
+
+services:
+  postgres:
+    extends:
+      file: compose.yaml
+      service: postgres
+
+  migrate:
+    <<: *app-image
+    command: ["pnpm", "db:migrate"]
+    environment:
+      MIGRATION_DATABASE_URL: postgresql://feito_migrator:${POSTGRES_MIGRATOR_PASSWORD}@postgres:5432/feito
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    <<: *app-image
+    environment:
+      <<: *runtime-env
+      IMPORT_PREVIEW_SECRET: ${IMPORT_PREVIEW_SECRET:?Defina IMPORT_PREVIEW_SECRET}
+      IMPORT_MAX_BYTES: ${IMPORT_MAX_BYTES:-}
+      AUTH_CLIENT_IP_HEADER: x-real-ip
+      DOMAIN_DATABASE_URL: postgresql://feito_app:${POSTGRES_APP_PASSWORD}@postgres:5432/feito
+      AUTH_DATABASE_URL: postgresql://feito_auth:${POSTGRES_AUTH_PASSWORD}@postgres:5432/feito
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    image: caddy:2.10-alpine
+    environment:
+      FEITO_ORIGIN: ${FEITO_ORIGIN:-https://localhost:3000}
+    ports:
+      - "127.0.0.1:${FEITO_HTTPS_PORT:-3000}:${FEITO_HTTPS_PORT:-3000}"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+  # Operações sob demanda (não sobe com `up`):
+  #   docker compose -f compose.dev.yaml --env-file "$FEITO_ENV" run --rm cli pnpm admin account:create --email pessoa@example.org
+  cli:
+    <<: *app-image
+    profiles: ["tools"]
+    command: ["pnpm", "admin", "--help"]
+    environment:
+      <<: *runtime-env
+      IDENTITY_ADMIN_DATABASE_URL: postgresql://feito_identity_admin:${POSTGRES_IDENTITY_ADMIN_PASSWORD}@postgres:5432/feito
+      KEY_MAINTENANCE_DATABASE_URL: ${KEY_MAINTENANCE_DATABASE_URL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  next-dev:
+  caddy-data:
+  caddy-config:
