@@ -1,6 +1,15 @@
 # Feito
 
-Backend self-hosted de tarefas pessoais. O backend entrega identidade, sessão, isolamento e armazenamento cifrado, além de navegação, projetos, seções, tarefas, etiquetas, recorrência, agenda, busca e portabilidade. O [contrato HTTP](docs/02-backend-endpoints.md) e a [arquitetura](docs/01-architecture-and-stack.md) definem o comportamento da API e a operação local.
+Aplicação self-hosted de tarefas pessoais. O backend entrega identidade, sessão, isolamento e armazenamento cifrado, além de navegação, projetos, seções, tarefas, etiquetas, recorrência, agenda, busca e portabilidade. A interface web segue o design do MVP e consome apenas a API `/api/v1`. O [contrato HTTP](docs/02-backend-endpoints.md) e a [arquitetura](docs/01-architecture-and-stack.md) definem o comportamento da API e a operação local.
+
+## Interface
+
+As telas ficam em `src/app` (Entrar, troca de senha, Hoje, Em breve, Caixa de entrada, Projeto em Lista e Painel, Etiqueta, Busca e Ajustes) e os componentes em `src/components`. O cliente da API, o cache de leituras, as datas e as regras de organização ficam em `src/client`.
+
+- Os estilos derivam dos tokens do design (`src/app/globals.css`), com tema claro, escuro e do sistema. O tema salvo nas preferências é aplicado antes da primeira pintura.
+- Acima de 900 px a navegação é a barra lateral. Abaixo disso, a barra inferior, a gaveta de projetos, o botão de criar e as folhas substituem popovers e modais.
+- Arrastar e soltar usa `@dnd-kit/core`: mouse no desktop e toque prolongado (400 ms) no celular, com rolagem automática nas bordas. `src/client/tree.ts` espelha as validações de `POST /tasks/{id}/move` (um nível de subtarefa, promoção antes de mudar de seção, reordenação só em Manual) e aplica o movimento de forma otimista até a confirmação do servidor.
+- Menus ⋯, “Mover para…” e os atalhos Alt+↑/↓/←/→ (Alt+Shift+←/→ entre colunas do Painel) fazem as mesmas operações sem arrastar. `Q` abre a criação rápida e `/` a busca.
 
 ## Rodar localmente
 
@@ -78,6 +87,8 @@ pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+Os testes ponta a ponta usam Playwright com o Chrome instalado contra um servidor local. O passo a passo está em [`tests/e2e/README.md`](tests/e2e/README.md).
 
 Para a integração, use um arquivo privado de teste com chaves novas, outra porta de PostgreSQL e URLs atualizadas. O banco precisa ser PostgreSQL 18. A suíte cria contas e dados sintéticos nesse banco, usando `feito_auth`, `feito_app` e a role da CLI para as operações administrativas.
 
