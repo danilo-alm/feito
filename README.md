@@ -88,3 +88,4 @@ Testes de integração e ponta a ponta precisam de banco próprio; veja [Testes]
 - [Arquitetura e stack](docs/01-architecture-and-stack.md)
 - [Contrato da API](docs/02-backend-endpoints.md)
 - [Operação e detalhes](docs/03-operations.md): rodar sem Docker, interface, backup, rotação de chaves e medições
+- [Movimento e interação](docs/04-motion-and-interaction.md): padrão obrigatório de transições para tudo que aparece ou some

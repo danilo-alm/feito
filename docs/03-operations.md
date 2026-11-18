@@ -7,8 +7,9 @@ O [README](../README.md) mostra o caminho curto para rodar o Feito. Este documen
 As telas ficam em `src/app` (Entrar, troca de senha, Hoje, Em breve, Caixa de entrada, Projeto em Lista e Painel, Etiqueta, Busca e Ajustes) e os componentes em `src/components`. O cliente da API, o cache de leituras, as datas e as regras de organização ficam em `src/client`.
 
 - Os estilos derivam dos tokens do design (`src/app/globals.css`), com tema claro, escuro e do sistema. O tema salvo nas preferências é aplicado antes da primeira pintura.
-- Acima de 900 px a navegação é a barra lateral. Abaixo disso, a barra inferior, a gaveta de projetos, o botão de criar e as folhas substituem popovers e modais.
+- Acima de 900 px a navegação é a barra lateral. Abaixo disso, a barra inferior (Entrada, Hoje, Em breve e Navegar, que reúne busca, ajustes, projetos e etiquetas), o botão de criar e as folhas substituem popovers e modais.
 - Arrastar e soltar usa `@dnd-kit/core`: mouse no desktop e toque prolongado (400 ms) no celular, com rolagem automática nas bordas. `src/client/tree.ts` espelha as validações de `POST /tasks/{id}/move` (um nível de subtarefa, promoção antes de mudar de seção, reordenação só em Manual) e aplica o movimento de forma otimista até a confirmação do servidor.
+- Tudo que aparece ou some tem transição, com tokens de duração e curva e um mecanismo de presença comum. As regras estão em [Movimento e interação](04-motion-and-interaction.md).
 - Menus ⋯, “Mover para…” e os atalhos Alt+↑/↓/←/→ (Alt+Shift+←/→ entre colunas do Painel) fazem as mesmas operações sem arrastar. `Q` abre a criação rápida e `/` a busca.
 
 ## Rodar sem Docker

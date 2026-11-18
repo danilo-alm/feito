@@ -6,14 +6,14 @@ import { useQuery } from "@/client/store";
 import type { EditTask, Frequency, Label, TaskDetail as Detail } from "@/client/types";
 import { refreshAll, useApp } from "./app";
 import {
-  IconCalendar, IconClock, IconFlag, IconHash, IconInbox, IconMove, IconPlus, IconRepeat, IconTag, IconTrash, IconX,
+  IconCalendar, IconClock, IconFlag, IconHash, IconInbox, IconPlus, IconRepeat, IconTag, IconTrash, IconX,
 } from "./icons";
-import { LabelPicker, PRIORITY_NAMES, RepeatMenu } from "./pickers";
+import { LabelPicker, PRIORITY_NAMES, PriorityMenu, RepeatMenu } from "./pickers";
 import { useTaskActions } from "./task-actions";
 import { Checkbox, DatePicker, TaskMeta } from "./task-row";
-import { Dialog, Popover, Spinner, useToast } from "./ui";
+import { Dialog, Popover, Spinner, useAutoGrow, useToast } from "./ui";
 
-type Pop = "date" | "time" | "repeat" | "labels" | null;
+type Pop = "date" | "time" | "repeat" | "priority" | "labels" | null;
 
 export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; onClose: () => void }) {
   const app = useApp();
@@ -27,6 +27,7 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
   const [pop, setPop] = useState<Pop>(null);
   const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
   const titleRef = useRef<HTMLInputElement>(null);
+  const descRef = useAutoGrow(description);
 
   useEffect(() => {
     if (task) {
@@ -114,9 +115,6 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
           {project?.inbox ? <IconInbox className="sm" /> : <IconHash className="sm" />}
           {project?.name}{task?.parentId && task.origin?.parentTitle ? ` / ${task.origin.parentTitle}` : ""}
         </span>
-        {task && !completed && (
-          <button type="button" className="btn ghost desktop-only" onClick={() => actions.openMove(task)}><IconMove />Mover para…</button>
-        )}
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar (Esc)"><IconX /></button>
       </div>
       {!task ? <Spinner /> : (
@@ -139,7 +137,7 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
                   onChange={(event) => setTitle(event.target.value)} onBlur={commitTitle}
                   onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} />
                 <label htmlFor="detail-desc" className="sr-only">Descrição</label>
-                <textarea id="detail-desc" className="desc-input" value={description} readOnly={completed} rows={3}
+                <textarea id="detail-desc" ref={descRef} className="desc-input" value={description} readOnly={completed} rows={1}
                   placeholder="Descrição" maxLength={10_000} style={{ color: description ? "var(--text)" : undefined }}
                   onChange={(event) => setDescription(event.target.value)} onBlur={commitDescription} />
               </div>
@@ -172,77 +170,70 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
               </div>
             )}
           </div>
-          <aside style={{ flex: "1 1 280px", background: "var(--sunken)", borderLeft: "1px solid var(--border)", padding: "12px 20px 20px", display: "flex", flexDirection: "column" }}>
-            <div className="prop">
-              <span className="k"><IconCalendar />Data</span>
-              <div className="v">
-                <button type="button" ref={anchorRef("date")} className="pill" disabled={completed} aria-haspopup="dialog"
-                  onClick={() => setPop(pop === "date" ? null : "date")}
-                  style={task.overdue ? { color: "var(--late)" } : undefined}>
-                  {task.dueDate ? dateLabel(task.dueDate, app.reference) : "Sem data"}
-                </button>
-              </div>
-            </div>
-            <div className="prop">
-              <span className="k"><IconClock />Hora</span>
-              <div className="v">
-                <button type="button" ref={anchorRef("time")} className="pill" disabled={completed || !task.dueDate}
-                  aria-haspopup="dialog" onClick={() => setPop(pop === "time" ? null : "time")}
-                  style={{ color: task.dueTime ? undefined : "var(--muted)" }}>
-                  {task.dueTime ?? "Sem horário"}
-                </button>
-              </div>
-            </div>
-            <div className="prop">
-              <span className="k"><IconRepeat />Repetir</span>
-              <div className="v">
-                <button type="button" ref={anchorRef("repeat")} className="pill" disabled={completed || recurrenceBlocked}
-                  aria-haspopup="listbox" onClick={() => setPop(pop === "repeat" ? null : "repeat")}
-                  style={{ color: task.recurrenceRule ? undefined : "var(--muted)" }}
-                  title={recurrenceBlocked ? "Só tarefas sem subtarefas e que não são subtarefas podem repetir" : undefined}>
-                  {task.recurrenceRule ? FREQUENCY_LABEL[task.recurrenceRule.frequency] : "Não repete"}
-                </button>
-              </div>
-            </div>
-            <div className="prop">
-              <span className="k"><IconFlag />Prioridade</span>
-              <div className="v" role="radiogroup" aria-label="Prioridade">
-                {([1, 2, 3, 4] as const).map((priority) => (
-                  <button key={priority} type="button" role="radio" aria-checked={task.priority === priority}
-                    aria-label={PRIORITY_NAMES[priority]} disabled={completed}
-                    className={`pill p${priority}${task.priority === priority ? " on" : ""}`}
-                    onClick={() => task.priority !== priority && void save({ priority })}>
-                    <IconFlag style={{ color: "var(--pc)" }} />P{priority}
+          <aside className="d-side" aria-label="Detalhes da tarefa">
+            <Section title="Projeto">
+              <button type="button" className="d-val" disabled={completed} onClick={() => actions.openMove(task)}
+                aria-label={`Projeto: ${project?.name ?? ""}. Mover para…`}>
+                {project?.inbox ? <IconInbox /> : <IconHash />}
+                <span className="d-text">{project?.name}{task.parentId && task.origin?.parentTitle ? ` / ${task.origin.parentTitle}` : ""}</span>
+              </button>
+            </Section>
+
+            <Section title="Data" add={!task.dueDate && !completed ? { ref: anchorRef("date"), label: "Adicionar data", onClick: () => setPop(pop === "date" ? null : "date") } : undefined}>
+              {task.dueDate && (
+                <>
+                  <button type="button" ref={anchorRef("date")} className="d-val" disabled={completed} aria-haspopup="dialog"
+                    onClick={() => setPop(pop === "date" ? null : "date")} style={task.overdue ? { color: "var(--late)" } : undefined}>
+                    <IconCalendar /><span className="d-text">{dateLabel(task.dueDate, app.reference)}</span>
                   </button>
-                ))}
-              </div>
-            </div>
-            <div className="prop" style={{ borderBottom: 0 }}>
-              <span className="k"><IconTag />Etiquetas</span>
-              <div className="v">
-                {task.labels.map((label) => (
-                  <span key={label.id} className="pill">
-                    {label.name}
-                    {!completed && (
-                      <button type="button" className="icon-btn" style={{ width: 20, height: 20, minHeight: 0 }} aria-label={`Remover ${label.name}`}
-                        onClick={() => void save({ labelIds: task.labels.filter((item) => item.id !== label.id).map((item) => item.id) })}>
-                        <IconX className="sm" />
-                      </button>
-                    )}
-                  </span>
-                ))}
-                {!completed && (
-                  <button type="button" ref={anchorRef("labels")} className="icon-btn" style={{ width: 30, height: 30 }}
-                    aria-label="Adicionar etiqueta" aria-haspopup="dialog" onClick={() => setPop(pop === "labels" ? null : "labels")}>
-                    <IconPlus />
+                  <button type="button" ref={anchorRef("time")} className="d-val sub" disabled={completed} aria-haspopup="dialog"
+                    aria-label={task.dueTime ? `Hora: ${task.dueTime}` : "Adicionar horário"} onClick={() => setPop(pop === "time" ? null : "time")}>
+                    <IconClock /><span className="d-text">{task.dueTime ?? "Adicionar horário"}</span>
                   </button>
-                )}
-              </div>
-            </div>
-            <div style={{ marginTop: "auto", display: "flex", gap: 8, paddingTop: 18, flexWrap: "wrap" }}>
-              {!completed && <button type="button" className="btn" onClick={() => actions.openMove(task)}><IconMove />Mover para…</button>}
+                </>
+              )}
+            </Section>
+
+            <Section title="Repetir" note={recurrenceBlocked ? "Indisponível para subtarefas e para tarefas com subtarefas." : undefined}
+              add={!task.recurrenceRule && !completed && !recurrenceBlocked ? { ref: anchorRef("repeat"), label: "Definir repetição", onClick: () => setPop(pop === "repeat" ? null : "repeat") } : undefined}>
+              {task.recurrenceRule && (
+                <button type="button" ref={anchorRef("repeat")} className="d-val" disabled={completed} aria-haspopup="listbox"
+                  onClick={() => setPop(pop === "repeat" ? null : "repeat")}>
+                  <IconRepeat /><span className="d-text">{FREQUENCY_LABEL[task.recurrenceRule.frequency]}</span>
+                </button>
+              )}
+            </Section>
+
+            <Section title="Prioridade">
+              <button type="button" ref={anchorRef("priority")} className={`d-val p${task.priority}`} disabled={completed}
+                aria-haspopup="listbox" aria-label={`Prioridade: ${PRIORITY_NAMES[task.priority]}`}
+                onClick={() => setPop(pop === "priority" ? null : "priority")}>
+                <IconFlag style={{ color: "var(--pc)" }} /><span className="d-text">P{task.priority}</span>
+              </button>
+            </Section>
+
+            <Section title="Etiquetas" last
+              add={!completed ? { ref: anchorRef("labels"), label: "Adicionar etiqueta", onClick: () => setPop(pop === "labels" ? null : "labels") } : undefined}>
+              {task.labels.length > 0 && (
+                <div className="d-chips">
+                  {task.labels.map((label) => (
+                    <span key={label.id} className="pill">
+                      <IconTag className="sm" />{label.name}
+                      {!completed && (
+                        <button type="button" className="icon-btn" style={{ width: 20, height: 20, minHeight: 0 }} aria-label={`Remover ${label.name}`}
+                          onClick={() => void save({ labelIds: task.labels.filter((item) => item.id !== label.id).map((item) => item.id) })}>
+                          <IconX className="sm" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            <div className="d-foot">
               <button type="button" className="btn ghost danger"
-                onClick={async () => { if (await actions.remove(task)) onClose(); }}><IconTrash />Excluir</button>
+                onClick={async () => { if (await actions.remove(task)) onClose(); }}><IconTrash />Excluir tarefa</button>
             </div>
           </aside>
         </div>
@@ -271,6 +262,9 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
           <Popover anchor={anchors.current.repeat ?? null} open={pop === "repeat"} onClose={closePop} label="Repetir">
             <RepeatMenu value={task.recurrenceRule?.frequency ?? null} onPick={(value) => void setRepeat(value)} />
           </Popover>
+          <Popover anchor={anchors.current.priority ?? null} open={pop === "priority"} onClose={closePop} label="Prioridade">
+            <PriorityMenu value={task.priority} onPick={(priority) => { closePop(); if (priority !== task.priority) void save({ priority }); }} />
+          </Popover>
           <Popover anchor={anchors.current.labels ?? null} open={pop === "labels"} onClose={() => { closePop(); void labelsQuery.reload(); }} label="Etiquetas">
             <LabelPicker selected={task.labels.map((label) => label.id)} onChange={(ids) => void save({ labelIds: ids })} />
           </Popover>
@@ -278,5 +272,25 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
       )}
       {actions.moveDialog}
     </Dialog>
+  );
+}
+
+type SectionAdd = { ref: (node: HTMLButtonElement | null) => void; label: string; onClick: () => void };
+
+/** Bloco do painel lateral: título em cima, valor embaixo, + quando ainda não há valor. */
+function Section({ title, add, note, last, children }: { title: string; add?: SectionAdd; note?: string; last?: boolean; children?: React.ReactNode }) {
+  return (
+    <section className={`d-sec${last ? " last" : ""}`} aria-label={title}>
+      <div className="d-sec-h">
+        <h3>{title}</h3>
+        {add && (
+          <button type="button" ref={add.ref} className="icon-btn" aria-label={add.label} aria-haspopup="dialog" onClick={add.onClick}>
+            <IconPlus />
+          </button>
+        )}
+      </div>
+      {children}
+      {note && <p className="hint">{note}</p>}
+    </section>
   );
 }

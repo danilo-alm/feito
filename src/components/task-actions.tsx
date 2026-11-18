@@ -6,6 +6,7 @@ import { useQuery } from "@/client/store";
 import type { ProjectPage, TaskItem } from "@/client/types";
 import { useApp } from "./app";
 import { IconCheck, IconHash, IconInbox, IconSearch } from "./icons";
+import { Collapse } from "./motion";
 import { Dialog, useToast } from "./ui";
 
 type Movable = Pick<TaskItem, "id" | "revision" | "title" | "projectId" | "sectionId" | "parentId" | "status">;
@@ -143,7 +144,7 @@ function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => vo
                   <span style={{ flex: 1 }}>{project.name}</span>
                   {current && <span className="sub">atual</span>}
                 </button>
-                {open && (
+                <Collapse open={open}>
                   <div>
                     <button type="button" className="mi" role="option" style={{ paddingLeft: 36 }} aria-selected={false}
                       onClick={() => choose(project.id, null, `${project.name} · Sem seção`)}>
@@ -160,7 +161,7 @@ function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => vo
                     ))}
                     {sections.loading && !sections.data && <div className="hint" style={{ padding: "6px 36px" }}>Carregando seções…</div>}
                   </div>
-                )}
+                </Collapse>
               </div>
             );
           })}

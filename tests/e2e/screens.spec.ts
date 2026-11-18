@@ -36,8 +36,10 @@ test.describe("telas do dia a dia", () => {
     const detail = page.getByRole("dialog", { name: /^Definir orçamento/ });
     await detail.getByLabel("Título").fill("Definir orçamento final");
     await detail.getByLabel("Título").press("Enter");
-    await detail.getByRole("radio", { name: "Prioridade 2" }).click();
-    await detail.getByRole("button", { name: "Sem data" }).click();
+    await detail.getByRole("button", { name: "Prioridade: Prioridade 1" }).click();
+    await page.getByRole("dialog", { name: "Prioridade" }).getByRole("option", { name: /Prioridade 2/ }).click();
+    await expect(detail.getByRole("button", { name: "Prioridade: Prioridade 2" })).toBeVisible();
+    await detail.getByRole("button", { name: "Adicionar data" }).click();
     await page.getByRole("dialog", { name: "Data" }).getByRole("button", { name: /Amanhã/ }).click();
     await expect(detail.getByRole("button", { name: "Amanhã" })).toBeVisible();
     await page.keyboard.press("Escape");
@@ -66,5 +68,35 @@ test.describe("telas do dia a dia", () => {
     const download = page.waitForEvent("download");
     await page.getByRole("link", { name: "Exportar" }).click();
     expect((await download).suggestedFilename()).toMatch(/^feito-dados-\d{4}-\d{2}-\d{2}\.json$/);
+  });
+
+  test("Ajustes escolhe o fuso horário pela busca", async ({ page }) => {
+    await page.goto("/ajustes");
+    const trigger = page.getByRole("button", { name: "Fuso horário do perfil" });
+    const original = (await trigger.textContent()) ?? "";
+    await trigger.click();
+    const search = page.getByRole("combobox", { name: "Buscar fuso horário" });
+    await expect(search).toBeFocused();
+    await search.fill("kolkata");
+    await expect(page.getByRole("option")).toHaveCount(1);
+    await expect(page.getByRole("option").first()).toContainText("UTC+5:30");
+    await search.fill("utc+5:30");
+    await expect(page.getByRole("option", { name: /Kolkata/ })).toBeVisible();
+    await search.fill("sao paulo");
+    await search.press("Enter");
+    await expect(page.getByText("Fuso horário atualizado")).toBeVisible();
+    await expect(trigger).toContainText("Sao Paulo");
+    await expect(search).toBeHidden();
+
+    await trigger.click();
+    await page.getByRole("combobox", { name: "Buscar fuso horário" }).fill("zzz");
+    await expect(page.getByText(/Nenhum fuso encontrado/)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("combobox", { name: "Buscar fuso horário" })).toBeHidden();
+    if (!original.includes("Sao Paulo")) {
+      await trigger.click();
+      await page.getByRole("combobox", { name: "Buscar fuso horário" }).fill(original.replace(/UTC.*$/, "").trim());
+      await page.keyboard.press("Enter");
+    }
   });
 });

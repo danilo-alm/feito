@@ -44,13 +44,20 @@ test.describe("celular", () => {
       .toEqual(["Listar móveis para doação", "Definir orçamento da reforma", "Escolher a cor da pintura do quarto"]);
   });
 
-  test("navega pela barra inferior, gaveta de projetos e folha de visualização", async ({ page, api }) => {
-    const seed = await seedProject(api, `Gaveta ${Date.now()}`);
+  test("navega pela aba Navegar até o projeto e troca a visualização", async ({ page, api }) => {
+    const name = `Navegar ${Date.now()}`;
+    const seed = await seedProject(api, name);
     await page.goto("/hoje");
-    await page.getByRole("navigation", { name: "Navegação" }).getByRole("button", { name: "Projetos" }).click();
-    const drawer = page.getByRole("dialog", { name: "Navegação e projetos" });
-    await drawer.getByRole("link", { name: new RegExp(`^Gaveta`) }).last().click();
+    const tabs = page.getByRole("navigation", { name: "Navegação" });
+    await expect(tabs.getByRole("link")).toHaveText(["Entrada", "Hoje", "Em breve", "Navegar"]);
+    await tabs.getByRole("link", { name: "Navegar" }).click();
+    await page.waitForURL("**/navegar");
+    await expect(page.getByRole("button", { name: "Abrir navegação" })).toHaveCount(0);
+    const projects = page.getByRole("list", { name: "Meus projetos" });
+    await expect(projects).toBeVisible();
+    await projects.getByRole("link", { name: new RegExp(`^${name}`) }).click();
     await page.waitForURL(`**/projetos/${seed.id}`);
+    await expect(tabs.getByRole("link", { name: "Navegar" })).toHaveAttribute("aria-current", "page");
     await page.getByRole("button", { name: /Visualização: Lista/ }).click();
     const sheet = page.getByRole("dialog", { name: "Visualização" });
     await expect(sheet.getByText("pressione e segure")).toBeVisible();
@@ -62,5 +69,9 @@ test.describe("celular", () => {
     await sheet.getByRole("radio", { name: "Lista" }).click();
     await sheet.getByRole("button", { name: "Fechar (Esc)" }).click();
     await expect(page.locator(".add-sec-m")).toBeVisible();
+    await page.getByRole("button", { name: "Voltar" }).click();
+    await page.waitForURL("**/navegar");
+    await page.getByRole("link", { name: "Buscar" }).click();
+    await page.waitForURL("**/busca");
   });
 });

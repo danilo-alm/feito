@@ -1,9 +1,10 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { api, ApiFailure, configureApi, errorMessage } from "@/client/api";
 import { clearCache, invalidate, useQuery } from "@/client/store";
 import type { Me, Navigation, Theme } from "@/client/types";
+import { motionMs, useFlip } from "./motion";
 import { Dialog, Spinner, ToastProvider, useToast } from "./ui";
 
 // ---------- Tema ----------
@@ -51,7 +52,6 @@ type AppContextValue = {
   refresh: () => Promise<unknown>;
   openQuickAdd: (defaults?: QuickAddDefaults) => void;
   openTask: (id: string) => void;
-  openDrawer: () => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   prompt: (options: PromptOptions) => Promise<string | null>;
   run: <T>(action: () => Promise<T>, options?: { success?: string | ((value: T) => string); silent?: boolean }) => Promise<T | undefined>;
@@ -65,6 +65,8 @@ export function useApp() {
   return value;
 }
 
+const isDragging = () => !!document.querySelector(".drag-overlay");
+
 export function refreshAll() {
   return invalidate();
 }
@@ -72,7 +74,6 @@ export function refreshAll() {
 type Overlay = {
   quickAdd: QuickAddDefaults | null;
   taskId: string | null;
-  drawer: boolean;
 };
 
 export function AppProviders({ children }: { children: ReactNode }) {
@@ -120,12 +121,9 @@ export function AppShell({
     };
   }, []);
 
-  const [overlay, setOverlay] = useState<Overlay>({ quickAdd: null, taskId: null, drawer: false });
-  const close = useCallback((key: keyof Overlay) => setOverlay((current) => ({
-    ...current, [key]: key === "drawer" ? false : null,
-  })), []);
 
-  useEffect(() => setOverlay((current) => (current.drawer ? { ...current, drawer: false } : current)), [pathname]);
+  const [overlay, setOverlay] = useState<Overlay>({ quickAdd: null, taskId: null });
+  const close = useCallback((key: keyof Overlay) => setOverlay((current) => ({ ...current, [key]: null })), []);
 
   // Atalhos globais: Q cria, / busca.
   useEffect(() => {
@@ -178,7 +176,6 @@ export function AppShell({
     refresh: () => invalidate(),
     openQuickAdd: (defaults = {}) => setOverlay((current) => ({ ...current, quickAdd: defaults })),
     openTask: (id) => setOverlay((current) => ({ ...current, taskId: id })),
-    openDrawer: () => setOverlay((current) => ({ ...current, drawer: true })),
     confirm,
     prompt,
     run,
@@ -201,13 +198,31 @@ export function AppShell({
     <AppContext.Provider value={value}>
       <div className="app">
         {renderChrome(nav.data)}
-        <main className="main" id="conteudo">{children}</main>
+        <Main>{children}</Main>
       </div>
       {renderOverlays(overlay, close)}
       <ConfirmDialog state={confirmState} onDone={(result) => { confirmState?.resolve(result); setConfirmState(null); }} />
       <PromptDialog state={promptState} onDone={(result) => { promptState?.resolve(result); setPromptState(null); }} />
     </AppContext.Provider>
   );
+}
+
+/** Área principal: a rota nova entra em fade e os itens de lista animam (docs/04-motion-and-interaction.md). */
+function Main({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const main = useRef<HTMLElement>(null);
+  const firstRoute = useRef(true);
+  useLayoutEffect(() => {
+    if (firstRoute.current) {
+      firstRoute.current = false;
+      return;
+    }
+    const duration = motionMs("base");
+    if (duration) main.current?.animate([{ opacity: 0 }, { opacity: 1 }], { duration, easing: "ease-out" });
+  }, [pathname]);
+  // Pausa durante o arraste: o @dnd-kit mede posições e o FLIP as distorceria.
+  useFlip(main, { paused: isDragging });
+  return <main ref={main} className="main" id="conteudo">{children}</main>;
 }
 
 function ConfirmDialog({ state, onDone }: { state: ConfirmOptions | null; onDone: (value: boolean) => void }) {

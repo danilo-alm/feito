@@ -13,6 +13,7 @@ import {
 import type { MoveTarget, ProjectPage, TaskItem } from "@/client/types";
 import { useApp } from "./app";
 import { PageHeader } from "./chrome";
+import { Collapse, flipFrom } from "./motion";
 import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconMore, IconPlus, IconSub, IconTrash } from "./icons";
 import { useTaskActions } from "./task-actions";
 import { TaskRow, type ArrangeItem } from "./task-row";
@@ -198,8 +199,13 @@ export function ProjectView({ projectId }: { projectId: string }) {
       return { ...current, over, plan };
     });
   };
+  // A prévia some ao soltar; o item real desliza de onde ela estava até o lugar final (motion.tsx).
+  const settleFromOverlay = () => {
+    if (drag) flipFrom(drag.activeId, document.querySelector(".drag-overlay")?.getBoundingClientRect());
+  };
   const onDragEnd = () => {
     listenPointer(false);
+    settleFromOverlay();
     const state = drag;
     setDrag(null);
     if (!state) return;
@@ -216,6 +222,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
   };
   const onDragCancel = () => {
     listenPointer(false);
+    settleFromOverlay();
     setDrag(null);
     toast("Arraste cancelado — a tarefa voltou ao lugar");
   };
@@ -313,7 +320,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <PageHeader crumb={crumb} tools={tools} mobileTitle={project.name} />
+      <PageHeader crumb={crumb} tools={tools} mobileTitle={project.name} back={project.isInbox ? undefined : "/navegar"} />
       <div style={{ padding: "4px 32px 0" }} className="project-head">
         <div className={board ? "" : "col"}>
           <div className="page-h">
@@ -323,14 +330,14 @@ export function ProjectView({ projectId }: { projectId: string }) {
               {!project.isInbox && ` · ${LAYOUT_LABEL[board ? "board" : "list"]}`} · {SORT_LABEL[view.sortMode]}
             </span>
           </div>
-          {archived && (
+          <Collapse open={archived} appear={false}>
             <div className="banner warn">
               Projeto arquivado: só leitura. Reative para editar.
               <button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
                 onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado" })}>Reativar</button>
             </div>
-          )}
-          {!manual && !archived && (
+          </Collapse>
+          <Collapse open={!manual && !archived} appear={false}>
             <div className="banner warn">
               <IconBan style={{ width: 16, height: 16, color: "var(--p2)" }} />
               <span style={{ flex: 1 }}>
@@ -341,7 +348,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
                 Voltar a Manual
               </button>
             </div>
-          )}
+          </Collapse>
         </div>
       </div>
       <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragMove={onDragMove}
@@ -486,7 +493,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
             <GroupDrop key={group.sectionId ?? "none"} sectionId={group.sectionId} label={title}
               className={`list-group${over ? " over" : ""}${badGroup ? " invalid" : ""}`}>
               {showHeader || (isNone && dragging && !project.isInbox) ? (
-                <div className="sec-h" style={{ color: isNone ? "var(--muted)" : undefined }}>
+                <div className="sec-h" data-flip={`sec:${group.sectionId ?? "none"}`} style={{ color: isNone ? "var(--muted)" : undefined }}>
                   {title}<span className="count">{active.length + active.reduce((sum, task) => sum + task.childIds.filter((id) => tasks.get(id)?.status === "active").length, 0)}</span>
                   {!isNone && !archived && (
                     <MenuButton label={`Ações da seção ${title}`} title={title} items={() => sectionMenu(group.sectionId!)}><IconMore /></MenuButton>
@@ -495,13 +502,13 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
               ) : <div style={{ height: 10, borderBottom: "1px solid var(--border)" }} />}
               {active.flatMap(block)}
               {!archived && (
-                <button type="button" className="add-task" onClick={() => app.openQuickAdd({ projectId: project.id, sectionId: group.sectionId })}>
+                <button type="button" className="add-task" data-flip={`add:${group.sectionId ?? "none"}`} onClick={() => app.openQuickAdd({ projectId: project.id, sectionId: group.sectionId })}>
                   <span className="plus"><IconPlus /></span>Adicionar tarefa
                 </button>
               )}
               {done.length > 0 && (
                 <>
-                  <div className="sec-h" style={{ color: "var(--muted)", fontSize: 13, paddingTop: 12 }}>Concluídas<span className="count">{done.length}</span></div>
+                  <div className="sec-h" data-flip={`done:${group.sectionId ?? "none"}`} style={{ color: "var(--muted)", fontSize: 13, paddingTop: 12 }}>Concluídas<span className="count">{done.length}</span></div>
                   {done.flatMap(block)}
                 </>
               )}
@@ -509,7 +516,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
                 adding === group.sectionId
                   ? <NewSection onCancel={() => setAdding(undefined)} onCreate={(name) => createSection(group.sectionId, name)} />
                   : (
-                    <div className="add-sec-zone desktop-only">
+                    <div className="add-sec-zone desktop-only" data-flip={`add-sec:${group.sectionId ?? "none"}`}>
                       <button type="button" className="add-sec" onClick={() => setAdding(group.sectionId)}>Adicionar seção</button>
                     </div>
                   )
@@ -593,13 +600,13 @@ function BoardLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu
                 {active.map((task) => renderTask(task, "card"))}
                 {target && <div className="slot column-drop">Soltar aqui muda para {title}</div>}
                 {!archived && (
-                  <button type="button" className="col-add" onClick={() => app.openQuickAdd({ projectId: project.id, sectionId: group.sectionId })}>
+                  <button type="button" className="col-add" data-flip={`col-add:${group.sectionId ?? "none"}`} onClick={() => app.openQuickAdd({ projectId: project.id, sectionId: group.sectionId })}>
                     <IconPlus className="plus" />Adicionar tarefa
                   </button>
                 )}
                 {done.length > 0 && (
                   <>
-                    <div className="sub" style={{ padding: "10px 6px 6px", fontWeight: 600 }}>Concluídas · {done.length}</div>
+                    <div className="sub" data-flip={`col-done:${group.sectionId ?? "none"}`} style={{ padding: "10px 6px 6px", fontWeight: 600 }}>Concluídas · {done.length}</div>
                     {done.map((task) => renderTask(task, "card"))}
                   </>
                 )}

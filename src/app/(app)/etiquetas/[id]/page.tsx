@@ -46,7 +46,7 @@ export default function LabelPage({ params }: { params: Promise<{ id: string }> 
   const tasks = [...(query.data?.tasks ?? []), ...more];
   return (
     <>
-      <PageHeader crumb="Etiqueta" mobileTitle={label?.name}
+      <PageHeader crumb="Etiqueta" mobileTitle={label?.name} back="/navegar"
         tools={label && <MenuButton label="Ações da etiqueta" items={menu}><IconMore /></MenuButton>} />
       <div className="content">
         <div className="col">

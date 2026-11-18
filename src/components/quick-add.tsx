@@ -9,7 +9,7 @@ import { refreshAll, useApp, type QuickAddDefaults } from "./app";
 import { IconCalendar, IconChevronDown, IconClock, IconFlag, IconHash, IconInbox, IconRepeat, IconSub, IconTag, IconX } from "./icons";
 import { DestinationPicker, FREQUENCIES, LabelPicker, PriorityMenu, RepeatMenu, destinationLabel } from "./pickers";
 import { DatePicker } from "./task-row";
-import { Dialog, Popover, useToast } from "./ui";
+import { Dialog, Popover, useAutoGrow, useToast } from "./ui";
 
 type Pop = "date" | "time" | "repeat" | "priority" | "labels" | "dest" | null;
 
@@ -46,6 +46,7 @@ export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | n
   const [busy, setBusy] = useState(false);
   const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
   const titleRef = useRef<HTMLInputElement>(null);
+  const descRef = useAutoGrow(description);
 
   useEffect(() => {
     if (!initial) return;
@@ -112,7 +113,7 @@ export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | n
         <input id="qa-title" ref={titleRef} className="qa-title" placeholder="Nome da tarefa" value={title} maxLength={500}
           autoComplete="off" onChange={(event) => setTitle(event.target.value)} />
         <label htmlFor="qa-desc" className="sr-only">Descrição</label>
-        <textarea id="qa-desc" className="qa-desc" rows={2} placeholder="Descrição (opcional)" value={description}
+        <textarea id="qa-desc" ref={descRef} className="qa-desc" rows={1} placeholder="Descrição (opcional)" value={description}
           onChange={(event) => setDescription(event.target.value)} />
         <div className="chips">
           {chip("date", <><IconCalendar />{dueDate ? dateLabel(dueDate, app.reference) : "Data"}</>, !!dueDate, "Data")}

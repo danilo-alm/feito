@@ -73,12 +73,9 @@ export function ViewMenu({ page, onChange }: {
 
   return (
     <>
-      <button ref={setAnchor} type="button" className={`btn ghost${open ? " on" : ""} desktop-only`} aria-haspopup="dialog"
-        aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-        {view.layout === "board" ? <IconBoard /> : <IconList />}Visualização
-      </button>
-      <button type="button" className="icon-btn mobile-only" aria-label={`Visualização: ${LAYOUT_LABEL[view.layout]}`}
-        aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <button ref={setAnchor} type="button" className={`icon-btn${open ? " on" : ""}`} title="Visualização"
+        aria-label={`Visualização: ${LAYOUT_LABEL[view.layout]}`} aria-haspopup="dialog" aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}>
         {view.layout === "board" ? <IconBoard /> : <IconList />}
       </button>
       {mobile

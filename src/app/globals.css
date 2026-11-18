@@ -10,6 +10,10 @@
   --shadow:0 1px 2px rgba(40,34,24,.06),0 10px 28px rgba(40,34,24,.10);
   --lift:0 2px 4px rgba(40,34,24,.08),0 18px 40px rgba(40,34,24,.18);
   --scrim:rgba(32,29,24,.36);--toast:#2A2926;--on-toast:#F6F4EF;
+  /* Movimento: únicas durações e curvas do app (docs/04-motion-and-interaction.md).
+     Saída sempre mais curta que a entrada. motion.tsx lê estes valores para desmontar no tempo certo. */
+  --dur-fast:120ms;--dur-base:180ms;--dur-slow:260ms;
+  --ease-out:cubic-bezier(.2,.8,.2,1);--ease-in:cubic-bezier(.4,0,1,1);--ease-in-out:cubic-bezier(.4,0,.2,1);
   font-family:var(--font-inter),Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);background:var(--bg);
   font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;box-sizing:border-box;
 }
@@ -85,9 +89,10 @@ h1,h2,h3,p{margin:0}
 .pill svg{width:15px;height:15px}
 .badge{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:9px;background:var(--sunken);border:1px solid var(--border);color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.01em}
 .switch{width:40px;height:24px;border-radius:12px;background:var(--border-strong);border:0;position:relative;padding:0;flex:none}
-.switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}
+.switch{transition:background-color var(--dur-base) var(--ease-out)}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform var(--dur-base) var(--ease-out)}
 .switch.on{background:var(--brand)}
-.switch.on::after{left:19px}
+.switch.on::after{transform:translateX(16px)}
 .select{height:36px;min-width:180px;border:1px solid var(--border-strong);border-radius:8px;padding:0 10px 0 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface);color:var(--text);font-size:14px;text-align:left}
 .select svg{color:var(--muted);width:16px;height:16px}
 .field{display:flex;flex-direction:column;gap:6px}
@@ -132,7 +137,7 @@ h1,h2,h3,p{margin:0}
 .add-task:hover{color:var(--brand-text)}
 /* Adicionar seção: discreto, revelado por hover ou foco no desktop */
 .add-sec-zone{padding:10px 0 4px}
-.add-sec{display:flex;align-items:center;gap:12px;width:100%;height:32px;border:0;background:none;color:var(--brand-text);font-size:13px;font-weight:600;opacity:0;transition:opacity .15s;padding:0}
+.add-sec{display:flex;align-items:center;gap:12px;width:100%;height:32px;border:0;background:none;color:var(--brand-text);font-size:13px;font-weight:600;opacity:0;transition:opacity var(--dur-fast) var(--ease-out);padding:0}
 .add-sec::before,.add-sec::after{content:"";flex:1;height:1px;background:var(--brand);opacity:.55}
 .add-sec-zone:hover .add-sec,.add-sec:focus-visible,.add-sec.show{opacity:1}
 .add-sec-m{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:48px;border:1px dashed var(--border-strong);border-radius:12px;background:none;color:var(--muted);font-weight:600;font-size:14px}
@@ -206,6 +211,24 @@ h1,h2,h3,p{margin:0}
 .modal{position:absolute;z-index:11;left:50%;transform:translateX(-50%)}
 .sheet{position:absolute;left:0;right:0;bottom:0;z-index:11;background:var(--raised);border-radius:18px 18px 0 0;box-shadow:var(--lift);padding:8px 16px 24px}
 .grabber{width:40px;height:5px;border-radius:3px;background:var(--border-strong);margin:2px auto 10px}
+.d-side{flex:1 1 300px;max-width:100%;background:var(--sunken);border-left:1px solid var(--border);padding:8px 24px 20px;display:flex;flex-direction:column}
+.d-sec{display:flex;flex-direction:column;gap:4px;padding:14px 0;border-bottom:1px solid var(--border)}
+.d-sec.last{border-bottom:0}
+.d-sec-h{display:flex;align-items:center;justify-content:space-between;min-height:28px}
+.d-sec-h h3{font-size:13px;font-weight:600;color:var(--muted)}
+.d-sec-h .icon-btn{width:28px;height:28px;margin-right:-6px}
+.d-sec .hint{margin-top:2px}
+.d-val{display:flex;align-items:center;gap:10px;width:calc(100% + 16px);min-height:36px;margin:0 -8px;padding:0 8px;border:0;border-radius:8px;background:none;color:var(--text);font:inherit;font-size:14px;text-align:left;cursor:pointer}
+.d-val svg{width:18px;height:18px;flex:none;color:var(--muted)}
+.d-val:hover:not(:disabled){background:var(--hover)}
+.d-val:disabled{cursor:default}
+.d-val.sub{color:var(--muted);min-height:32px;font-size:13.5px}
+.d-val.sub svg{width:16px;height:16px}
+.d-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d-chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:4px}
+.d-foot{margin-top:auto;padding-top:18px}
+.d-foot .btn{margin-left:-10px}
+@media (max-width: 899px){.d-side{border-left:0;border-top:1px solid var(--border);padding:4px 16px 24px}}
 .prop{display:flex;align-items:center;gap:12px;min-height:44px;border-bottom:1px solid var(--border);font-size:14px}
 .prop .k{width:120px;color:var(--muted);display:flex;gap:8px;align-items:center;flex:none}
 .prop .k svg{width:16px;height:16px}
@@ -223,7 +246,7 @@ h1,h2,h3,p{margin:0}
 .phone .chk{width:44px;height:44px;margin:-12px -10px -12px -12px}
 .phone .t-title{font-size:15px;line-height:21px}
 .phone .sec-h{padding:20px 0 8px;font-size:15px}
-.tabbar{position:absolute;left:0;right:0;bottom:0;height:78px;padding:6px 8px 22px;background:var(--surface);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));z-index:5}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:78px;padding:6px 8px 22px;background:var(--surface);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));z-index:5}
 .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:500;color:var(--muted);border-radius:10px}
 .tab svg{width:22px;height:22px}
 .tab.on{color:var(--brand-text);font-weight:700}
@@ -251,6 +274,18 @@ h1,h2,h3,p{margin:0}
 html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text)}
 html{color-scheme:light}
 html.dark{color-scheme:dark}
+/* Scrollbars ocultas em todo o app (a rolagem continua funcionando); só a barra lateral
+   (lista de projetos) mostra uma, discreta: trilho transparente e polegar quase do tom do fundo */
+:root{--scroll-thumb:#DDD7CC;--scroll-thumb-hover:#CDC6BA}
+html.dark{--scroll-thumb:#2F2D2A;--scroll-thumb-hover:#3D3A36}
+*{scrollbar-width:none}
+::-webkit-scrollbar{display:none}
+.side{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}
+.side::-webkit-scrollbar{display:block;width:12px;height:12px;background:transparent}
+.side::-webkit-scrollbar-track,.side::-webkit-scrollbar-corner{background:transparent}
+.side::-webkit-scrollbar-thumb{background-color:var(--scroll-thumb);border:3px solid transparent;background-clip:padding-box;border-radius:999px}
+.side::-webkit-scrollbar-thumb:hover{background-color:var(--scroll-thumb-hover)}
+@supports selector(::-webkit-scrollbar){.side{scrollbar-width:auto;scrollbar-color:auto}}
 body{font-family:var(--font-inter),Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
 input,textarea,select{font:inherit;color:inherit}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -300,25 +335,40 @@ body:has(.drag-overlay) {user-select:none;-webkit-user-select:none}
 .list-group.over{box-shadow:inset 0 0 0 2px var(--brand);background:var(--brand-soft)}
 .column-drop{height:52px;display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--brand-text);border-color:var(--brand);margin-bottom:8px}
 .title-input{border:0;background:none;font:inherit;font-size:20px;font-weight:700;line-height:1.3;color:var(--text);padding:2px 4px;margin:-2px -4px;border-radius:6px;width:100%}
-.desc-input{border:0;background:none;font:inherit;font-size:14px;line-height:1.55;color:var(--text);padding:4px;margin:-4px;border-radius:6px;width:100%;resize:vertical;min-height:64px}
+.desc-input{border:0;background:none;font:inherit;font-size:14px;line-height:1.55;color:var(--text);padding:4px;margin:-4px;border-radius:6px;width:100%;resize:none;overflow:hidden;display:block}
 .title-input:hover,.desc-input:hover{background:var(--hover)}
 .inline-input{height:36px;border:1px solid var(--border-strong);border-radius:8px;padding:0 10px;background:var(--surface);color:var(--text);width:100%}
 .date-pop{padding:10px;width:260px;display:flex;flex-direction:column;gap:4px}
 .date-pop input{height:36px;border:1px solid var(--border-strong);border-radius:8px;padding:0 10px;background:var(--surface);color:var(--text)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .qa-title{border:0;background:none;font:inherit;font-size:18px;font-weight:600;color:var(--text);padding:4px 2px;border-radius:6px;width:100%}
-.qa-desc{border:0;background:none;font:inherit;font-size:14px;color:var(--text);padding:2px;resize:none;width:100%}
+.qa-desc{border:0;background:none;font:inherit;font-size:14px;color:var(--text);padding:2px;resize:none;overflow:hidden;width:100%;display:block}
 .qa-title::placeholder,.qa-desc::placeholder{color:var(--faint)}
 .mobile-only{display:none}
 .m-top{display:none}
 .tabbar,.fab{display:none}
-.drawer{position:fixed;top:0;bottom:0;left:0;width:318px;max-width:86vw;z-index:56;box-shadow:var(--lift)}
-.drawer .side{display:flex;height:100%;width:100%;position:static;border-right:0}
-.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin:14px 0 4px}
-.day-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text)}
-.day-btn.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-text)}
-.day-btn .w{font-size:12px;color:var(--muted)}
-.day-btn .n{font-size:16px;font-weight:700}
+.browse{display:flex;flex-direction:column;gap:8px;max-width:640px;margin:0 auto;padding-top:4px}
+.b-group{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.b-group li+li .b-row::before{content:"";position:absolute;top:0;left:52px;right:0;border-top:1px solid var(--border)}
+.b-row{position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:52px;padding:0 14px 0 16px;border:0;background:none;color:var(--text);font:inherit;font-size:16px;text-align:left;cursor:pointer}
+.b-row:hover,.b-row:active{background:var(--hover)}
+.b-row:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:16px}
+.b-ico{display:grid;place-items:center;width:22px;color:var(--brand-text)}
+.b-ico svg{width:22px;height:22px}
+.b-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.b-count{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.b-chev{width:16px;height:16px;color:var(--faint)}
+.b-head{display:flex;align-items:center;justify-content:space-between;padding:18px 4px 2px 6px}
+.b-head h2{font-size:19px;font-weight:700}
+.b-head .icon-btn{width:44px;height:44px}
+.m-top.no-back{padding-left:16px}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;margin:10px 0 4px;border-bottom:1px solid var(--border)}
+.day-btn{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:4px;padding:8px 0;min-width:0;border:0;background:none;color:var(--muted);font-size:13px;white-space:nowrap}
+.day-btn:hover{color:var(--text)}
+.day-btn .w{text-transform:capitalize;color:inherit}
+.day-btn .n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 4px;border-radius:6px;font-weight:500;color:inherit}
+.day-btn.on{color:var(--text);font-weight:700}
+.day-btn.on .n{background:var(--brand);color:var(--on-brand);font-weight:700}
 .list-group .add-sec-zone{padding:2px 0 0}
 .list-group .add-sec{height:26px}
 .list-group+.list-group .sec-h{padding-top:14px}
@@ -359,10 +409,105 @@ body:has(.drag-overlay) {user-select:none;-webkit-user-select:none}
   .toast-stack{bottom:164px;width:calc(100% - 32px)}
   .toast-stack .toast{white-space:normal;height:auto;min-height:44px;padding:10px 14px}
   .seg-o:has(.badge) svg{margin-top:12px}
-  .week{gap:4px}
+  .day-btn{font-size:12px;gap:2px}
+  .day-btn .n{min-width:20px;height:20px;padding:0 3px}
   .btn,.icon-btn{min-height:40px}
 }
 @media (min-width: 900px){
   .app>.side{flex:0 0 264px}
 }
-@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== Movimento (docs/04-motion-and-interaction.md) =====
+   Nada aparece ou some sem transição. Entrada: @starting-style em [data-state=entering].
+   Saída: [data-state=exiting], com o nó mantido montado por usePresence. Só opacity e transform,
+   exceto .collapse (altura via grid-template-rows). */
+
+/* Scrim: fade. */
+.dialog-wrap .scrim{transition:opacity var(--dur-base) var(--ease-out)}
+@starting-style{.dialog-wrap[data-state=entering] .scrim{opacity:0}}
+.dialog-wrap[data-state=exiting] .scrim{opacity:0;transition-duration:var(--dur-fast);transition-timing-function:var(--ease-in)}
+
+/* Diálogo (desktop): fade + escala leve + deslocamento curto. */
+.dialog-wrap .dialog{transition:opacity var(--dur-base) var(--ease-out),transform var(--dur-base) var(--ease-out)}
+@starting-style{.dialog-wrap[data-state=entering] .dialog{opacity:0;transform:translateY(8px) scale(.96)}}
+.dialog-wrap[data-state=exiting] .dialog{opacity:0;transform:translateY(4px) scale(.98);transition-duration:var(--dur-fast);transition-timing-function:var(--ease-in)}
+.dialog-wrap[data-state=entering] .dialog,.dialog-wrap[data-state=exiting] .dialog{will-change:opacity,transform}
+.dialog-wrap[data-state=exiting]{pointer-events:none}
+
+/* Popover e menu: fade + escala a partir da âncora (transform-origin vem do posicionamento). */
+.popover{transition:opacity var(--dur-base) var(--ease-out),transform var(--dur-base) var(--ease-out)}
+@starting-style{.popover[data-state=entering]{opacity:0;transform:scale(.96)}}
+.popover[data-state=exiting]{opacity:0;transform:scale(.98);pointer-events:none;transition-duration:var(--dur-fast);transition-timing-function:var(--ease-in)}
+.popover[data-state=entering],.popover[data-state=exiting]{will-change:opacity,transform}
+
+/* Avisos: entram subindo com fade, saem em fade; os demais deslizam (useFlip). */
+.toast-stack .toast{transition:opacity var(--dur-slow) var(--ease-out),transform var(--dur-slow) var(--ease-out)}
+@starting-style{.toast-stack .toast{opacity:0;transform:translateY(12px)}}
+.toast-stack .toast[data-state=exiting]{opacity:0;transform:scale(.98);transition-duration:var(--dur-base);transition-timing-function:var(--ease-in)}
+
+/* Bloco recolhível: altura por grid-template-rows 0fr → 1fr. */
+.collapse{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows var(--dur-base) var(--ease-out),opacity var(--dur-base) var(--ease-out)}
+@starting-style{.collapse[data-state=entering]{grid-template-rows:0fr;opacity:0}}
+.collapse[data-state=exiting]{grid-template-rows:0fr;opacity:0;pointer-events:none;transition-duration:var(--dur-fast);transition-timing-function:var(--ease-in)}
+.collapse-in{min-height:0;overflow:hidden}
+/* Margens do banner passam ao contêiner, para colapsarem com os vizinhos como antes. */
+.collapse:has(>.collapse-in>.banner){margin:6px 0 4px}
+.collapse-in>.banner{margin:0}
+.chev{transition:transform var(--dur-base) var(--ease-out)}
+[aria-expanded=true]>.chev{transform:rotate(180deg)}
+
+/* Itens de lista que saem: cópia fixa que esmaece (useFlip). */
+#flip-ghosts{position:fixed;inset:0;pointer-events:none;z-index:45}
+.flip-ghost{position:fixed;margin:0;pointer-events:none;box-sizing:border-box}
+
+/* Detalhes que aparecem com hover, foco ou rolagem. */
+.t-acts,.grip{transition:opacity var(--dur-fast) var(--ease-out)}
+.ring,.ring svg{transition:background-color var(--dur-fast) var(--ease-out),opacity var(--dur-fast) var(--ease-out)}
+.m-top{border-bottom:1px solid transparent;transition:border-color var(--dur-base) var(--ease-out)}
+.m-top-title{transition:opacity var(--dur-base) var(--ease-out)}
+.m-top-title[aria-hidden=true]{opacity:0}
+
+/* Indicadores de arraste e avisos inline: só entrada (seguem o ponteiro; a saída precisa ser imediata). */
+.ins,.nest-preview,.column-drop,.nest-tag,.bad-tag,.banner,.field-error,.empty{transition:opacity var(--dur-fast) var(--ease-out)}
+@starting-style{.ins,.nest-preview,.column-drop,.nest-tag,.bad-tag,.banner,.field-error,.empty{opacity:0}}
+
+/* Troca de rota com layout persistente: o conteúdo novo entra em fade (AppShell, via Web Animations). */
+
+@media (max-width: 899px){
+  /* Folha inferior: sobe da borda e desce ao fechar. */
+  .dialog-wrap .dialog{transition:transform var(--dur-slow) var(--ease-out)}
+  @starting-style{.dialog-wrap[data-state=entering] .dialog{opacity:1;transform:translateY(100%)}}
+  .dialog-wrap[data-state=exiting] .dialog{opacity:1;transform:translateY(100%);transition-duration:var(--dur-base);transition-timing-function:var(--ease-in)}
+  .dialog-wrap .scrim{transition-duration:var(--dur-slow)}
+  .dialog-wrap[data-state=exiting] .scrim{transition-duration:var(--dur-base)}
+}
+
+/* Movimento reduzido: sem animação. A desmontagem não depende de transitionend (motion.tsx usa timeout de 0). */
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ---------- Seletor de fuso horário ---------- */
+.tz-trigger{min-width:220px;max-width:100%;cursor:pointer}
+.tz-trigger-text{display:flex;align-items:baseline;gap:8px;min-width:0;overflow:hidden}
+.tz-trigger .tz-city{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tz-trigger .tz-offset{font-size:12.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.tz-panel{display:flex;flex-direction:column;min-height:0}
+.tz-search{display:flex;align-items:center;gap:8px;margin:8px 8px 4px;padding:0 10px;height:38px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface)}
+.tz-search:focus-within{border-color:var(--brand,var(--border-strong));box-shadow:0 0 0 3px color-mix(in srgb,var(--brand,#888) 22%,transparent)}
+.tz-search svg{width:16px;height:16px;color:var(--muted);flex:none}
+.tz-input{flex:1;min-width:0;height:100%;border:0;outline:0;background:none;color:var(--text);font:inherit;font-size:14px}
+.tz-device{margin:2px 6px 0;width:auto}
+.tz-list{max-height:340px;overflow:auto;padding:4px 6px 6px;overscroll-behavior:contain}
+.tz-option{cursor:pointer;min-height:44px;padding:5px 10px}
+.tz-option[aria-selected="true"] .tz-city{font-weight:600}
+.tz-check{width:16px;flex:none;display:grid;place-items:center}
+.tz-check svg{color:var(--brand-text)}
+.tz-label{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.tz-label>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tz-meta{font-size:12px;color:var(--muted)}
+.tz-option .tz-offset{font-size:12.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.tz-empty{padding:12px 10px}
+.tz-panel.mobile{flex:1}
+.tz-panel.mobile .tz-search{margin:12px 14px 6px;height:44px}
+.tz-panel.mobile .tz-input{font-size:16px}
+.tz-panel.mobile .tz-list{max-height:none;flex:1;min-height:50dvh;padding:4px 10px 18px}
+.tz-panel.mobile .tz-option{min-height:52px;font-size:15px}

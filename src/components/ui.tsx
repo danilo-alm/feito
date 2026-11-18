@@ -5,6 +5,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { IconCheck, IconX } from "./icons";
+import { exitingProps, motionMs, useFlip, usePresence, useSticky } from "./motion";
 
 // ---------- Mídia ----------
 
@@ -49,7 +50,9 @@ function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean, initi
     node?.addEventListener("keydown", onKey);
     return () => {
       node?.removeEventListener("keydown", onKey);
-      if (previous?.isConnected) previous.focus();
+      if (previous?.isConnected && previous !== document.body) previous.focus();
+      // O nó continua montado durante a saída: o foco não pode ficar preso nele.
+      else if (node?.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
     };
   }, [active, ref, initial]);
 }
@@ -75,6 +78,10 @@ export function Dialog({
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  const mobile = useIsMobile();
+  // Presença: o diálogo fica montado durante a saída (veja docs/04-motion-and-interaction.md).
+  const { mounted, state } = usePresence(open, mobile ? { enter: "slow", exit: "base" } : { enter: "base", exit: "fast" });
+  const view = useSticky({ title, children, footer, wide, labelledBy, hideHeader, width }, open);
   useFocusTrap(ref, open, initialFocus);
   useEffect(() => {
     if (!open) return;
@@ -92,27 +99,27 @@ export function Dialog({
       dialogStack.splice(dialogStack.indexOf(token), 1);
     };
   }, [open]);
-  if (!open) return null;
+  if (!mounted) return null;
   return createPortal(
-    <div className="dialog-wrap">
-      <div className="scrim" onClick={onClose} />
+    <div className="dialog-wrap" data-state={state} {...exitingProps(state)}>
+      <div className="scrim" onClick={open ? onClose : undefined} />
       <div
         ref={ref}
-        className={`pop dialog${wide ? " wide" : ""}`}
-        style={width ? { width: `min(${width}px, 100%)` } : undefined}
+        className={`pop dialog${view.wide ? " wide" : ""}`}
+        style={view.width ? { width: `min(${view.width}px, 100%)` } : undefined}
         role="dialog"
         aria-modal="true"
-        aria-label={labelledBy ? undefined : title}
-        aria-labelledby={labelledBy}
+        aria-label={view.labelledBy ? undefined : view.title}
+        aria-labelledby={view.labelledBy}
       >
-        {!hideHeader && (
+        {!view.hideHeader && (
           <div className="dialog-h">
-            <h2>{title}</h2>
+            <h2>{view.title}</h2>
             <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar (Esc)"><IconX /></button>
           </div>
         )}
-        {children}
-        {footer && <div className="dialog-f">{footer}</div>}
+        {view.children}
+        {view.footer && <div className="dialog-f">{view.footer}</div>}
       </div>
     </div>,
     document.body,
@@ -135,18 +142,28 @@ export function Popover({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<React.CSSProperties>({ visibility: "hidden" });
+  // Presença: o popover fica montado durante a saída (veja docs/04-motion-and-interaction.md).
+  const { mounted, state } = usePresence(open, { enter: "base", exit: "fast" });
+  const content = useSticky(children, open);
 
   useLayoutEffect(() => {
     if (!open || !anchor || !ref.current) return;
     const place = () => {
+      // A largura precisa estar no DOM antes de medir; senão a 1ª abertura mede o popover largo demais.
+      if (width) ref.current!.style.width = `${width}px`;
       const rect = anchor.getBoundingClientRect();
       const box = ref.current!.getBoundingClientRect();
       const margin = 8;
       let left = align === "end" ? rect.right - box.width : rect.left;
       left = Math.max(margin, Math.min(left, window.innerWidth - box.width - margin));
       let top = rect.bottom + 6;
-      if (top + box.height > window.innerHeight - margin) top = Math.max(margin, rect.top - box.height - 6);
-      setStyle({ top, left, width });
+      const above = top + box.height > window.innerHeight - margin;
+      if (above) top = Math.max(margin, rect.top - box.height - 6);
+      // A escala parte do lado da âncora, inclusive quando o popover vira para cima.
+      const placed = { top, left, width, transformOrigin: `${align === "end" ? "right" : "left"} ${above ? "bottom" : "top"}` };
+      // Aplica já no DOM: o foco inicial (efeito seguinte) falha num nó ainda com visibility:hidden.
+      Object.assign(ref.current!.style, { top: `${top}px`, left: `${left}px`, visibility: "" });
+      setStyle(placed);
     };
     place();
     window.addEventListener("resize", place);
@@ -155,7 +172,7 @@ export function Popover({
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open, anchor, align, width]);
+  }, [open, mounted, anchor, align, width]);
 
   useEffect(() => {
     if (!open) return;
@@ -189,10 +206,10 @@ export function Popover({
     };
   }, [open, onClose, anchor, role]);
 
-  if (!open) return null;
+  if (!mounted) return null;
   return createPortal(
-    <div ref={ref} className="pop popover" style={style} role={role} aria-label={label}>
-      {children}
+    <div ref={ref} className="pop popover" style={style} role={role} aria-label={label} data-state={state} {...exitingProps(state)}>
+      {content}
     </div>,
     document.body,
   );
@@ -292,23 +309,39 @@ export function MenuButton({
 
 // ---------- Avisos ----------
 
-type Toast = { id: number; message: string; bad: boolean };
+type Toast = { id: number; message: string; bad: boolean; leaving: boolean };
+const TOAST_MS = 3200;
+const TOAST_LIMIT = 3;
 const ToastContext = createContext<(message: string, options?: { bad?: boolean }) => void>(() => {});
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const next = useRef(0);
+  const stack = useRef<HTMLDivElement>(null);
+  useFlip(stack);
+  // Saída em duas etapas: marca `leaving` (fade pelo CSS) e só remove depois da duração de saída.
+  const dismiss = useCallback((ids: number[]) => {
+    if (!ids.length) return;
+    setToasts((current) => current.map((toast) => (ids.includes(toast.id) ? { ...toast, leaving: true } : toast)));
+    window.setTimeout(() => setToasts((current) => current.filter((toast) => !ids.includes(toast.id))), motionMs("base"));
+  }, []);
   const show = useCallback((message: string, options: { bad?: boolean } = {}) => {
     const id = ++next.current;
-    setToasts((current) => [...current.slice(-2), { id, message, bad: !!options.bad }]);
-    window.setTimeout(() => setToasts((current) => current.filter((toast) => toast.id !== id)), 3200);
-  }, []);
+    setToasts((current) => {
+      const visible = current.filter((toast) => !toast.leaving);
+      const overflow = visible.slice(0, Math.max(0, visible.length - (TOAST_LIMIT - 1))).map((toast) => toast.id);
+      if (overflow.length) queueMicrotask(() => dismiss(overflow));
+      return [...current, { id, message, bad: !!options.bad, leaving: false }];
+    });
+    window.setTimeout(() => dismiss([id]), TOAST_MS);
+  }, [dismiss]);
   return (
     <ToastContext.Provider value={show}>
       {children}
-      <div className="toast-stack" role="status" aria-live="polite">
+      <div ref={stack} className="toast-stack" role="status" aria-live="polite">
         {toasts.map((toast) => (
-          <div key={toast.id} className={`toast${toast.bad ? " bad" : ""}`} style={{ paddingRight: 14 }}>
+          <div key={toast.id} className={`toast${toast.bad ? " bad" : ""}`} style={{ paddingRight: 14 }}
+            data-flip={`toast:${toast.id}`} data-state={toast.leaving ? "exiting" : "entered"} aria-hidden={toast.leaving || undefined}>
             {toast.bad ? null : <IconCheck />}
             {toast.message}
           </div>
@@ -322,4 +355,30 @@ export const useToast = () => useContext(ToastContext);
 
 export function Spinner({ label = "Carregando" }: { label?: string }) {
   return <div className="loading" role="status" aria-label={label}><div className="spinner" /></div>;
+}
+
+/** Faz um textarea crescer com o texto: a altura acompanha o conteúdo, sem alça de redimensionar. */
+export function useAutoGrow(value: string) {
+  const node = useRef<HTMLTextAreaElement | null>(null);
+  const observer = useRef<ResizeObserver | null>(null);
+  const fit = useCallback(() => {
+    const element = node.current;
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${element.scrollHeight + element.offsetHeight - element.clientHeight}px`;
+  }, []);
+  useLayoutEffect(fit, [value, fit]);
+  // Ref de callback: o campo pode montar depois do diálogo (após carregar a tarefa).
+  return useCallback((element: HTMLTextAreaElement | null) => {
+    observer.current?.disconnect();
+    node.current = element;
+    if (!element) return;
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    let width = element.clientWidth;
+    observer.current = new ResizeObserver(() => {
+      if (element.clientWidth !== width) { width = element.clientWidth; fit(); }
+    });
+    observer.current.observe(element);
+  }, [fit]);
 }

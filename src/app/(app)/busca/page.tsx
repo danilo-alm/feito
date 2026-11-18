@@ -79,7 +79,7 @@ export default function SearchPage() {
 
   return (
     <>
-      <PageHeader crumb="Busca" mobileTitle="Buscar"
+      <PageHeader crumb="Busca" mobileTitle="Buscar" back="/navegar"
         tools={<span className="hint" style={{ display: "flex", gap: 6, alignItems: "center" }}><span className="kbd">Esc</span>limpa o texto</span>} />
       <div className="content">
         <div className="col" style={{ display: "flex", flexDirection: "column", gap: 14 }}>

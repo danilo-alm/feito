@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { api, ApiFailure, errorMessage } from "@/client/api";
 import { clearCache, setQueryData, useQuery } from "@/client/store";
 import type { ImportPreview, ImportResult, Me, ProjectSummary, Theme } from "@/client/types";
 import { applyTheme, useApp } from "@/components/app";
 import { PageHeader } from "@/components/chrome";
 import { IconAlert, IconDownload, IconHash, IconMonitor, IconMoon, IconSun, IconUpload } from "@/components/icons";
+import { TimezonePicker } from "@/components/timezone-picker";
 import { useToast } from "@/components/ui";
 
 const THEMES: { value: Theme; label: string; icon: React.ReactNode }[] = [
@@ -26,13 +27,6 @@ export default function SettingsPage() {
   const toast = useToast();
   const router = useRouter();
   const archived = useQuery<{ projects: ProjectSummary[] }>("archived", () => api.projects.list("archived"));
-  const zones = useMemo(() => {
-    try {
-      return Intl.supportedValuesOf("timeZone");
-    } catch {
-      return [app.timezone];
-    }
-  }, [app.timezone]);
 
   const savePreferences = async (patch: { theme?: Theme; timezone?: string }) => {
     if (patch.theme) applyTheme(patch.theme);
@@ -48,7 +42,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader crumb="Conta e preferências" mobileTitle="Ajustes" />
+      <PageHeader crumb="Conta e preferências" mobileTitle="Ajustes" back="/navegar" />
       <div className="content">
         <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
           <div className="page-h"><h1 className="title">Ajustes</h1></div>
@@ -73,9 +67,7 @@ export default function SettingsPage() {
                     <label htmlFor="tz">Fuso horário do perfil</label>
                     <div className="hint">Define o que é “Hoje” e quando uma tarefa fica atrasada.</div>
                   </div>
-                  <select id="tz" className="select" value={app.timezone} onChange={(event) => void savePreferences({ timezone: event.target.value })}>
-                    {zones.map((zone) => <option key={zone} value={zone}>{zone}</option>)}
-                  </select>
+                  <TimezonePicker id="tz" value={app.timezone} onChange={(timezone) => void savePreferences({ timezone })} />
                 </div>
               </section>
               <section className="panel" style={{ display: "flex", flexDirection: "column", gap: 4 }} aria-labelledby="conta">

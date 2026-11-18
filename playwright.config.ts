@@ -25,6 +25,9 @@ export default defineConfig({
     locale: "pt-BR",
     timezoneId: "America/Maceio",
     trace: "retain-on-failure",
+    // Movimento reduzido: sem animações, a suíte fica rápida e determinística. O motion.spec.ts liga o
+    // movimento de volta para validar saída animada e interrupções (docs/04-motion-and-interaction.md).
+    reducedMotion: "reduce",
     launchOptions: { args: spki ? [`--ignore-certificate-errors-spki-list=${spki}`] : [] },
   },
   projects: [

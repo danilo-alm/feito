@@ -5,6 +5,7 @@ import { useQuery } from "@/client/store";
 import type { Frequency, Label, Priority, ProjectPage } from "@/client/types";
 import { useApp } from "./app";
 import { IconCheck, IconFlag, IconHash, IconInbox, IconPlus } from "./icons";
+import { Collapse } from "./motion";
 
 export const PRIORITY_NAMES: Record<Priority, string> = {
   1: "Prioridade 1", 2: "Prioridade 2", 3: "Prioridade 3", 4: "Sem prioridade",
@@ -109,16 +110,16 @@ export function DestinationPicker({ projectId, sectionId, onPick }: {
             onClick={() => setExpanded(expanded === project.id ? null : project.id)}>
             <IconHash /><span style={{ flex: 1 }}>{project.name}</span>
           </button>
-          {expanded === project.id && page.data?.project.id === project.id && (
-            [{ id: null as string | null, name: "Sem seção" }, ...page.data.sections].map((section) => (
+          <Collapse open={expanded === project.id && page.data?.project.id === project.id}>
+            {page.data && [{ id: null as string | null, name: "Sem seção" }, ...page.data.sections].map((section) => (
               <button key={section.id ?? "none"} type="button" role="option" className="mi" style={{ paddingLeft: 36 }}
                 aria-selected={projectId === project.id && sectionId === section.id}
                 onClick={() => onPick(project.id, section.id)}>
                 <span style={{ flex: 1 }}>{section.name}</span>
                 {projectId === project.id && sectionId === section.id && <IconCheck />}
               </button>
-            ))
-          )}
+            ))}
+          </Collapse>
         </div>
       ))}
     </div>
