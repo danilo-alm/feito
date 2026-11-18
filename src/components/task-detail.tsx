@@ -8,9 +8,9 @@ import { refreshAll, useApp } from "./app";
 import {
   IconCalendar, IconClock, IconFlag, IconHash, IconInbox, IconPlus, IconRepeat, IconTag, IconTrash, IconX,
 } from "./icons";
-import { LabelPicker, PRIORITY_NAMES, PriorityMenu, RepeatMenu } from "./pickers";
+import { DatePicker, LabelPicker, PRIORITY_NAMES, PriorityMenu, RepeatMenu } from "./pickers";
 import { useTaskActions } from "./task-actions";
-import { Checkbox, DatePicker, TaskMeta } from "./task-row";
+import { Checkbox, TaskMeta } from "./task-row";
 import { Dialog, Popover, Spinner, useAutoGrow, useToast } from "./ui";
 
 type Pop = "date" | "time" | "repeat" | "priority" | "labels" | null;

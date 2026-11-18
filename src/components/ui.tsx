@@ -192,7 +192,7 @@ export function Popover({
       }
       if (role === "menu" && (event.key === "ArrowDown" || event.key === "ArrowUp") && node) {
         event.preventDefault();
-        const items = [...node.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')];
+        const items = [...node.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([disabled])')];
         const index = items.indexOf(document.activeElement as HTMLElement);
         const next = items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length];
         next?.focus();
@@ -215,6 +215,8 @@ export function Popover({
   );
 }
 
+export type MenuChoice = { label: string; icon: ReactNode; active?: boolean; className?: string; onSelect: () => void };
+
 export type MenuItem = {
   label: string;
   icon?: ReactNode;
@@ -222,19 +224,41 @@ export type MenuItem = {
   danger?: boolean;
   disabled?: boolean;
   onSelect: () => void;
-} | "separator";
+} | "separator" | {
+  /** Grupo com título e uma fileira de opções em ícone (ex.: datas rápidas, prioridades). */
+  kind: "choices";
+  label: string;
+  options: MenuChoice[];
+};
 
-export function MenuList({ items, onClose }: { items: MenuItem[]; onClose: () => void }) {
+function MenuEntries({ items, onClose, large }: { items: MenuItem[]; onClose: () => void; large?: boolean }) {
   return (
-    <div className="menu">
-      {items.map((item, index) => item === "separator"
-        ? <div key={`s${index}`} className="msep" role="separator" />
-        : (
+    <>
+      {items.map((item, index) => {
+        if (item === "separator") return <div key={`s${index}`} className="msep" role="separator" />;
+        if ("kind" in item) {
+          return (
+            <div key={`c${item.label}`} role="group" aria-label={item.label} className={`mgroup${large ? " large" : ""}`}>
+              <div className="mgroup-h" aria-hidden="true">{item.label}</div>
+              <div className="mchoices">
+                {item.options.map((option) => (
+                  <button key={option.label} type="button" role="menuitemradio" aria-checked={!!option.active}
+                    aria-label={option.label} title={option.label} className={`mchoice ${option.className ?? ""}`}
+                    onClick={() => { onClose(); option.onSelect(); }}>
+                    {option.icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        }
+        return (
           <button
             key={item.label}
             type="button"
             role="menuitem"
             className={`mi${item.danger ? " danger" : ""}`}
+            style={large ? { minHeight: 48, fontSize: 15 } : undefined}
             disabled={item.disabled}
             onClick={() => {
               onClose();
@@ -243,11 +267,16 @@ export function MenuList({ items, onClose }: { items: MenuItem[]; onClose: () =>
           >
             {item.icon}
             <span style={{ flex: 1 }}>{item.label}</span>
-            {item.shortcut && <span className="kbd">{item.shortcut}</span>}
+            {!large && item.shortcut && <span className="kbd">{item.shortcut}</span>}
           </button>
-        ))}
-    </div>
+        );
+      })}
+    </>
   );
+}
+
+export function MenuList({ items, onClose }: { items: MenuItem[]; onClose: () => void }) {
+  return <div className="menu"><MenuEntries items={items} onClose={onClose} /></div>;
 }
 
 /** Botão que abre um menu de ações (popover no desktop, folha no celular). */
@@ -286,15 +315,7 @@ export function MenuButton({
         <Dialog open={open} onClose={close} title={title ?? label}>
           <div style={{ padding: "4px 10px 18px" }}>
             <div className="menu" role="menu" aria-label={title ?? label}>
-              {list.map((item, index) => item === "separator"
-                ? <div key={`s${index}`} className="msep" role="separator" />
-                : (
-                  <button key={item.label} type="button" role="menuitem" className={`mi${item.danger ? " danger" : ""}`}
-                    style={{ minHeight: 48, fontSize: 15 }} disabled={item.disabled}
-                    onClick={() => { close(); item.onSelect(); }}>
-                    {item.icon}<span style={{ flex: 1 }}>{item.label}</span>
-                  </button>
-                ))}
+              <MenuEntries items={list} onClose={close} large />
             </div>
           </div>
         </Dialog>

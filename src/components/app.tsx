@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { api, ApiFailure, configureApi, errorMessage } from "@/client/api";
+import { closeEditor, type InsertDefaults } from "@/client/editor-store";
 import { clearCache, invalidate, useQuery } from "@/client/store";
 import type { Me, Navigation, Theme } from "@/client/types";
 import { motionMs, useFlip } from "./motion";
@@ -33,13 +34,7 @@ function useThemeSync(theme: Theme | undefined) {
 
 // ---------- Contexto ----------
 
-export type QuickAddDefaults = {
-  projectId?: string;
-  sectionId?: string | null;
-  parentId?: string | null;
-  dueDate?: string | null;
-  labelIds?: string[];
-};
+export type QuickAddDefaults = InsertDefaults;
 
 type ConfirmOptions = { title: string; body?: ReactNode; confirmLabel: string; danger?: boolean };
 type PromptOptions = { title: string; label: string; initial?: string; confirmLabel: string };
@@ -122,6 +117,9 @@ export function AppShell({
   }, []);
 
 
+  // O editor em linha pertence à tela em que foi aberto.
+  useEffect(() => closeEditor(), [pathname]);
+
   const [overlay, setOverlay] = useState<Overlay>({ quickAdd: null, taskId: null });
   const close = useCallback((key: keyof Overlay) => setOverlay((current) => ({ ...current, [key]: null })), []);
 
@@ -130,7 +128,7 @@ export function AppShell({
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement;
-      if (target.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return;
+      if (target.closest("input, textarea, select, [contenteditable=true], [role=dialog], .t-editor")) return;
       if (event.key === "q" || event.key === "Q") {
         event.preventDefault();
         setOverlay((current) => ({ ...current, quickAdd: current.quickAdd ?? {} }));

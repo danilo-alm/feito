@@ -1,10 +1,11 @@
 "use client";
 import { useState } from "react";
+import { addDays, dateLabel, nextWeek } from "@/client/dates";
 import { api } from "@/client/api";
 import { useQuery } from "@/client/store";
 import type { Frequency, Label, Priority, ProjectPage } from "@/client/types";
 import { useApp } from "./app";
-import { IconCheck, IconFlag, IconHash, IconInbox, IconPlus } from "./icons";
+import { IconCalendar, IconCheck, IconFlag, IconHash, IconInbox, IconPlus, IconX } from "./icons";
 import { Collapse } from "./motion";
 
 export const PRIORITY_NAMES: Record<Priority, string> = {
@@ -130,4 +131,36 @@ export function destinationLabel(app: ReturnType<typeof useApp>, projectId: stri
   if (projectId === (app.nav?.inbox.projectId ?? app.me.inboxProjectId)) return "Caixa de entrada";
   const project = app.nav?.projects.find((item) => item.id === projectId);
   return sectionName ? `${project?.name ?? "Projeto"} / ${sectionName}` : project?.name ?? "Projeto";
+}
+
+export function DatePicker({ value, reference, onPick, onClose, allowClear = true }: {
+  value: string | null; reference: string; onPick: (date: string | null) => void; onClose: () => void; allowClear?: boolean;
+}) {
+  const options = [
+    { label: "Hoje", date: reference },
+    { label: "Amanhã", date: addDays(reference, 1) },
+    { label: "Próxima semana", date: nextWeek(reference) },
+  ];
+  return (
+    <div className="date-pop">
+      {options.map((option) => (
+        <button key={option.label} type="button" className="mi" onClick={() => { onPick(option.date); onClose(); }}>
+          <IconCalendar /><span style={{ flex: 1 }}>{option.label}</span>
+          <span className="sub">{dateLabel(option.date, reference) === option.label ? "" : dateLabel(option.date, reference)}</span>
+        </button>
+      ))}
+      <label className="lbl" style={{ padding: "8px 4px 2px" }} htmlFor="date-pick">Escolher data</label>
+      <input id="date-pick" type="date" defaultValue={value ?? ""} onChange={(event) => {
+        if (event.target.value) {
+          onPick(event.target.value);
+          onClose();
+        }
+      }} />
+      {allowClear && value && (
+        <button type="button" className="mi" style={{ marginTop: 4 }} onClick={() => { onPick(null); onClose(); }}>
+          <IconX /><span>Sem data</span>
+        </button>
+      )}
+    </div>
+  );
 }

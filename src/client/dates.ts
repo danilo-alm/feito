@@ -79,6 +79,15 @@ export function nextWeek(reference: string) {
   return addDays(reference, ((8 - day) % 7) || 7);
 }
 
+/** Próximo sábado estritamente depois da referência ("Fim de semana"). */
+export function weekend(reference: string) {
+  return addDays(reference, ((6 - weekday(reference) + 7) % 7) || 7);
+}
+
+export function dayOfMonth(date: string) {
+  return parts(date).day;
+}
+
 export function completedLabel(instant: string, reference: string, timezone?: string) {
   const date = new Date(instant);
   const local = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" })

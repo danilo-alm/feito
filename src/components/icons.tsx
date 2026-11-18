@@ -62,6 +62,22 @@ export const IconMonitor = make(<><rect x="3" y="4" width="18" height="12" rx="2
 export const IconDownload = make(<path d="M12 4v11M7 10l5 5 5-5M5 20h14" />);
 export const IconUpload = make(<path d="M12 20V9M7 13l5-5 5 5M5 4h14" />);
 export const IconEdit = make(<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" />);
+export const IconInsertAbove = make(<><path d="M8 20V6M4 10l4-4 4 4" /><path d="M17 15v6M14 18h6" /></>);
+export const IconInsertBelow = make(<><path d="M8 4v14M4 14l4 4 4-4" /><path d="M17 3v6M14 6h6" /></>);
+export const IconSofa = make(<><path d="M5 11V8a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v3" /><path d="M3 13a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v5H3z" /><path d="M6 18v2M18 18v2" /></>);
+export const IconNextWeek = make(<><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 8h16M8.5 14h7M13 11.5l2.5 2.5-2.5 2.5" /></>);
+export const IconCopy = make(<><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /><path d="M14 11v6M11 14h6" /></>);
+
+/** Calendário com o número do dia (o "Hoje" do menu de datas). */
+export function IconCalendarDay({ day, className, ...rest }: SVGProps<SVGSVGElement> & { day: number }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" focusable="false" {...rest}>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M4 8.5h16" />
+      <text x="12" y="17.6" textAnchor="middle" fontSize="8.5" fontWeight="700" fill="currentColor" stroke="none">{day}</text>
+    </svg>
+  );
+}
 export const IconLogout = make(<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />);
 
 export function Logo({ size = 26 }: { size?: number }) {

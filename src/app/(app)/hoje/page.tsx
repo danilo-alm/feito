@@ -4,15 +4,14 @@ import { api } from "@/client/api";
 import { longDate, shortDate } from "@/client/dates";
 import { useQuery } from "@/client/store";
 import type { TodayView } from "@/client/types";
-import { useApp } from "@/components/app";
 import { PageHeader } from "@/components/chrome";
 import { FlatGroup } from "@/components/flat-list";
 import { IconCheck, IconPlus } from "@/components/icons";
 import { useTaskActions } from "@/components/task-actions";
+import { AddTaskSlot } from "@/components/task-editor";
 import { Spinner } from "@/components/ui";
 
 export default function TodayPage() {
-  const app = useApp();
   const actions = useTaskActions();
   const [showDone, setShowDone] = useState(false);
   const query = useQuery<TodayView>(`today:${showDone}`, () => api.views.today(showDone));
@@ -42,9 +41,13 @@ export default function TodayPage() {
                 empty={!data.overdue.length ? (
                   <div className="empty"><strong>Tudo em dia</strong>Nada planejado para hoje.</div>
                 ) : undefined} />
-              <button type="button" className="add-task" onClick={() => app.openQuickAdd({ dueDate: data.referenceDate })}>
-                <span className="plus"><IconPlus /></span>Adicionar tarefa para hoje
-              </button>
+              <AddTaskSlot slot="add:today" defaults={{ dueDate: data.referenceDate }}>
+                {(start) => (
+                  <button type="button" className="add-task" data-flip="add:today" onClick={start}>
+                    <span className="plus"><IconPlus /></span>Adicionar tarefa para hoje
+                  </button>
+                )}
+              </AddTaskSlot>
               {showDone && (
                 <FlatGroup title="Concluídas hoje" count={data.completedToday?.length ?? 0} tasks={data.completedToday ?? []}
                   actions={actions} muted empty={<p className="hint" style={{ padding: "10px 4px" }}>Nenhuma tarefa concluída hoje.</p>} />

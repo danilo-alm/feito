@@ -6,6 +6,7 @@ import {
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { api, ApiFailure, errorMessage } from "@/client/api";
+import { editKey, insertKey, useEditorOpen } from "@/client/editor-store";
 import { invalidate, useQuery } from "@/client/store";
 import {
   applyStep, keyboardPlan, menuActions, resolveDrop, sectionName, type DropOver, type KeyAction, type Plan, type Zone,
@@ -16,7 +17,8 @@ import { PageHeader } from "./chrome";
 import { Collapse, flipFrom } from "./motion";
 import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconMore, IconPlus, IconSub, IconTrash } from "./icons";
 import { useTaskActions } from "./task-actions";
-import { TaskRow, type ArrangeItem } from "./task-row";
+import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
+import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
 import { MenuButton, Spinner, useIsMobile, useToast, type MenuItem } from "./ui";
 import { LAYOUT_LABEL, SORT_LABEL, ViewMenu } from "./view-menu";
 
@@ -73,6 +75,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
   const router = useRouter();
   const mobile = useIsMobile();
   const actions = useTaskActions();
+  const startCreate = useStartCreate();
   const key = `project:${projectId}`;
   const query = useQuery<ProjectPage>(key, () => api.projects.get(projectId));
   const page = query.data?.project.id === projectId ? query.data : undefined;
@@ -304,6 +307,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
       arrange={archived ? [] : menuActions(page, task.id)}
       onArrange={(action) => arrange(task.id, action)}
       onKeyArrange={onKeyArrange(task)}
+      insert={manual && !archived ? (side) => startCreate(insertKey(side, task.id), insertDefaults(task, side)) : undefined}
       grip={canDrag && !archived && task.status === "active"}
     />
   );
@@ -373,8 +377,21 @@ export function ProjectView({ projectId }: { projectId: string }) {
   );
 }
 
+/** Onde a tarefa criada por "Adicionar tarefa acima/abaixo" entra: mesmo grupo, ao lado da tarefa. */
+function insertDefaults(task: TaskItem, side: InsertSide) {
+  return {
+    projectId: task.projectId, sectionId: task.sectionId, parentId: task.parentId,
+    ...(side === "above" ? { beforeId: task.id } : { afterId: task.id }),
+  };
+}
+
+/** Editor de "Adicionar tarefa abaixo"; numa tarefa com subtarefas na lista, aparece depois delas. */
+function BelowSlot({ task }: { task: TaskItem }) {
+  return <CreateSlot slot={insertKey("below", task.id)} defaults={insertDefaults(task, "below")} />;
+}
+
 function DraggableTask({
-  task, variant, disabled, dragging, indicator, draggedTitle, actions, arrange, onArrange, onKeyArrange, grip,
+  task, variant, disabled, dragging, indicator, draggedTitle, actions, arrange, onArrange, onKeyArrange, insert, grip,
 }: {
   task: TaskItem;
   variant: "row" | "card";
@@ -386,9 +403,12 @@ function DraggableTask({
   arrange: ArrangeItem[];
   onArrange: (action: ArrangeItem["action"]) => void;
   onKeyArrange: (event: KeyboardEvent<HTMLDivElement>) => void;
+  insert?: (side: InsertSide) => void;
   grip: boolean;
 }) {
-  const draggable = useDraggable({ id: task.id, disabled });
+  // Em edição a linha vira formulário: arrastar a partir dos campos selecionaria texto e moveria a tarefa.
+  const editing = useEditorOpen(editKey(task));
+  const draggable = useDraggable({ id: task.id, disabled: disabled || editing });
   const droppable = useDroppable({ id: `task:${task.id}`, disabled: task.status !== "active" });
   const setRef = (node: HTMLDivElement | null) => {
     draggable.setNodeRef(node);
@@ -404,18 +424,20 @@ function DraggableTask({
   const insStyle = variant === "card" ? { margin: "-5px 2px 7px" } : { marginLeft: line?.indent ? 34 : 0 };
   return (
     <Fragment>
+      <CreateSlot slot={insertKey("above", task.id)} defaults={insertDefaults(task, "above")} />
       {line?.side === "before" && <div className="ins" style={insStyle} aria-hidden="true" />}
       <TaskRow
         ref={setRef}
         task={task}
         actions={actions}
         variant={variant}
-        grip={grip}
         tag={variant === "row" ? tag : undefined}
         extraClass={classes}
         arrange={arrange}
         onArrange={onArrange}
         onKeyArrange={onKeyArrange}
+        insert={insert}
+        grip={grip && !editing}
         {...draggable.attributes}
         {...draggable.listeners}
         role={undefined}
@@ -433,6 +455,7 @@ function DraggableTask({
         </div>
       )}
       {line?.side === "after" && <div className="ins" style={insStyle} aria-hidden="true" />}
+      {!(variant === "row" && task.childIds.length) && <BelowSlot task={task} />}
     </Fragment>
   );
 }
@@ -468,6 +491,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
   const block = (task: TaskItem) => [
     renderTask(task, "row"),
     ...task.childIds.map((id) => tasks.get(id)).filter((child): child is TaskItem => !!child).map((child) => renderTask(child, "row")),
+    ...(task.childIds.length ? [<BelowSlot key={`below:${task.id}`} task={task} />] : []),
   ];
 
   const createSection = async (afterSectionId: string | null, name: string) => {
@@ -502,9 +526,13 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
               ) : <div style={{ height: 10, borderBottom: "1px solid var(--border)" }} />}
               {active.flatMap(block)}
               {!archived && (
-                <button type="button" className="add-task" data-flip={`add:${group.sectionId ?? "none"}`} onClick={() => app.openQuickAdd({ projectId: project.id, sectionId: group.sectionId })}>
-                  <span className="plus"><IconPlus /></span>Adicionar tarefa
-                </button>
+                <AddTaskSlot slot={`add:${project.id}:${group.sectionId ?? "none"}`} defaults={{ projectId: project.id, sectionId: group.sectionId }}>
+                  {(start) => (
+                    <button type="button" className="add-task" data-flip={`add:${group.sectionId ?? "none"}`} onClick={start}>
+                      <span className="plus"><IconPlus /></span>Adicionar tarefa
+                    </button>
+                  )}
+                </AddTaskSlot>
               )}
               {done.length > 0 && (
                 <>
@@ -600,9 +628,13 @@ function BoardLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu
                 {active.map((task) => renderTask(task, "card"))}
                 {target && <div className="slot column-drop">Soltar aqui muda para {title}</div>}
                 {!archived && (
-                  <button type="button" className="col-add" data-flip={`col-add:${group.sectionId ?? "none"}`} onClick={() => app.openQuickAdd({ projectId: project.id, sectionId: group.sectionId })}>
-                    <IconPlus className="plus" />Adicionar tarefa
-                  </button>
+                  <AddTaskSlot slot={`add:${project.id}:${group.sectionId ?? "none"}`} defaults={{ projectId: project.id, sectionId: group.sectionId }}>
+                    {(start) => (
+                      <button type="button" className="col-add" data-flip={`col-add:${group.sectionId ?? "none"}`} onClick={start}>
+                        <IconPlus className="plus" />Adicionar tarefa
+                      </button>
+                    )}
+                  </AddTaskSlot>
                 )}
                 {done.length > 0 && (
                   <>

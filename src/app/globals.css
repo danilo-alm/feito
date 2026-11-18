@@ -7,6 +7,7 @@
   --focus:#2B7A58;--late:#B8362E;
   --p1:#D2433A;--p2:#B56D00;--p3:#2E6BD0;--p4:#8A847A;
   --p1-soft:#FCE8E5;--p2-soft:#FCF0DB;--p3-soft:#E4EDFC;--p4-soft:transparent;
+  --violet:#6E45C9;
   --shadow:0 1px 2px rgba(40,34,24,.06),0 10px 28px rgba(40,34,24,.10);
   --lift:0 2px 4px rgba(40,34,24,.08),0 18px 40px rgba(40,34,24,.18);
   --scrim:rgba(32,29,24,.36);--toast:#2A2926;--on-toast:#F6F4EF;
@@ -25,6 +26,7 @@ html.dark{
   --focus:#8CD1AB;--late:#FF8C80;
   --p1:#FF7B6E;--p2:#F2AA3E;--p3:#74AAFF;--p4:#9E988E;
   --p1-soft:#3D2724;--p2-soft:#3A2E1B;--p3-soft:#1F2C3F;--p4-soft:transparent;
+  --violet:#B39BFF;
   --shadow:0 1px 2px rgba(0,0,0,.35),0 12px 32px rgba(0,0,0,.45);
   --lift:0 2px 6px rgba(0,0,0,.4),0 20px 44px rgba(0,0,0,.55);
   --scrim:rgba(0,0,0,.58);--toast:#EDE9E2;--on-toast:#1B1A18;
@@ -87,6 +89,7 @@ h1,h2,h3,p{margin:0}
 .pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:13px;white-space:nowrap}
 .pill.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-text);font-weight:600}
 .pill svg{width:15px;height:15px}
+.pill.on.p1,.pill.on.p2,.pill.on.p3{border-color:var(--pc);background:var(--pcs);color:var(--pc)}
 .badge{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:9px;background:var(--sunken);border:1px solid var(--border);color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.01em}
 .switch{width:40px;height:24px;border-radius:12px;background:var(--border-strong);border:0;position:relative;padding:0;flex:none}
 .switch{transition:background-color var(--dur-base) var(--ease-out)}
@@ -130,7 +133,7 @@ h1,h2,h3,p{margin:0}
 .m-prio svg{color:var(--pc)}
 .m-origin{margin-left:auto}
 .t-acts{display:flex;gap:2px;opacity:0;margin:-6px 0}
-.task:hover .t-acts,.task:focus-within .t-acts{opacity:1}
+.task:hover .t-acts,.task:focus-within .t-acts,.card:hover .t-acts,.card:focus-within .t-acts,.t-acts:has([aria-expanded=true]){opacity:1}
 .t-acts .icon-btn{width:30px;height:30px}
 .add-task{display:flex;align-items:center;gap:10px;height:40px;padding:0 4px;color:var(--muted);font-size:14px;border:0;background:none;width:100%;text-align:left}
 .add-task .plus{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:var(--brand-text)}
@@ -416,6 +419,44 @@ body:has(.drag-overlay) {user-select:none;-webkit-user-select:none}
 @media (min-width: 900px){
   .app>.side{flex:0 0 264px}
 }
+
+/* ---------- Editor rápido (em linha e no diálogo de adicionar) ---------- */
+.t-editor.te-inline{border:1px solid var(--border-strong);border-radius:10px;background:var(--surface);padding:10px 12px 10px;margin:6px 0;display:flex;flex-direction:column;gap:2px}
+.t-editor.te-inline:focus-within{border-color:var(--faint)}
+.card+.t-editor.te-inline,.column .t-editor.te-inline{margin:0 0 8px}
+.t-editor.te-dialog{padding:18px 20px 14px;display:flex;flex-direction:column;gap:10px}
+.te-title{border:0;background:none;font:inherit;font-size:15px;font-weight:600;line-height:22px;color:var(--text);padding:2px 0;width:100%;outline:none}
+.te-desc{border:0;background:none;font:inherit;font-size:13.5px;line-height:19px;color:var(--text);padding:2px 0;resize:none;overflow:hidden;width:100%;display:block;outline:none}
+.te-title::placeholder,.te-desc::placeholder{color:var(--faint)}
+.te-desc[readonly]{color:var(--muted)}
+.te-bar{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.te-bar .chips{flex:1;min-width:0;gap:6px}
+.te-actions{display:flex;align-items:center;gap:6px;margin-left:auto}
+.te-plus{width:30px;padding:0;justify-content:center;background:var(--hover);border-color:transparent}
+.te-plus:hover,.te-plus[aria-expanded=true]{background:var(--border-strong)}
+.te-hash{color:var(--brand-text)}
+.te-dest{max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.te-ok{width:40px;height:32px;border-radius:8px;border:0;background:var(--brand);color:var(--on-brand);display:grid;place-items:center}
+.te-ok:hover{background:var(--brand-hover)}
+.te-ok:disabled{opacity:.45;cursor:not-allowed}
+.te-ok svg{stroke-width:2.6}
+.te-foot{display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);margin:6px -20px 0;padding:12px 20px 0;flex-wrap:wrap}
+.te-foot .hint{min-width:0;overflow:hidden;white-space:nowrap;flex-shrink:1}
+.te-foot .hint .kbd{flex:none}
+@media (min-width: 900px){.te-foot{flex-wrap:nowrap}}
+
+/* Grupos de ícones no menu da tarefa (Data, Prioridade). */
+.mgroup{padding:4px 4px 2px}
+.mgroup-h{padding:4px 6px 4px;font-size:13px;font-weight:700;color:var(--text)}
+.mchoices{display:flex;gap:2px;flex-wrap:wrap}
+.mchoice{width:38px;height:36px;border-radius:8px;border:1px solid transparent;background:none;display:grid;place-items:center;color:var(--muted)}
+.mchoice:hover,.mchoice:focus-visible{background:var(--hover)}
+.mchoice[aria-checked=true]{border-color:var(--border-strong);background:var(--hover)}
+.mchoice svg{width:20px;height:20px}
+.mgroup.large .mchoice{width:48px;height:44px}
+.c-today{color:var(--brand-text)}.c-tomorrow{color:var(--p2)}.c-weekend{color:var(--p3)}.c-week{color:var(--violet)}
+.mflag{color:var(--pc)}
+.mflag.p1 svg,.mflag.p2 svg,.mflag.p3 svg{fill:currentColor}
 
 /* ===== Movimento (docs/04-motion-and-interaction.md) =====
    Nada aparece ou some sem transição. Entrada: @starting-style em [data-state=entering].

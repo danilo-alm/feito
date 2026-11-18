@@ -7,6 +7,7 @@ import type { UpcomingView } from "@/client/types";
 import { useApp } from "@/components/app";
 import { PageHeader } from "@/components/chrome";
 import { FlatGroup } from "@/components/flat-list";
+import { CreateSlot, useStartCreate } from "@/components/task-editor";
 import { IconChevronLeft, IconChevronRight, IconPlus } from "@/components/icons";
 import { useTaskActions } from "@/components/task-actions";
 import { Spinner } from "@/components/ui";
@@ -14,6 +15,7 @@ import { Spinner } from "@/components/ui";
 export default function UpcomingPage() {
   const app = useApp();
   const actions = useTaskActions();
+  const startCreate = useStartCreate();
   const tomorrow = addDays(app.reference, 1);
   const [start, setStart] = useState<string | null>(null);
   const first = start && start >= tomorrow ? start : tomorrow;
@@ -54,11 +56,12 @@ export default function UpcomingPage() {
                 <FlatGroup title={title} count={day.tasks.length || undefined} tasks={day.tasks} actions={actions} timeOnly
                   aside={(
                     <button type="button" className="icon-btn" style={{ marginLeft: "auto", width: 28, height: 28, minHeight: 0 }}
-                      aria-label={`Adicionar tarefa em ${shortDate(day.date)}`} onClick={() => app.openQuickAdd({ dueDate: day.date })}>
+                      aria-label={`Adicionar tarefa em ${shortDate(day.date)}`} onClick={() => startCreate(`add:day:${day.date}`, { dueDate: day.date })}>
                       <IconPlus className="sm" />
                     </button>
                   )}
                   empty={<div className="sub" style={{ padding: "12px 4px", borderBottom: "1px solid var(--border)" }}>Nada planejado.</div>} />
+                <CreateSlot slot={`add:day:${day.date}`} defaults={{ dueDate: day.date }} />
               </div>
             );
           })}

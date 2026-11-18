@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import { api, ApiFailure, errorMessage } from "@/client/api";
 import { dateLabel } from "@/client/dates";
 import { useQuery } from "@/client/store";
-import type { ProjectPage, TaskItem } from "@/client/types";
+import type { Priority, ProjectPage, TaskItem } from "@/client/types";
 import { useApp } from "./app";
 import { IconCheck, IconHash, IconInbox, IconSearch } from "./icons";
 import { Collapse } from "./motion";
@@ -78,10 +78,41 @@ export function useTaskActions() {
     }), { success: dueDate ? `Agendada para ${dateLabel(dueDate, app.reference).toLowerCase()}` : "Data removida" });
   }, [app, toast]);
 
+  const setPriority = useCallback(async (task: TaskItem, priority: Priority) => {
+    if (priority === task.priority) return;
+    await app.run(() => api.tasks.edit(task.id, { revision: task.revision, priority }), {
+      success: priority < 4 ? `Prioridade ${priority}` : "Prioridade removida",
+    });
+  }, [app]);
+
+  /** Cria uma cópia (sem subtarefas) logo abaixo da original. */
+  const duplicate = useCallback(async (task: TaskItem) => {
+    await app.run(async () => {
+      const source = await api.tasks.get(task.id);
+      const copy = await api.tasks.create({
+        title: source.title,
+        description: source.description || undefined,
+        ...(source.parentId ? { parentId: source.parentId } : { projectId: source.projectId, sectionId: source.sectionId }),
+        priority: source.priority,
+        dueDate: source.dueDate,
+        dueTime: source.dueTime,
+        labelIds: source.labels.map((label) => label.id),
+        recurrence: source.recurrenceRule
+          ? { frequency: source.recurrenceRule.frequency, anchorDate: source.dueDate ?? source.recurrenceRule.anchorDate, time: source.recurrenceRule.time }
+          : undefined,
+      });
+      // Logo abaixo da original; com ordenação automática o servidor recusa a posição e a cópia fica no fim.
+      await api.tasks.move(copy.id, copy.revision, {
+        type: "position", projectId: source.projectId, sectionId: source.sectionId, parentId: source.parentId, afterId: source.id,
+      }).catch(() => undefined);
+      return copy;
+    }, { success: "Tarefa duplicada" });
+  }, [app]);
+
   const openMove = useCallback((task: Movable) => setMoving(task), []);
   const moveDialog = <MoveDialog task={moving} onClose={() => setMoving(null)} />;
 
-  return { complete, reopen, toggle, remove, reschedule, openMove, moveDialog };
+  return { complete, reopen, toggle, remove, reschedule, setPriority, duplicate, openMove, moveDialog };
 }
 
 function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => void }) {
