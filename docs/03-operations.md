@@ -147,6 +147,12 @@ docker compose -p feito-test --env-file "$FEITO_TEST_ENV" up -d --wait postgres
 
 A suíte verifica isolamento entre contas pelo HTTP e pelas políticas do PostgreSQL. Também cobre revisões concorrentes, arquivamento, ordenação, seções, movimentação de tarefas, vínculos com etiquetas, conclusão idempotente de ocorrências, virada de dia no fuso da conta, busca paginada e portabilidade entre contas com chaves de dados distintas.
 
+### CI e imagens
+
+O workflow [`.github/workflows/ci.yaml`](../.github/workflows/ci.yaml) roda em pull requests e em pushes na `main` e na `dev`: typecheck, testes unitários, build e testes de integração (PostgreSQL 18 descartável, com segredos gerados na execução). Os testes ponta a ponta não rodam no CI.
+
+Em push na `main` ou na `dev`, com os testes aprovados, publica no GitHub Container Registry as imagens `ghcr.io/<dono>/feito` (alvo `prod`) e `ghcr.io/<dono>/feito-tools` (alvo `tools`), com as tags `sha-<commit>` e, conforme a branch, `latest` (`main`) ou `dev` (`dev`). Os pacotes nascem privados; torne-os públicos ou vincule-os ao repositório nas configurações do pacote, se necessário.
+
 ## Backup e chaves
 
 A portabilidade exporta um JSON legível com os dados de uma conta. O backup PostgreSQL contém também identidades, hashes de senha e chaves de dados encapsuladas. Mantenha o backup cifrado e as versões da KEK em armazenamento recuperável separado.
