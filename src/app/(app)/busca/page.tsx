@@ -8,13 +8,14 @@ import type { Priority, SearchDate, SearchInput, SearchResult, TaskItem } from "
 import { useApp } from "@/components/app";
 import { PageHeader } from "@/components/chrome";
 import { FlatGroup } from "@/components/flat-list";
-import { IconCalendar, IconChevronDown, IconFlag, IconInbox, IconSearch, IconTag, IconX } from "@/components/icons";
+import { IconCalendar, IconChevronDown, IconChevronLeft, IconFlag, IconInbox, IconSearch, IconTag, IconX } from "@/components/icons";
 import { ProjectGlyph } from "@/components/project-style";
-import { PriorityMenu } from "@/components/pickers";
+import { DatePicker, PriorityMenu } from "@/components/pickers";
 import { useTaskActions } from "@/components/task-actions";
 import { Popover, Spinner } from "@/components/ui";
 
 type Filter = "project" | "label" | "priority" | "date" | null;
+type RangeEndpoint = "from" | "to";
 
 const DATE_NAMES = { today: "Hoje", overdue: "Atrasadas", none: "Sem data" } as const;
 
@@ -29,6 +30,7 @@ export default function SearchPage() {
   const [date, setDate] = useState<SearchDate | undefined>();
   const [includeCompleted, setIncludeCompleted] = useState(false);
   const [open, setOpen] = useState<Filter>(null);
+  const [rangeEndpoint, setRangeEndpoint] = useState<RangeEndpoint | null>(null);
   const [range, setRange] = useState({ from: app.reference, to: app.reference });
   const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
   const input = useRef<HTMLInputElement>(null);
@@ -63,7 +65,7 @@ export default function SearchPage() {
   const labelName = app.nav?.labels.find((item) => item.id === labelId)?.name;
   const dateName = date ? (date.kind === "range" ? `${dateLabel(date.from, app.reference)} – ${dateLabel(date.to, app.reference)}` : DATE_NAMES[date.kind]) : null;
   const clear = () => { setProjectId(undefined); setLabelId(undefined); setPriority(undefined); setDate(undefined); };
-  const close = () => setOpen(null);
+  const close = () => { setOpen(null); setRangeEndpoint(null); };
 
   const pill = (key: Exclude<Filter, null>, icon: React.ReactNode, label: string, value: string | null | undefined, reset: () => void) => (
     <span style={{ display: "inline-flex" }}>
@@ -143,21 +145,37 @@ export default function SearchPage() {
       <Popover anchor={anchors.current.priority ?? null} open={open === "priority"} onClose={close} label="Prioridade">
         <PriorityMenu value={priority ?? 4} onPick={(value) => { setPriority(value); close(); }} />
       </Popover>
-      <Popover anchor={anchors.current.date ?? null} open={open === "date"} onClose={close} label="Data">
-        <div className="date-pop">
-          {(Object.keys(DATE_NAMES) as (keyof typeof DATE_NAMES)[]).map((kind) => (
-            <button key={kind} type="button" className="mi" onClick={() => { setDate({ kind }); close(); }}>{DATE_NAMES[kind]}</button>
-          ))}
-          <form onSubmit={(event) => { event.preventDefault(); if (range.from <= range.to) { setDate({ kind: "range", ...range }); close(); } }}
-            style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 8, borderTop: "1px solid var(--border)", marginTop: 4 }}>
-            <span className="lbl">Intervalo</span>
-            <label className="sr-only" htmlFor="from">De</label>
-            <input id="from" type="date" value={range.from} onChange={(event) => setRange({ ...range, from: event.target.value })} />
-            <label className="sr-only" htmlFor="to">Até</label>
-            <input id="to" type="date" value={range.to} onChange={(event) => setRange({ ...range, to: event.target.value })} />
-            <button type="submit" className="btn" disabled={!range.from || !range.to || range.from > range.to}>Aplicar intervalo</button>
-          </form>
-        </div>
+      <Popover anchor={anchors.current.date ?? null} open={open === "date"} onClose={close} label="Data" width={280}>
+        {rangeEndpoint ? (
+          <div className="range-date-panel">
+            <button type="button" className="text-btn" onClick={() => setRangeEndpoint(null)}><IconChevronLeft />Voltar ao intervalo</button>
+            <span className="lbl">{rangeEndpoint === "from" ? "Data inicial" : "Data final"}</span>
+            <DatePicker value={range[rangeEndpoint]} reference={app.reference} allowClear={false} autoFocus
+              onPick={(value) => { if (value) setRange((current) => ({ ...current, [rangeEndpoint]: value })); }}
+              onClose={() => setRangeEndpoint(null)} />
+          </div>
+        ) : (
+          <div className="date-pop">
+            {(Object.keys(DATE_NAMES) as (keyof typeof DATE_NAMES)[]).map((kind) => (
+              <button key={kind} type="button" className="mi" onClick={() => { setDate({ kind }); close(); }}>{DATE_NAMES[kind]}</button>
+            ))}
+            <form onSubmit={(event) => { event.preventDefault(); if (range.from <= range.to) { setDate({ kind: "range", ...range }); close(); } }}
+              style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 8, borderTop: "1px solid var(--border)", marginTop: 4 }}>
+              <span className="lbl">Intervalo</span>
+              <span className="range-date-field">
+                <span>De</span>
+                <button type="button" className="select" aria-label={`Data inicial: ${dateLabel(range.from, app.reference)}`}
+                  onClick={() => setRangeEndpoint("from")}>{dateLabel(range.from, app.reference)}<IconChevronDown /></button>
+              </span>
+              <span className="range-date-field">
+                <span>Até</span>
+                <button type="button" className="select" aria-label={`Data final: ${dateLabel(range.to, app.reference)}`}
+                  onClick={() => setRangeEndpoint("to")}>{dateLabel(range.to, app.reference)}<IconChevronDown /></button>
+              </span>
+              <button type="submit" className="btn" disabled={!range.from || !range.to || range.from > range.to}>Aplicar intervalo</button>
+            </form>
+          </div>
+        )}
       </Popover>
       {actions.moveDialog}
     </>

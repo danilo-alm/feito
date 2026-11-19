@@ -1,5 +1,5 @@
 "use client";
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import {
   addDays, dateLabel, dayOfMonth, daysBetween, daysInMonth, dueTone, longDate, monthShort, monthStart, nextWeek, parseDueInput, shortDate,
   weekday, weekdayShort, weekend,
@@ -56,20 +56,44 @@ export function RepeatMenu({ value, onPick }: { value: Frequency | null; onPick:
 }
 
 export function TimePicker({ value, onPick }: { value: string | null; onPick: (time: string | null) => void }) {
-  const id = useId();
+  const [hour, setHour] = useState<number | null>(() => value ? Number(value.slice(0, 2)) : null);
+  const [minute, setMinute] = useState<number | null>(() => value ? Number(value.slice(3, 5)) : null);
+
+  useEffect(() => {
+    setHour(value ? Number(value.slice(0, 2)) : null);
+    setMinute(value ? Number(value.slice(3, 5)) : null);
+  }, [value]);
+
   return (
-    <form className="date-pop" onSubmit={(event) => {
-      event.preventDefault();
-      const time = new FormData(event.currentTarget).get("time") as string;
-      onPick(time || null);
-    }}>
-      <label className="lbl" htmlFor={id}>Horário</label>
-      <input id={id} name="time" type="time" defaultValue={value ?? ""} data-autofocus />
-      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-        {value && <button type="button" className="btn ghost" onClick={() => onPick(null)}>Sem horário</button>}
-        <button type="submit" className="btn primary" style={{ marginLeft: "auto" }}>Salvar</button>
+    <div className="time-pop">
+      <div className="time-columns">
+        <div className="time-column">
+          <span className="lbl">Hora</span>
+          <div className="time-options" role="listbox" aria-label="Hora">
+            {Array.from({ length: 24 }, (_, option) => (
+              <button key={option} type="button" role="option" aria-selected={hour === option}
+                className={`time-option${hour === option ? " on" : ""}`} data-autofocus={hour === option || undefined}
+                onClick={() => setHour(option)}>{String(option).padStart(2, "0")}</button>
+            ))}
+          </div>
+        </div>
+        <div className="time-column">
+          <span className="lbl">Minuto</span>
+          <div className="time-options" role="listbox" aria-label="Minuto">
+            {Array.from({ length: 60 }, (_, option) => (
+              <button key={option} type="button" role="option" aria-selected={minute === option}
+                className={`time-option${minute === option ? " on" : ""}`} data-autofocus={minute === option || undefined}
+                onClick={() => setMinute(option)}>{String(option).padStart(2, "0")}</button>
+            ))}
+          </div>
+        </div>
       </div>
-    </form>
+      <div className="time-actions">
+        {value && <button type="button" className="btn ghost" onClick={() => onPick(null)}>Sem horário</button>}
+        <button type="button" className="btn primary" disabled={hour === null || minute === null} style={{ marginLeft: "auto" }}
+          onClick={() => onPick(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`)}>Salvar</button>
+      </div>
+    </div>
   );
 }
 
@@ -166,8 +190,8 @@ const CALENDAR_MONTHS = 18;
  * Seletor de vencimento: campo de texto ("sexta", "25/12"…), atalhos e um calendário rolável
  * com os meses em sequência. É o mesmo no editor, no detalhe e no "Escolher data…" do menu da tarefa.
  */
-export function DatePicker({ value, reference, onPick, onClose, allowClear = true }: {
-  value: string | null; reference: string; onPick: (date: string | null) => void; onClose: () => void; allowClear?: boolean;
+export function DatePicker({ value, reference, onPick, onClose, allowClear = true, autoFocus = false }: {
+  value: string | null; reference: string; onPick: (date: string | null) => void; onClose: () => void; allowClear?: boolean; autoFocus?: boolean;
 }) {
   const [text, setText] = useState("");
   const typed = text.trim() ? parseDueInput(text, reference) : null;
@@ -186,7 +210,7 @@ export function DatePicker({ value, reference, onPick, onClose, allowClear = tru
       <form className="due-input" onKeyDown={(event) => event.stopPropagation()}
         onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); if (typed) pick(typed); }}>
         <input value={text} onChange={(event) => setText(event.target.value)} placeholder="Digite um vencimento"
-          aria-label="Digite um vencimento" data-autofocus autoComplete="off" spellCheck={false} />
+          aria-label="Digite um vencimento" data-autofocus autoFocus={autoFocus} autoComplete="off" spellCheck={false} />
         {text.trim() && (
           typed
             ? <button type="submit" className={`due-typed tone-${dueTone(typed, reference)}`} aria-label={longDate(typed)}>

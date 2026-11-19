@@ -13,7 +13,7 @@ import {
   DueIcon, IconCalendar, IconCheck, IconChevronDown, IconClock, IconFlag, IconInbox, IconPlus, IconRepeat, IconSub, IconTag, IconX,
 } from "./icons";
 import { ProjectGlyph } from "./project-style";
-import { DatePicker, DestinationPicker, FREQUENCIES, LabelPicker, PriorityMenu, RepeatMenu, destinationLabel } from "./pickers";
+import { DatePicker, DestinationPicker, FREQUENCIES, LabelPicker, PriorityMenu, RepeatMenu, TimePicker, destinationLabel } from "./pickers";
 import { MenuList, Popover, useAutoGrow, useIsMobile, type MenuItem } from "./ui";
 
 export type TaskDraft = {
@@ -261,11 +261,7 @@ export function TaskEditor({
           onPick={(date) => set(date ? { dueDate: date } : { dueDate: null, dueTime: null })} />
       </Popover>
       <Popover anchor={anchorOf("time")} open={pop === "time"} onClose={closePop} label="Horário">
-        <div className="date-pop">
-          <label className="lbl" htmlFor={`${id}-time`}>Horário</label>
-          <input id={`${id}-time`} type="time" value={draft.dueTime ?? ""} data-autofocus onChange={(event) => set({ dueTime: event.target.value || null })} />
-          {draft.dueTime && <button type="button" className="mi" onClick={() => { set({ dueTime: null }); closePop(); }}><IconX />Sem horário</button>}
-        </div>
+        <TimePicker value={draft.dueTime} onPick={(time) => { set({ dueTime: time }); closePop(); }} />
       </Popover>
       <Popover anchor={anchorOf("repeat")} open={pop === "repeat"} onClose={closePop} label="Repetir">
         <RepeatMenu value={draft.frequency} onPick={(value) => {

@@ -389,6 +389,20 @@ body:has(.drag-overlay) {user-select:none;-webkit-user-select:none}
 .inline-input{height:36px;border:1px solid var(--border-strong);border-radius:8px;padding:0 10px;background:var(--surface);color:var(--text);width:100%}
 .date-pop{padding:10px;width:260px;display:flex;flex-direction:column;gap:4px}
 .date-pop input{height:36px;border:1px solid var(--border-strong);border-radius:8px;padding:0 10px;background:var(--surface);color:var(--text)}
+.range-date-panel{width:264px;display:flex;flex-direction:column;align-items:flex-start}
+.range-date-panel>.text-btn{margin:4px 8px 0}
+.range-date-panel>.lbl{margin:8px 8px 0}
+.range-date-field{display:grid;grid-template-columns:32px minmax(0,1fr);gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+.range-date-field .select{width:100%;min-width:0;padding:0 8px;font-size:13px}
+.time-pop{width:264px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.time-columns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.time-column{display:flex;flex-direction:column;gap:4px;min-width:0}
+.time-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;max-height:168px;overflow:auto;padding:3px;border:1px solid var(--border);border-radius:8px;overscroll-behavior:contain;scrollbar-width:none}
+.time-options::-webkit-scrollbar{display:none}
+.time-option{height:28px;padding:0;border:0;border-radius:6px;background:none;color:var(--text);font:inherit;font-size:12px;font-variant-numeric:tabular-nums}
+.time-option:hover,.time-option.on{background:var(--hover)}
+.time-option.on{color:var(--brand-text);font-weight:700}
+.time-actions{display:flex;gap:6px;align-items:center}
 .task-field{display:flex;flex-direction:column;gap:8px;margin:0;padding:10px;border:0}
 .task-field>.btn{align-self:flex-end}
 /* Seletor de vencimento (DatePicker) */

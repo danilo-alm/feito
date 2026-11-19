@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Layout, ProjectPage, SortMode } from "@/client/types";
-import { IconBoard, IconCalendar, IconChevronDown, IconHelp, IconList, IconTable } from "./icons";
+import { IconBoard, IconCalendar, IconCheck, IconChevronDown, IconHelp, IconList, IconTable } from "./icons";
 import { Dialog, Popover, useIsMobile } from "./ui";
 
 export const SORT_LABEL: Record<SortMode, string> = { manual: "Manual", date: "Data planejada", priority: "Prioridade" };
@@ -13,9 +13,12 @@ export function ViewMenu({ page, onChange }: {
 }) {
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useRef<HTMLButtonElement>(null);
   const mobile = useIsMobile();
   const { view, isInbox } = { view: page.project.view, isInbox: page.project.isInbox };
-  const close = () => setOpen(false);
+  const close = () => { setOpen(false); setSortOpen(false); };
+  const closeSort = () => setSortOpen(false);
 
   const body = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: mobile ? "8px 16px 24px" : "16px 18px 14px" }}>
@@ -49,15 +52,28 @@ export function ViewMenu({ page, onChange }: {
         <span className="select" aria-disabled="true" style={{ color: "var(--muted)" }}>{isInbox ? "Nenhum" : "Seções do projeto"}</span>
       </div>
       <div className="row">
-        <label htmlFor="sort-select">Ordenar</label>
-        <span style={{ position: "relative" }}>
-          <select id="sort-select" className="select" style={{ appearance: "none", paddingRight: 32 }} value={view.sortMode}
-            onChange={(event) => onChange({ sortMode: event.target.value as SortMode })}>
-            {(Object.keys(SORT_LABEL) as SortMode[]).map((mode) => <option key={mode} value={mode}>{SORT_LABEL[mode]}</option>)}
-          </select>
-          <IconChevronDown style={{ position: "absolute", right: 10, top: 10, width: 16, height: 16, color: "var(--muted)", pointerEvents: "none" }} />
-        </span>
+        <span id="sort-label">Ordenar</span>
+        <button ref={sortRef} type="button" className="select" aria-haspopup="listbox" aria-expanded={sortOpen}
+          aria-labelledby="sort-label sort-value" onClick={() => setSortOpen((value) => !value)}>
+          <span id="sort-value">{SORT_LABEL[view.sortMode]}</span>
+          <IconChevronDown />
+        </button>
       </div>
+      <Popover anchor={sortRef.current} open={sortOpen} onClose={closeSort} label="Ordenar tarefas" role="listbox" width={200} align="end">
+        <div className="ps-list" role="presentation">
+          {(Object.keys(SORT_LABEL) as SortMode[]).map((mode) => {
+            const selected = view.sortMode === mode;
+            return (
+              <button key={mode} type="button" role="option" aria-selected={selected}
+                className={`mi ps-option${selected ? " on" : ""}`} data-autofocus={selected || undefined}
+                onClick={() => { onChange({ sortMode: mode }); closeSort(); }}>
+                <span className="ps-check">{selected && <IconCheck />}</span>
+                <span>{SORT_LABEL[mode]}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Popover>
       <div className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
         Filtros por data, prioridade e etiqueta ficam na busca <span className="kbd">/</span>
       </div>
@@ -68,7 +84,7 @@ export function ViewMenu({ page, onChange }: {
     <>
       <button ref={setAnchor} type="button" className={`icon-btn tool-btn${open ? " on" : ""}`}
         aria-label={`Mostrar: ${LAYOUT_LABEL[view.layout]}`} aria-haspopup="dialog" aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}>
+        onClick={() => open ? close() : setOpen(true)}>
         {view.layout === "board" ? <IconBoard /> : <IconList />}
         <span className="tool-label">Mostrar</span>
       </button>
