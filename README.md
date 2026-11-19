@@ -64,24 +64,7 @@ Se a rede do servidor só tiver IPv4, use o pooler **Session** ou uma conexão d
 
 #### Criar os usuários do banco e iniciar
 
-Para outro provedor, gere primeiro o arquivo com `scripts/new-env.sh "$FEITO_ENV" --origin https://localhost:3000`. Execute o comando abaixo uma vez com os parâmetros administrativos do provedor. No Session pooler, use o host informado na geração e `--username=postgres.SEU_PROJECT_REF`. A imagem oficial `postgres:18` fornece o cliente `psql`, que pede a senha administrativa no terminal. O script cria quatro usuários no PostgreSQL com as senhas geradas no `$FEITO_ENV`.
-
-```sh
-(
-  set -a
-  . "$FEITO_ENV"
-  set +a
-  docker run --rm -it \
-    -e POSTGRES_MIGRATOR_PASSWORD -e POSTGRES_APP_PASSWORD \
-    -e POSTGRES_AUTH_PASSWORD -e POSTGRES_IDENTITY_ADMIN_PASSWORD \
-    -e PGSSLMODE=require \
-    --volume "$PWD/scripts/postgres-init.sql:/postgres-init.sql:ro" \
-    postgres:18 \
-    psql -X -W --single-transaction --set=feito_external=1 \
-      --host=db.example.org --port=5432 --dbname=postgres --username=postgres \
-      --file=/postgres-init.sql
-)
-```
+Para outro provedor, gere primeiro o arquivo com `scripts/new-env.sh "$FEITO_ENV" --origin https://localhost:3000` e configure as URLs antes de inicializar o banco.
 
 Se você gerou `$FEITO_ENV` com `--supabase` ou `--supabase-direct`, as quatro URLs já estão prontas. Caso precise ajustá-las, defina o host, a porta e o banco externos e conserve a senha gerada para cada usuário. No Session pooler, use o host do painel e acrescente `.<project-ref>` ao usuário em cada URL. As URLs do Supabase devem terminar com `?sslmode=require`. Para outro provedor, use os parâmetros de TLS indicados por ele.
 
@@ -91,6 +74,14 @@ Se você gerou `$FEITO_ENV` com `--supabase` ou `--supabase-direct`, as quatro U
 | `AUTH_DATABASE_URL` | `feito_auth` |
 | `MIGRATION_DATABASE_URL` | `feito_migrator` |
 | `IDENTITY_ADMIN_DATABASE_URL` | `feito_identity_admin` |
+
+Execute uma vez o script abaixo. Ele obtém o host, a porta e o banco de `MIGRATION_DATABASE_URL` e usa o usuário administrativo `postgres` ou `postgres.<project-ref>` no Session pooler. Para um provedor com outro usuário administrativo, acrescente `--admin-user USUÁRIO`.
+
+```sh
+scripts/init-external-db.sh "$FEITO_ENV"
+```
+
+Quando o `psql` pedir `Password:`, informe a senha administrativa do banco. O `psql` roda na imagem `postgres:18` e o script cria as quatro roles com as senhas geradas no arquivo.
 
 ```sh
 FEITO_COMPOSE=compose.prod.external.yaml

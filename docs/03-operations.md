@@ -115,30 +115,20 @@ docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --build --wait
 
 O [`compose.prod.external.yaml`](../compose.prod.external.yaml) sobe o Feito e o Caddy com a mesma configuração de produção. O PostgreSQL já deve estar acessível a partir do host e dos contêineres.
 
-Para uma instalação nova, gere o arquivo privado e prepare o banco uma vez. Para o Supabase, use as [flags de geração do README](../README.md#parâmetros-para-supabase) no comando `new-env.sh`. Com o Session pooler, use o host do painel e `--username=postgres.SEU_PROJECT_REF` no `psql`. A imagem oficial `postgres:18` fornece o cliente, que pede a senha administrativa no terminal. O script lê as quatro senhas de serviço do arquivo gerado, cria as roles e concede ao migrador permissão para criar schemas no banco selecionado.
+Para uma instalação nova, gere o arquivo privado. Para o Supabase, use as [flags de geração do README](../README.md#parâmetros-para-supabase) no comando `new-env.sh`.
 
 ```sh
 FEITO_ENV="$HOME/.config/feito/prod.env"
 scripts/new-env.sh "$FEITO_ENV" --origin https://feito.example.org
-(
-  set -a
-  . "$FEITO_ENV"
-  set +a
-  docker run --rm -it \
-    -e POSTGRES_MIGRATOR_PASSWORD -e POSTGRES_APP_PASSWORD \
-    -e POSTGRES_AUTH_PASSWORD -e POSTGRES_IDENTITY_ADMIN_PASSWORD \
-    -e PGSSLMODE=require \
-    --volume "$PWD/scripts/postgres-init.sql:/postgres-init.sql:ro" \
-    postgres:18 \
-    psql -X -W --single-transaction --set=feito_external=1 \
-      --host=db.example.org --port=5432 --username=postgres --dbname=postgres \
-      --file=/postgres-init.sql
-)
 ```
 
 As flags `--supabase` e `--supabase-direct` já configuram as quatro URLs com o banco `postgres` e `sslmode=require`. Se precisar ajustar as variáveis `*_DATABASE_URL` da [tabela acima](#rodar-sem-docker), defina o host, a porta e o banco externos. Mantenha a senha correspondente a cada role e configure TLS de acordo com o provedor. A senha `POSTGRES_BOOTSTRAP_PASSWORD` gerada serve ao banco interno.
 
-No Supabase, o banco padrão se chama `postgres`. Use a conexão direta ou o pooler em modo **Session** na porta 5432. No pooler compartilhado, acrescente `.<project-ref>` ao nome do usuário, tanto no `psql` quanto nas URLs. O Feito usa o Better Auth e acessa seus schemas via PostgreSQL. [Conexões do Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres)
+Com as URLs configuradas, inicialize o banco uma vez. O script usa o destino de `MIGRATION_DATABASE_URL` e pede a senha administrativa no `psql` da imagem `postgres:18`. O usuário padrão é `postgres`, ou `postgres.<project-ref>` no Session pooler. Use `--admin-user USUÁRIO` para outro login. O script cria as quatro roles com as senhas do arquivo e concede ao migrador permissão para criar schemas no banco selecionado.
+
+```sh
+scripts/init-external-db.sh "$FEITO_ENV"
+```
 
 ```sh
 docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" up -d --build --wait
