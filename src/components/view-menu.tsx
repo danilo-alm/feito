@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { Layout, ProjectPage, SortMode } from "@/client/types";
-import { IconBoard, IconCalendar, IconChevronDown, IconGrip, IconHelp, IconList, IconTable } from "./icons";
+import { IconBoard, IconCalendar, IconChevronDown, IconHelp, IconList, IconTable } from "./icons";
 import { Dialog, Popover, useIsMobile } from "./ui";
 
 export const SORT_LABEL: Record<SortMode, string> = { manual: "Manual", date: "Data planejada", priority: "Prioridade" };
@@ -56,13 +56,6 @@ export function ViewMenu({ page, onChange }: {
             {(Object.keys(SORT_LABEL) as SortMode[]).map((mode) => <option key={mode} value={mode}>{SORT_LABEL[mode]}</option>)}
           </select>
           <IconChevronDown style={{ position: "absolute", right: 10, top: 10, width: 16, height: 16, color: "var(--muted)", pointerEvents: "none" }} />
-        </span>
-      </div>
-      <div className="banner info" style={{ alignItems: "flex-start", fontSize: 12.5, lineHeight: 1.45 }}>
-        <IconGrip style={{ width: 16, height: 16, marginTop: 1 }} />
-        <span>
-          {mobile ? "Em Manual, pressione e segure uma tarefa para arrastá-la. Antes disso a rolagem funciona normalmente."
-            : "Em Manual você arrasta para reordenar, mudar de seção e criar subtarefas. Por data ou prioridade, a posição fica automática e voltar a Manual recupera a ordem."}
         </span>
       </div>
       <div className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
