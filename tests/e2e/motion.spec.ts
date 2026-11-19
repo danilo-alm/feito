@@ -74,15 +74,34 @@ test.describe("movimento", () => {
     await expect(trigger).toBeFocused();
   });
 
-  test("avisos saem em fade e a linha concluída sai sem salto", async ({ page, api }) => {
+  test("o aviso de conclusão fica inerte enquanto sai em fade", async ({ page, api }) => {
     const seed = await seedProject(api, `Movimento ${Date.now()}`);
     await page.goto(`/projetos/${seed.id}`);
     const target = row(page, "Kit de ferramentas");
     await target.getByRole("button", { name: /^Concluir “Kit de ferramentas”/ }).click();
     const toast = page.locator(".toast-stack .toast").filter({ hasText: "Concluída" });
     await expect(toast).toBeVisible();
-    await expect(toast).toHaveAttribute("data-state", "exiting", { timeout: 6_000 });
+    // A saída dura menos que o intervalo de polling em algumas execuções.
+    const exit = await toast.evaluate((node) => new Promise((resolve) => {
+      const observer = new MutationObserver(() => {
+        if (node.getAttribute("data-state") !== "exiting") return;
+        observer.disconnect();
+        clearTimeout(timeout);
+        const style = getComputedStyle(node);
+        resolve({
+          inert: node.hasAttribute("inert"), hidden: node.getAttribute("aria-hidden"),
+          opacityTransition: style.transitionProperty.includes("opacity") && parseFloat(style.transitionDuration) > 0,
+        });
+      });
+      const timeout = setTimeout(() => {
+        observer.disconnect();
+        resolve(null);
+      }, 6_000);
+      observer.observe(node, { attributes: true, attributeFilter: ["data-state"] });
+    }));
+    expect(exit).toEqual({ inert: true, hidden: "true", opacityTransition: true });
     await expect(toast).toHaveCount(0);
+    await expect(target).toBeHidden();
     // Fantasmas de linhas removidas somem sozinhos.
     await expect(page.locator(".flip-ghost")).toHaveCount(0);
   });

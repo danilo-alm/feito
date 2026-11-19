@@ -153,14 +153,7 @@ function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => vo
     }
     setBusy(true);
     try {
-      let revision = task.revision;
-      if (task.parentId && task.projectId !== projectId) {
-        const promoted = await api.tasks.move(task.id, revision, {
-          type: "position", projectId: task.projectId, sectionId: task.sectionId, parentId: null,
-        });
-        revision = promoted.task.revision;
-      }
-      await api.tasks.move(task.id, revision, { type: "position", projectId, sectionId, parentId: null });
+      await api.tasks.edit(task.id, { revision: task.revision, destination: { projectId, sectionId } });
       toast(`Movida para ${label}`);
       onClose();
     } catch (error) {
@@ -218,7 +211,7 @@ function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => vo
         </div>
         <p className="hint">
           Projetos arquivados não aparecem. Subtarefas vão junto.
-          {task?.parentId ? " Esta subtarefa será promovida a tarefa antes de mudar de lugar." : ""}
+          {task?.parentId ? " Esta subtarefa vira tarefa principal no destino." : ""}
         </p>
       </div>
     </Dialog>

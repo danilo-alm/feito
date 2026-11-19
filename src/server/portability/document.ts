@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { preferences } from "@/validation/account";
 import {
-  civilDate, defaultSectionName, description, instant, localTime, name, position, priority, projectColor, projectIcon, projectView, recurrenceRule, title,
+  civilDate, defaultSectionName, description, entityId, instant, localTime, name, position, priority, projectColor, projectIcon, projectView, recurrenceRule, title,
 } from "@/validation/product";
 import type { ImportCounts } from "@/validation/portability";
 
@@ -32,7 +32,9 @@ export const portableDocument = z.strictObject({
   occurrences: z.array(z.strictObject({
     occurrenceId: ref, taskId: ref, nominalDate: civilDate, dueDate: civilDate,
     dueTime: localTime.nullable(), completedAt: instant,
-  })),
+    // Older exports accidentally included the internal pointer used for undo.
+    nextOccurrenceId: entityId.optional(),
+  }).transform(({ nextOccurrenceId: _nextOccurrenceId, ...occurrence }) => occurrence)),
 });
 
 export type PortableDocument = z.infer<typeof portableDocument>;

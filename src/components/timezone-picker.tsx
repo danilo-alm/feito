@@ -20,6 +20,8 @@ const REGIONS: Record<string, string> = {
 };
 
 const fold = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const zoneKey = (id: string) => id === "Asia/Calcutta" ? "Asia/Kolkata" : id;
+const byOffsetAndCity = (a: Zone, b: Zone) => a.offset - b.offset || a.city.localeCompare(b.city, "pt-BR");
 
 function offsetMinutes(id: string, now: Date) {
   try {
@@ -67,7 +69,8 @@ function offsetTerms(minutes: number) {
 }
 
 function describe(id: string, now: Date): Zone {
-  const parts = id.split("/");
+  const key = zoneKey(id);
+  const parts = key.split("/");
   const city = parts[parts.length - 1].replace(/_/g, " ");
   const region = parts.length > 1 ? [REGIONS[parts[0]] ?? parts[0], ...parts.slice(1, -1).map((p) => p.replace(/_/g, " "))].join(" · ") : "";
   const name = genericName(id, now);
@@ -75,7 +78,10 @@ function describe(id: string, now: Date): Zone {
   return {
     id, city, region, name, offset,
     offsetLabel: formatOffset(offset),
-    haystack: fold([id, id.replace(/[_/]/g, " "), city, region, name, offsetTerms(offset), offset === 0 ? "utc gmt" : ""].join(" ")),
+    haystack: fold([
+      id, id.replace(/[_/]/g, " "), city, region, name, offsetTerms(offset), offset === 0 ? "utc gmt" : "",
+      key === "Asia/Kolkata" ? "Asia/Kolkata Asia/Calcutta Calcutta" : "",
+    ].join(" ")),
   };
 }
 
@@ -90,12 +96,12 @@ function allZones(extra: string) {
     }
     if (!ids.includes("UTC")) ids = [...ids, "UTC"];
     const now = new Date();
-    cache = ids.map((id) => describe(id, now)).sort((a, b) => a.offset - b.offset || a.city.localeCompare(b.city, "pt-BR"));
+    const distinct = new Map(ids.map((id) => [zoneKey(id), id]));
+    cache = [...distinct.values()].map((id) => describe(id, now)).sort(byOffsetAndCity);
   }
-  if (extra && !cache.some((zone) => zone.id === extra)) {
-    cache = [...cache, describe(extra, new Date())].sort((a, b) => a.offset - b.offset || a.city.localeCompare(b.city, "pt-BR"));
-  }
-  return cache;
+  return extra && !cache.some((zone) => zoneKey(zone.id) === zoneKey(extra))
+    ? [...cache, describe(extra, new Date())].sort(byOffsetAndCity)
+    : cache;
 }
 
 function deviceZone() {
@@ -116,7 +122,7 @@ export function TimezonePicker({ id, value, onChange }: { id?: string; value: st
   const pick = (zone: string) => {
     setOpen(false);
     anchor?.focus();
-    if (zone !== value) onChange(zone);
+    if (zoneKey(zone) !== zoneKey(value)) onChange(zone);
   };
 
   const panel = open && <ZoneSearch value={value} onPick={pick} mobile={mobile} />;
@@ -146,14 +152,15 @@ function ZoneSearch({ value, onPick, mobile }: { value: string; onPick: (zone: s
   const listId = useId();
   const zones = useMemo(() => allZones(value), [value]);
   const device = useMemo(deviceZone, []);
-  const deviceInfo = useMemo(() => zones.find((zone) => zone.id === device), [zones, device]);
+  const deviceInfo = zones.find((zone) => zoneKey(zone.id) === zoneKey(device));
+  const selected = (zone: Zone) => zoneKey(zone.id) === zoneKey(value);
   const [query, setQuery] = useState("");
   const tokens = useMemo(() => fold(query).split(/\s+/).filter(Boolean), [query]);
   const visible = useMemo(
     () => (tokens.length ? zones.filter((zone) => tokens.every((token) => zone.haystack.includes(token))) : zones),
     [zones, tokens],
   );
-  const [active, setActive] = useState(() => Math.max(0, zones.findIndex((zone) => zone.id === value)));
+  const [active, setActive] = useState(() => Math.max(0, zones.findIndex(selected)));
   const listRef = useRef<HTMLDivElement>(null);
   const scrollMode = useRef<ScrollLogicalPosition>("center");
 
@@ -195,7 +202,7 @@ function ZoneSearch({ value, onPick, mobile }: { value: string; onPick: (zone: s
           autoComplete="off" spellCheck={false}
           onChange={(event) => onQuery(event.target.value)} onKeyDown={onKey} />
       </div>
-      {deviceInfo && device !== value && !tokens.length && (
+      {deviceInfo && !selected(deviceInfo) && !tokens.length && (
         <button type="button" className="mi tz-device" onClick={() => onPick(device)}>
           <IconMonitor />
           <span className="tz-label">
@@ -206,11 +213,11 @@ function ZoneSearch({ value, onPick, mobile }: { value: string; onPick: (zone: s
       )}
       <div ref={listRef} id={listId} className="tz-list" role="listbox" aria-label="Fusos horários">
         {visible.map((zone, index) => (
-          <div key={zone.id} id={optionId(index)} data-index={index} role="option" aria-selected={zone.id === value}
+          <div key={zone.id} id={optionId(index)} data-index={index} role="option" aria-selected={selected(zone)}
             className={`mi tz-option${index === active ? " hl" : ""}`}
             onPointerMove={() => { if (index !== active) { scrollMode.current = "nearest"; setActive(index); } }}
             onClick={() => onPick(zone.id)}>
-            <span className="tz-check">{zone.id === value && <IconCheck />}</span>
+            <span className="tz-check">{selected(zone) && <IconCheck />}</span>
             <span className="tz-label">
               <span className="tz-city">{zone.city}</span>
               <span className="tz-meta">{[zone.region, zone.name].filter(Boolean).join(" · ")}</span>

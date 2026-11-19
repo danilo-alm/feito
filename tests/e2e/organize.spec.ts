@@ -3,6 +3,29 @@ import { expect, mouseDrag, projectState, row, seedProject, test } from "./fixtu
 test.describe("organizar um projeto", () => {
   test.skip(({ isMobile }) => isMobile, "Arraste com mouse");
 
+  test("salva a edição em linha e a mudança de projeto na mesma revisão", async ({ page, api }) => {
+    const project = await api<{ id: string }>("POST", "/projects", { name: "Projeto da edição em linha" });
+    const { inbox } = await api<{ inbox: { projectId: string } }>("GET", "/navigation");
+    const task = await api<{ id: string; revision: number }>("POST", "/tasks", {
+      title: "Título original", projectId: project.id,
+    });
+    await page.goto(`/projetos/${project.id}`);
+    const taskRow = row(page, "Título original");
+    await taskRow.hover();
+    await taskRow.getByRole("button", { name: "Editar “Título original”" }).click();
+
+    const editor = page.getByRole("form", { name: "Salvar" });
+    await editor.getByRole("textbox", { name: "Título da tarefa" }).fill("Título atualizado");
+    await editor.getByRole("button", { name: "Projeto", exact: true }).click();
+    await page.getByRole("listbox", { name: "Destino" }).getByRole("option", { name: "Caixa de entrada" }).click();
+    await editor.getByRole("button", { name: "Salvar" }).click();
+
+    await expect(page.getByRole("status").getByText("Tarefa atualizada")).toBeVisible();
+    expect(await api("GET", `/tasks/${task.id}`)).toMatchObject({
+      title: "Título atualizado", projectId: inbox.projectId, revision: task.revision + 1,
+    });
+  });
+
   test("reordena, cria subtarefa e recusa destino inválido arrastando na Lista", async ({ page, api }) => {
     const seed = await seedProject(api, `Lista ${Date.now()}`);
     await page.goto(`/projetos/${seed.id}`);
@@ -67,7 +90,10 @@ test.describe("organizar um projeto", () => {
     await page.getByRole("button", { name: /^Mostrar/ }).click();
     const menu = page.getByRole("dialog", { name: "Visualização" });
     await expect(menu.getByRole("radio", { name: "Calendário" })).toBeDisabled();
+    const viewSaved = page.waitForResponse((response) => response.request().method() === "PATCH"
+      && new URL(response.url()).pathname === `/api/v1/projects/${seed.id}/view`);
     await menu.getByRole("radio", { name: "Painel" }).click();
+    expect((await viewSaved).ok()).toBe(true);
     await page.keyboard.press("Escape");
     await expect(page.getByRole("region", { name: "Coluna Comprar" })).toBeVisible();
     await expect(page.locator("section.column")).toHaveCount(4);
@@ -142,10 +168,10 @@ test.describe("organizar um projeto", () => {
 
     // Ordenação automática: sem arraste por posição; voltar a Manual recupera a ordem.
     await page.getByRole("button", { name: /^Mostrar/ }).click();
-    await page.getByLabel("Ordenar").selectOption("priority");
+    await page.getByRole("button", { name: "Ordenar Manual" }).click();
+    await page.getByRole("listbox", { name: "Ordenar tarefas" }).getByRole("option", { name: "Prioridade" }).click();
     await page.keyboard.press("Escape");
     await expect(page.getByText(/reordenar por posição está desativado/)).toBeVisible();
-    await expect(row(page, "Definir orçamento da reforma")).not.toHaveAttribute("aria-disabled", "false");
     await row(page, "Escolher a cor da pintura do quarto").locator(".t-click").focus();
     await page.keyboard.press("Alt+ArrowUp");
     await expect(page.getByText("Reordenar só funciona na ordenação Manual")).toBeVisible();

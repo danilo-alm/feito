@@ -4,7 +4,8 @@ import { api } from "@/client/api";
 import { tagColor } from "@/client/colors";
 import { dateLabel } from "@/client/dates";
 import { useQuery } from "@/client/store";
-import type { Priority, SearchDate, SearchInput, SearchResult, TaskItem } from "@/client/types";
+import { useTaskPagination } from "@/client/task-pagination";
+import type { Priority, SearchDate, SearchInput, SearchResult } from "@/client/types";
 import { useApp } from "@/components/app";
 import { PageHeader } from "@/components/chrome";
 import { FlatGroup } from "@/components/flat-list";
@@ -12,7 +13,7 @@ import { IconCalendar, IconChevronDown, IconChevronLeft, IconFlag, IconInbox, Ic
 import { ProjectGlyph } from "@/components/project-style";
 import { DatePicker, PriorityMenu } from "@/components/pickers";
 import { useTaskActions } from "@/components/task-actions";
-import { Popover, Spinner } from "@/components/ui";
+import { Popover, ReadFallback } from "@/components/ui";
 
 type Filter = "project" | "label" | "priority" | "date" | null;
 type RangeEndpoint = "from" | "to";
@@ -47,18 +48,13 @@ export default function SearchPage() {
   const hasCriteria = !!(criteria.text || projectId || labelId || priority || date);
   const key = hasCriteria ? `search:${JSON.stringify(criteria)}` : null;
   const query = useQuery<SearchResult>(key, () => api.search(criteria));
-  const [more, setMore] = useState<{ key: string; tasks: TaskItem[]; cursor: string | null } | null>(null);
-  const extra = more?.key === key ? more : null;
-  const results = [...(query.data?.results ?? []), ...(extra?.tasks ?? [])];
-  const cursor = extra ? extra.cursor : query.data?.nextCursor;
+  const pagination = useTaskPagination(query.data, query.data?.results, async (cursor) => {
+    const page = await api.search({ ...criteria, cursor });
+    return { tasks: page.results, nextCursor: page.nextCursor };
+  });
+  const { tasks: results, cursor } = pagination;
   const active = results.filter((task) => task.status === "active");
   const done = results.filter((task) => task.status === "completed");
-
-  const loadMore = async () => {
-    if (!cursor || !key) return;
-    const page = await app.run(() => api.search({ ...criteria, cursor }));
-    if (page) setMore({ key, tasks: [...(extra?.tasks ?? []), ...page.results], cursor: page.nextCursor });
-  };
 
   const inboxId = app.nav?.inbox.projectId ?? app.me.inboxProjectId;
   const projectName = projectId === inboxId ? "Caixa de entrada" : app.nav?.projects.find((item) => item.id === projectId)?.name;
@@ -112,15 +108,17 @@ export default function SearchPage() {
           <div role="status" aria-live="polite" className="sub">
             {!hasCriteria ? "Digite um trecho ou escolha um filtro. Acentos e maiúsculas não fazem diferença."
               : query.data ? `${results.length}${cursor ? "+" : ""} ${results.length === 1 ? "resultado" : "resultados"}${criteria.text ? ` para “${criteria.text}”` : ""}${projectName ? ` em ${projectName}` : ""}`
-                : "Buscando…"}
+                : query.error ? "" : "Buscando…"}
           </div>
-          {hasCriteria && !query.data && <Spinner />}
+          {hasCriteria && !query.data && <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} />}
           {query.data && (
             <div>
               <FlatGroup title="Ativas" count={active.length} tasks={active} actions={actions}
                 empty={<p className="hint" style={{ padding: "10px 4px" }}>Nenhuma tarefa ativa encontrada.</p>} />
               {includeCompleted && <FlatGroup title="Concluídas" count={done.length} tasks={done} actions={actions} muted />}
-              {cursor && <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => void loadMore()}>Carregar mais</button>}
+              {pagination.error && <p className="hint" role="alert">{pagination.error}</p>}
+              {cursor && <button type="button" className="btn" style={{ marginTop: 12 }} disabled={pagination.loading}
+                onClick={() => void pagination.loadMore()}>Carregar mais</button>}
             </div>
           )}
         </div>

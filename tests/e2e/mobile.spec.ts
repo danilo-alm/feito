@@ -60,7 +60,7 @@ test.describe("celular", () => {
     await expect(tabs.getByRole("link", { name: "Navegar" })).toHaveAttribute("aria-current", "page");
     await page.getByRole("button", { name: /Mostrar: Lista/ }).click();
     const sheet = page.getByRole("dialog", { name: "Visualização" });
-    await expect(sheet.getByText("pressione e segure")).toBeVisible();
+    await expect(sheet.getByRole("radio", { name: "Lista" })).toBeChecked();
     await sheet.getByRole("radio", { name: "Painel" }).click();
     await sheet.getByRole("button", { name: "Fechar (Esc)" }).click();
     await expect(page.getByRole("tablist", { name: "Colunas" })).toBeVisible();

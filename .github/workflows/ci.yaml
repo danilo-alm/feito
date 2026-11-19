@@ -30,22 +30,34 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: pnpm test
-
       - run: pnpm build
 
-      # Integração: PostgreSQL 18 descartável, com segredos gerados nesta execução.
+      # PostgreSQL 18 descartável, com segredos gerados nesta execução.
       - name: Subir PostgreSQL e migrar
         run: |
-          scripts/new-env.sh "$RUNNER_TEMP/test.env"
+          scripts/new-env.sh "$RUNNER_TEMP/test.env" https://127.0.0.1:3100
           docker compose -p feito-test --env-file "$RUNNER_TEMP/test.env" up -d --wait postgres
           set -a; . "$RUNNER_TEMP/test.env"; set +a
           pnpm db:migrate
 
-      - name: Testes de integração
+      - name: Testes unitários e de integração com cobertura
         run: |
           set -a; . "$RUNNER_TEMP/test.env"; set +a
-          pnpm test:integration
+          pnpm test:coverage
+
+      - name: Instalar Chromium headless
+        run: pnpm exec playwright install --with-deps --only-shell chromium
+
+      - name: Testes ponta a ponta em HTTPS
+        run: |
+          set -a; . "$RUNNER_TEMP/test.env"; set +a
+          umask 077
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 \
+            -keyout "$RUNNER_TEMP/feito-test.key" -out "$RUNNER_TEMP/feito-test.crt"
+          FEITO_E2E_URL="$FEITO_ORIGIN" FEITO_E2E_KEY="$RUNNER_TEMP/feito-test.key" \
+            FEITO_E2E_CERT="$RUNNER_TEMP/feito-test.crt" NODE_EXTRA_CA_CERTS="$RUNNER_TEMP/feito-test.crt" \
+            pnpm test:e2e
 
       - name: Logs do PostgreSQL em caso de falha
         if: failure()

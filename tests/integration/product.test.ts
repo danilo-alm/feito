@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { tasks } from "@/server/db/schema";
+import { withTenant } from "@/server/db/tenant";
 import type { listLabelTasks } from "@/server/services/labels";
 import type { reopenTask } from "@/server/services/tasks";
 import {
   accountFixture, completeTaskById, failure, getTaskById, moveRequest, moveResult, nav, newLabel,
-  newProject, newSection, newTask, page, payload, position, send, type Navigation, type ProjectPage,
+  newProject, newSection, newTask, page, payload, position, productAccess, send, type Navigation, type ProjectPage,
   type Resource, type Task,
 } from "./product-client";
 
@@ -80,6 +83,30 @@ describe("projects and navigation", () => {
 });
 
 describe("sections and task movement", () => {
+  it("moves a subtask and its descendants as a root, without detaching it on failure", async () => {
+    const call = await accountFixture();
+    const source = await newProject(call, "Origem");
+    const target = await newProject(call, "Destino");
+    const section = await newSection(call, target.id, "Receber");
+    const parent = await newTask(call, "Tarefa principal", { projectId: source.id });
+    const nested = await newTask(call, "Subtarefa", { parentId: parent.id });
+    const descendant = await newTask(call, "Descendente", { parentId: nested.id });
+    const current = await getTaskById(call, nested.id);
+    const request = { revision: current.revision, destination: { projectId: target.id, sectionId: section.id } };
+    const archived = await payload<Resource>(await call("POST", `/projects/${target.id}/archive`, { revision: target.revision }));
+    await failure(await call("PATCH", `/tasks/${nested.id}`, request), 409, "PROJECT_ARCHIVED");
+    expect(await getTaskById(call, nested.id)).toEqual(current);
+    expect(await getTaskById(call, descendant.id)).toMatchObject({ projectId: source.id, parentId: nested.id });
+
+    await payload(await call("POST", `/projects/${target.id}/unarchive`, { revision: archived.revision }));
+    const moved = await payload<Task>(await call("PATCH", `/tasks/${nested.id}`, request));
+    expect(moved).toMatchObject({
+      revision: current.revision + 1, projectId: target.id, sectionId: section.id, parentId: null,
+      children: [{ id: descendant.id, projectId: target.id, sectionId: section.id, parentId: nested.id }],
+    });
+    expect((await getTaskById(call, parent.id)).childIds).toEqual([]);
+  });
+
   it("stores and edits optional project and section descriptions independently of their names", async () => {
     const call = await accountFixture();
     const project = await payload<ProjectPage["project"]>(await call("POST", "/projects", {
@@ -241,6 +268,64 @@ function positionFields(projectId: string, sectionId: string) {
 }
 
 describe("tasks, labels and cross-account isolation", () => {
+  it("commits fields, labels, recurrence and destination together", async () => {
+    const call = await accountFixture();
+    const project = await newProject(call, "Destino");
+    const other = await newProject(call, "Outro");
+    const wrongSection = await newSection(call, other.id, "Seção de outro projeto");
+    const label = await newLabel(call, "Planejamento");
+    const task = await newTask(call, "Antes");
+    const before = await getTaskById(call, task.id);
+    const patch = {
+      revision: before.revision, title: "Depois", priority: 1, labelIds: [label.id],
+      recurrence: { frequency: "weekly", anchorDate: "2028-02-01", time: "09:30" },
+    };
+    await failure(await call("PATCH", `/tasks/${task.id}`, {
+      ...patch, destination: { projectId: project.id, sectionId: wrongSection.id },
+    }), 422, "VALIDATION_FAILED");
+    expect(await getTaskById(call, task.id)).toEqual(before);
+
+    const edited = await payload<Task>(await call("PATCH", `/tasks/${task.id}`, {
+      ...patch, destination: { projectId: project.id, sectionId: null },
+    }));
+    expect(edited).toMatchObject({
+      title: "Depois", priority: 1, revision: before.revision + 1, projectId: project.id,
+      dueDate: "2028-02-01", dueTime: "09:30", labels: [{ id: label.id }],
+      recurrenceRule: { frequency: "weekly", anchorDate: "2028-02-01" },
+    });
+    expect(await getTaskById(call, task.id)).toEqual(edited);
+    expect(await payload<Task>(await call("PATCH", `/tasks/${task.id}`, {
+      revision: edited.revision, recurrence: null, dueDate: null,
+    }))).toMatchObject({ dueDate: null, dueTime: null, recurrenceRule: null, occurrenceId: null });
+  });
+
+  it("keeps project and detail reads independent of unrelated encrypted records", async () => {
+    const call = await accountFixture();
+    const focus = await newProject(call, "Projeto solicitado");
+    const unrelated = await newProject(call, "Outro projeto");
+    const section = await newSection(call, focus.id, "Revisão");
+    const label = await newLabel(call, "Importante");
+    const parent = await newTask(call, "Pai", { projectId: focus.id, sectionId: section.id });
+    const task = await newTask(call, "Alvo", { parentId: parent.id });
+    const child = await newTask(call, "Filho", { parentId: task.id, labelIds: [label.id] });
+    const grandchild = await newTask(call, "Neto", { parentId: child.id });
+    const deeper = await newTask(call, "Uma camada mais fundo", { parentId: grandchild.id });
+    const outside = await newTask(call, "Fora do projeto", { projectId: unrelated.id });
+    await completeTaskById(call, grandchild, true);
+    const before = await getTaskById(call, task.id);
+    expect(before).toMatchObject({
+      origin: { projectName: focus.name, sectionName: "Revisão", parentTitle: parent.title },
+      children: [{ id: child.id, labels: [{ id: label.id }], childIds: [grandchild.id], subtasks: { total: 1, completed: 1 } }],
+    });
+    const projectBefore = await page(call, focus.id, "?includeCompleted=true");
+    const { db, tenantId } = productAccess(call);
+    const damage = (id: string) => withTenant(db, tenantId, (tx) => tx.update(tasks).set({ tag: Buffer.alloc(16) }).where(eq(tasks.id, id)));
+    await damage(outside.id);
+    expect(await page(call, focus.id, "?includeCompleted=true")).toEqual(projectBefore);
+    await damage(deeper.id);
+    expect(await getTaskById(call, task.id)).toEqual(before);
+  });
+
   it("completes, undoes, reopens and deletes a branch beyond the overview depth", async () => {
     const call = await accountFixture();
     const project = await newProject(call);

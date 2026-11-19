@@ -23,7 +23,14 @@ function AuthFrame({ title, subtitle, children, footer }: { title: string; subti
 }
 
 function safeNext(value: string | null) {
-  return value && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/entrar") ? value : "/hoje";
+  if (!value?.startsWith("/") || value.startsWith("//")) return "/hoje";
+  try {
+    const target = new URL(value, window.location.href);
+    if (target.origin === window.location.origin && !target.pathname.startsWith("/entrar")) return value;
+  } catch {
+    // Uma URL inválida cai no destino padrão.
+  }
+  return "/hoje";
 }
 
 export function LoginForm() {

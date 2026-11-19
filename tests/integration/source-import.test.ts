@@ -57,6 +57,7 @@ describe("Todoist import", () => {
       confirm(call, raw, first.operationId!, inspected.previewToken!),
     ]);
     const results = [await payload<Receipt>(one), await payload<Receipt>(two)];
+    expect(results.filter((result) => result.projectIds)).toHaveLength(1);
     const fresh = results.find((result) => result.projectIds)!;
     expect(results.map(({ operationId, summary }) => ({ operationId, summary })))
       .toEqual([{ operationId: fresh.operationId, summary: fresh.summary }, { operationId: fresh.operationId, summary: fresh.summary }]);
@@ -122,6 +123,9 @@ describe("Todoist import", () => {
     expect(inboxPreview.warnings).toEqual([expect.stringContaining("Caixa de entrada não tem seções")]);
 
     expect((await call("POST", `/projects/${project.id}/archive`, { revision: project.revision })).status).toBe(200);
+    expect(await payload<Receipt>(await confirm(call, raw, started.operationId!, inspected.previewToken!)))
+      .toEqual({ operationId: result.operationId, summary: result.summary });
+    expect((await page(call, project.id)).tasks.map((task) => task.id)).toEqual(updated.tasks.map((task) => task.id));
     await failure((await preview(call, raw)).response, 409, "PROJECT_ARCHIVED");
     await failure((await preview(call, into(randomUUID(), ["x.csv", csv]))).response, 404, "NOT_FOUND");
   });
@@ -137,5 +141,14 @@ describe("Todoist import", () => {
     const first = await preview(call, raw);
     const { previewToken } = await payload<Preview>(first.response);
     await failure(await confirm(call, raw.replace("Um", "Dois"), first.operationId!, previewToken!), 422, "IMPORT_INVALID");
+  });
+
+  it("rejects malformed Unicode in an uploaded file before creating any project", async () => {
+    const call = await accountFixture();
+    const invalid = body(["Ruim.csv", `${HEADER}\ntask,Título incompleto \uD800,,,,,1,,,,,,,,,,,,,\n`]);
+    const attempt = await preview(call, invalid);
+    expect(attempt.operationId).toBeNull();
+    await failure(attempt.response, 422, "IMPORT_INVALID");
+    expect((await nav(call)).projects).toEqual([]);
   });
 });

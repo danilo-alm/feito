@@ -271,11 +271,13 @@ type PublicTask = {
 | --- | --- | --- | --- |
 | `POST /api/v1/tasks` | 2 | `CreateTask` (abaixo). | `201 TaskDetail`. |
 | `GET /api/v1/tasks/{id}` | 2 | Vazio. | `200 TaskDetail`. Abre o detalhe; inclui tarefas concluídas e de projetos arquivados. |
-| `PATCH /api/v1/tasks/{id}` | 2 e 3 | `{ revision, title?, description?, priority?, dueDate?, dueTime?, labelIds? }` | `200 TaskDetail`. |
+| `PATCH /api/v1/tasks/{id}` | 2 e 3 | `{ revision, title?, description?, priority?, dueDate?, dueTime?, labelIds?, recurrence?, destination? }` | `200 TaskDetail`. |
 | `POST /api/v1/tasks/{id}/complete` | 2 e 3 | `{ revision, occurrenceId?, includeChildren? }` | `200 { task: TaskItem, completedChildIds: string[], alreadyProcessed: boolean }`. |
 | `POST /api/v1/tasks/{id}/reopen` | 2 | `{ revision }` | `200 { task: TaskItem, reopenedParentId: string \| null }`. |
 | `POST /api/v1/tasks/{id}/undo-completion` | 2 e 3 | `{ revision, occurrenceId?, completedChildIds? }`. Envie a revisão retornada por `complete`; para recorrências, envie também o `occurrenceId` concluído. | `200 { task: TaskItem, reopenedChildIds: string[], reopenedParentId: string \| null }`. Reverte a conclusão e remove o registro da ocorrência recorrente quando aplicável. |
 | `DELETE /api/v1/tasks/{id}?revision=N&withChildren=true` | 2 | Vazio. | `204`. Com filhos e sem `withChildren=true`: `409 HAS_CHILDREN` com `{ childCount }`. |
+
+O `PATCH` aplica campos, etiquetas, recorrência e destino juntos, com uma revisão. Em `recurrence`, envie `{ frequency, anchorDate, time? }` para definir uma nova regra e usar a âncora como data planejada. Envie `null` para remover a recorrência e, se quiser limpar também o agendamento, inclua `dueDate: null`. O `destination` recebe `{ projectId, sectionId }` com a seção ou `null`. Mover para outro grupo coloca a tarefa como raiz no fim do destino e leva as subtarefas junto. Se uma validação falhar, a edição inteira é revertida.
 
 ```ts
 type CreateTask = {
@@ -362,7 +364,7 @@ type MoveResponse = {
 2. `beforeId` ou `afterId` com o projeto de destino fora de `manual`: `409 SORT_NOT_MANUAL`. Sem âncora, a mudança de seção, de projeto e a criação de subtarefa continuam permitidas em ordenação automática.
 3. Uma âncora que não resolve no tenant responde `404 NOT_FOUND`. Uma âncora visível precisa estar no grupo de destino (mesmo projeto, seção e pai) e ser outra tarefa: senão `422 INVALID_ANCHOR`. A mesma regra vale para âncoras de seção.
 4. Com `parentId`, o pai precisa ser ativo, não recorrente e do mesmo projeto. Se for a própria tarefa ou um descendente, a API retorna `422 INVALID_PARENT`. Mover uma tarefa recorrente para baixo de outra retorna `422 RECURRENCE_NOT_ALLOWED`. A subtarefa assume a seção do pai.
-5. No mesmo projeto, `position` com `parentId: null` torna a subtarefa uma raiz na seção de destino em uma transação. Trocar de pai dentro da mesma seção é permitido. Mover uma subtarefa para outro projeto ou para um novo pai em outra seção exige torná-la raiz primeiro (`422 MUST_PROMOTE_FIRST`).
+5. No mesmo projeto, `position` com `parentId: null` torna a subtarefa uma raiz na seção de destino em uma transação. Trocar de pai dentro da mesma seção é permitido. Em `/move`, mover uma subtarefa para outro projeto ou para um novo pai em outra seção exige torná-la raiz primeiro (`422 MUST_PROMOTE_FIRST`). Para mover como raiz diretamente, envie `destination` ao `PATCH /tasks/{id}`.
 6. Qualquer tarefa movida leva todos os descendentes e atualiza o projeto e a seção de cada um.
 7. Reescrever as posições do grupo de origem e do de destino e devolver `groups` com a ordem final. A interface aplica a mudança de forma otimista e substitui pelo resultado; em erro, restaura a posição original.
 

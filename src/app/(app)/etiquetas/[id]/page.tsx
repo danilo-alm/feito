@@ -1,15 +1,16 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { use, useState } from "react";
+import { use } from "react";
 import { api } from "@/client/api";
 import { useQuery } from "@/client/store";
-import type { LabelTasks, TaskItem } from "@/client/types";
+import { useTaskPagination } from "@/client/task-pagination";
+import type { LabelTasks } from "@/client/types";
 import { useApp } from "@/components/app";
 import { PageHeader, PageTaskCount } from "@/components/chrome";
 import { FlatGroup } from "@/components/flat-list";
 import { IconEdit, IconMore, IconTrash } from "@/components/icons";
 import { useTaskActions } from "@/components/task-actions";
-import { MenuButton, Spinner } from "@/components/ui";
+import { MenuButton, ReadFallback } from "@/components/ui";
 
 export default function LabelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -18,18 +19,7 @@ export default function LabelPage({ params }: { params: Promise<{ id: string }> 
   const actions = useTaskActions();
   const label = app.nav?.labels.find((item) => item.id === id);
   const query = useQuery<LabelTasks>(`label:${id}`, () => api.labels.tasks(id));
-  const [more, setMore] = useState<TaskItem[]>([]);
-  const [cursor, setCursor] = useState<string | null | undefined>(undefined);
-  const next = cursor === undefined ? query.data?.nextCursor : cursor;
-
-  const loadMore = async () => {
-    if (!next) return;
-    const page = await app.run(() => api.labels.tasks(id, next));
-    if (page) {
-      setMore((current) => [...current, ...page.tasks]);
-      setCursor(page.nextCursor);
-    }
-  };
+  const pagination = useTaskPagination(query.data, query.data?.tasks, (cursor) => api.labels.tasks(id, cursor));
 
   const menu = () => label ? [
     { label: "Renomear etiqueta", icon: <IconEdit />, onSelect: async () => {
@@ -43,7 +33,7 @@ export default function LabelPage({ params }: { params: Promise<{ id: string }> 
     } },
   ] : [];
 
-  const tasks = [...(query.data?.tasks ?? []), ...more];
+  const { tasks, cursor } = pagination;
   return (
     <>
       <PageHeader crumb="Etiqueta" mobileTitle={label?.name} back="/navegar"
@@ -51,12 +41,14 @@ export default function LabelPage({ params }: { params: Promise<{ id: string }> 
       <div className="content">
         <div className="col">
           <div className="page-h"><h1 className="title">{label?.name ?? "Etiqueta"}</h1>
-            {query.data && <PageTaskCount count={tasks.length} more={Boolean(next)} />}</div>
-          {!query.data ? <Spinner /> : (
+            {query.data && <PageTaskCount count={tasks.length} more={Boolean(cursor)} />}</div>
+          {!query.data ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : (
             <FlatGroup tasks={tasks} actions={actions}
               empty={<div className="empty"><strong>Nenhuma tarefa ativa</strong>Associe esta etiqueta a tarefas pelo detalhe.</div>} />
           )}
-          {next && <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => void loadMore()}>Carregar mais</button>}
+          {pagination.error && <p className="hint" role="alert">{pagination.error}</p>}
+          {cursor && <button type="button" className="btn" style={{ marginTop: 12 }} disabled={pagination.loading}
+            onClick={() => void pagination.loadMore()}>Carregar mais</button>}
         </div>
       </div>
       {actions.moveDialog}

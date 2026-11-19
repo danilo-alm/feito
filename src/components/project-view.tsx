@@ -24,7 +24,7 @@ import { NamedDetailsForm, useProjectDetailsDialog } from "./named-details";
 import { useTaskActions } from "./task-actions";
 import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
 import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
-import { Dialog, MenuButton, Spinner, useAutoGrow, useIsMobile, useToast, type MenuItem } from "./ui";
+import { Dialog, MenuButton, ReadFallback, useAutoGrow, useIsMobile, useToast, type MenuItem } from "./ui";
 import { ShareMenu, useProjectShare } from "./share-menu";
 import { LAYOUT_LABEL, SORT_LABEL, ViewMenu } from "./view-menu";
 
@@ -54,7 +54,10 @@ const blockScroll = (event: TouchEvent) => {
 function useTouchScrollGuard() {
   useEffect(() => {
     document.addEventListener("touchmove", blockScroll, { passive: false });
-    return () => document.removeEventListener("touchmove", blockScroll);
+    return () => {
+      document.removeEventListener("touchmove", blockScroll);
+      listenPointer(false);
+    };
   }, []);
 }
 
@@ -180,7 +183,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
     });
   };
 
-  if (!page) return <><PageHeader mobileTitle="" /><Spinner /></>;
+  if (!page) return <><PageHeader mobileTitle="" /><ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /></>;
 
   const { project } = page;
   const view = project.view;

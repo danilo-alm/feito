@@ -37,12 +37,12 @@ export const recurrenceRule = z.strictObject({
   nominalDate: civilDate,
 });
 
-export const setRecurrenceInput = z.strictObject({
-  revision,
+const recurrenceChange = z.strictObject({
   frequency,
   anchorDate: civilDate,
   time: localTime.nullable().optional(),
 });
+export const setRecurrenceInput = recurrenceChange.extend({ revision });
 
 export const completedOccurrencePayload = z.strictObject({
   nominalDate: civilDate,
@@ -133,7 +133,12 @@ export const createTaskInput = z.strictObject({
   parentId: entityId.nullable().optional(),
   recurrence: recurrenceInput.nullable().optional(),
 });
-export const editTaskInput = z.strictObject({ revision, ...taskFields });
+export const editTaskInput = z.strictObject({
+  revision,
+  ...taskFields,
+  recurrence: recurrenceChange.nullable().optional(),
+  destination: z.strictObject({ projectId: entityId, sectionId: entityId.nullable() }).optional(),
+});
 export const completeTaskInput = z.strictObject({
   revision,
   occurrenceId: entityId.optional(),

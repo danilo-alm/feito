@@ -28,7 +28,10 @@ test.describe("entrar", () => {
     await page.goto("/ajustes");
     await page.getByRole("button", { name: "Sair" }).click();
     await page.waitForURL("**/entrar");
-    await page.goto("/hoje");
-    await page.waitForURL(/\/entrar\?voltar=%2Fhoje/);
+    await page.goto("/entrada");
+    await page.waitForURL(/\/entrar\?voltar=%2Fentrada/);
+    await login(page, { email: fresh.email, password: next }, page.url());
+    await page.waitForURL("**/entrada");
+    await expect(page.getByRole("heading", { name: "Caixa de entrada", level: 1 })).toBeVisible();
   });
 });

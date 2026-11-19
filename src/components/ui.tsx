@@ -1,9 +1,10 @@
 "use client";
 import {
-  createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore,
+  createContext, useCallback, useContext, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncExternalStore,
   type ReactNode, type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import { errorMessage } from "@/client/api";
 import { IconCheck, IconX } from "./icons";
 import { exitingProps, motionMs, useFlip, usePresence, useSticky } from "./motion";
 
@@ -160,6 +161,7 @@ export function Popover({
   // Presença: o popover fica montado durante a saída (veja docs/04-motion-and-interaction.md).
   const { mounted, state } = usePresence(open, { enter: "base", exit: "fast" });
   const content = useSticky(children, open);
+  const close = useEffectEvent(onClose);
 
   useLayoutEffect(() => {
     const node = ref.current;
@@ -204,33 +206,35 @@ export function Popover({
   }, [open, mounted, anchor, align, width]);
 
   useEffect(() => {
-    if (!open) return;
     const node = ref.current;
-    const first = node?.querySelector<HTMLElement>("[data-autofocus]") ?? node?.querySelector<HTMLElement>(FOCUSABLE);
+    if (!open || !node || !anchor) return;
+    const first = node.querySelector<HTMLElement>("[data-autofocus]") ?? node.querySelector<HTMLElement>(FOCUSABLE);
     first?.focus();
-    if (node) popoverStack.push(node);
-    const above = () => (node ? popoverStack.slice(popoverStack.indexOf(node) + 1) : []);
+    popoverStack.push(node);
+    const above = () => popoverStack.slice(popoverStack.indexOf(node) + 1);
     const onDown = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (node?.contains(target) || anchor?.contains(target)) return;
+      if (node.contains(target) || anchor.contains(target)) return;
       if (above().some((child) => child.contains(target))) return;
       // Clique num popover de baixo (ex.: o menu sob o calendário) só fecha este: o clique não aciona nada lá.
-      const below = node ? popoverStack.slice(0, popoverStack.indexOf(node)) : [];
+      const below = popoverStack.slice(0, popoverStack.indexOf(node));
       if (below.some((parent) => parent.contains(target))) swallowNextClick();
-      onClose();
+      close();
     };
     const onKey = (event: KeyboardEvent) => {
       if (above().length) return;
       if (event.key === "Escape") {
         event.stopPropagation();
-        onClose();
-        anchor?.focus();
+        close();
+        anchor.focus();
       }
-      if (role === "menu" && (event.key === "ArrowDown" || event.key === "ArrowUp") && node) {
+      if (role === "menu" && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
         event.preventDefault();
         const items = [...node.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([disabled])')];
         const index = items.indexOf(document.activeElement as HTMLElement);
-        const next = items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length];
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        const next = index < 0 ? items.at(direction === 1 ? 0 : -1)
+          : items[(index + direction + items.length) % items.length];
         next?.focus();
       }
     };
@@ -239,9 +243,9 @@ export function Popover({
     return () => {
       document.removeEventListener("pointerdown", onDown, true);
       document.removeEventListener("keydown", onKey, true);
-      if (node && popoverStack.includes(node)) popoverStack.splice(popoverStack.indexOf(node), 1);
+      popoverStack.splice(popoverStack.indexOf(node), 1);
     };
-  }, [open, onClose, anchor, role]);
+  }, [open, anchor, role]);
 
   if (!mounted) return null;
   return createPortal(
@@ -423,7 +427,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div ref={stack} className="toast-stack" role="status" aria-live="polite">
         {toasts.map((toast) => (
           <div key={toast.id} className={`toast${toast.bad ? " bad" : ""}`} style={{ paddingRight: toast.action ? 8 : 14 }}
-            data-flip={`toast:${toast.id}`} data-state={toast.leaving ? "exiting" : "entered"} aria-hidden={toast.leaving || undefined}>
+            data-flip={`toast:${toast.id}`} data-state={toast.leaving ? "exiting" : "entered"} {...exitingProps(toast.leaving ? "exiting" : "entered")}>
             {toast.bad ? null : <IconCheck aria-hidden="true" />}
             {toast.message}
             {toast.action && <button type="button" className="btn" onClick={() => {
@@ -441,6 +445,16 @@ export const useToast = () => useContext(ToastContext);
 
 export function Spinner({ label = "Carregando" }: { label?: string }) {
   return <div className="loading" role="status" aria-label={label}><div className="spinner" /></div>;
+}
+
+export function ReadFallback({ error, loading, onRetry }: { error: unknown; loading: boolean; onRetry: () => void }) {
+  if (!error) return <Spinner />;
+  return (
+    <div className="empty">
+      <strong role="alert">{errorMessage(error)}</strong>
+      <button type="button" className="btn" disabled={loading} onClick={onRetry}>Tentar de novo</button>
+    </div>
+  );
 }
 
 /** Faz um textarea crescer com o texto: a altura acompanha o conteúdo, sem alça de redimensionar. */

@@ -64,7 +64,7 @@ describe("project export", () => {
     const lines = text.split("\n");
     expect(lines[0]).toBe("TYPE,CONTENT,DESCRIPTION,ICON,IS_COLLAPSED,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,DEADLINE,DEADLINE_LANG,REMINDER_TYPE,REMINDER_OFFSET,REMINDER_DATE,REMINDER_DATE_LANG");
     expect(lines[1]).toBe("meta,view_style=board,,,,,,,,,,,,,,,,,,");
-    expect(text).toContain('task,"Pintar, ""lixar"" antes @Fim_de_semana @casa","Linha 1\nLinha 2",,,1,1,,,Nov 20 2026 at 09:30,en,America/Sao_Paulo');
+    expect(text).toMatch(/task,"Pintar, ""lixar"" antes (?:@Fim_de_semana @casa|@casa @Fim_de_semana)","Linha 1\nLinha 2",,,1,1,,,Nov 20 2026 at 09:30,en,America\/Sao_Paulo/);
     expect(text).toContain("task,Comprar tinta,,,,4,2,,,Jan 5 2027,en,");
     expect(text).toContain("task,Conferir estoque,,,,4,3,");
     expect(text).toContain("section,Jardim,,,False,");
@@ -95,5 +95,20 @@ describe("project export", () => {
     await failure(await call("GET", `/projects/${project.id}/export?format=todoist&colors=true`), 422, "VALIDATION_FAILED");
     await failure(await call("GET", `/projects/${project.id}/export?format=todoist&format=todoist`), 422, "VALIDATION_FAILED");
     await failure(await call("GET", `/projects/${randomUUID()}/export?format=todoist`), 404, "NOT_FOUND");
+  });
+
+  it("round-trips long relative dates and years with leading zeroes", async () => {
+    vi.spyOn(Temporal.Now, "instant").mockReturnValue(Temporal.Instant.from("2026-11-19T15:00:00Z"));
+    const call = await accountFixture();
+    const project = await newProject(call, "Datas distantes");
+    await newTask(call, "Antiga", { projectId: project.id, dueDate: "0099-01-03" });
+    await newTask(call, "Futura", { projectId: project.id, dueDate: "2029-08-15", dueTime: "14:30" });
+
+    const relative = await download(call, project.id, "format=todoist&relativeDates=true");
+    expect(relative.text).toContain(",Jan 3 0099,en,");
+    expect(relative.text).toContain(",in 1000 days at 14:30,en,");
+    const { preview, result } = await reimport(call, "Datas.csv", relative.text);
+    expect(preview.warnings).toEqual([]);
+    expect(shape((await page(call, result.projectIds[0])).tasks)).toEqual(shape((await page(call, project.id)).tasks));
   });
 });

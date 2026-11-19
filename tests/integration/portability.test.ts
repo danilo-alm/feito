@@ -110,6 +110,8 @@ describe("portable export and restoration", () => {
     expect(file).not.toContain(source.tenantId);
     expect(file).not.toContain(noDate.id);
     expect(file).not.toContain(recurring.occurrenceId!);
+    expect(file).not.toContain(firstDone.task.occurrenceId!);
+    expect(JSON.parse(file).occurrences[0]).not.toHaveProperty("nextOccurrenceId");
     const before = await inspect(target, file);
     expect(before).toMatchObject({ schemaVersion: 1, destinationEmpty: true, errors: [], counts: {
       projects: 3, archivedProjects: 1, sections: 2, tasks: 5, completedTasks: 2, labels: 1, occurrences: 1,
@@ -161,6 +163,28 @@ describe("portable export and restoration", () => {
     await failure(await confirm(target, file, before), 410, "PREVIEW_EXPIRED");
     expect(await payload(await target("GET", `/import/operations/${receipt.operationId}`)))
       .toEqual({ status: "completed", ...receipt });
+  });
+
+  it("restores older backups that included an internal occurrence ID and omits it on re-export", async () => {
+    vi.spyOn(Temporal.Now, "instant").mockReturnValue(Temporal.Instant.from("2027-01-31T14:00:00Z"));
+    const [source, target] = await Promise.all([accountFixture(), accountFixture()]);
+    const recurring = await newTask(source, "Série antiga", {
+      dueDate: "2027-01-31", recurrence: { frequency: "daily" },
+    });
+    const completed = await payload<{ task: Task }>(await source("POST", `/tasks/${recurring.id}/complete`, {
+      revision: recurring.revision, occurrenceId: recurring.occurrenceId,
+    }));
+    const original = await download(source);
+    const { occurrences, ...document } = JSON.parse(original) as PortableDocument;
+    expect(occurrences).toHaveLength(1);
+    const legacy = JSON.stringify({
+      ...document, occurrences: [{ ...occurrences[0], nextOccurrenceId: completed.task.occurrenceId }],
+    });
+
+    const preview = await inspect(target, legacy);
+    expect(preview).toMatchObject({ errors: [], counts: { tasks: 1, occurrences: 1 } });
+    await payload(await confirm(target, legacy, preview));
+    expect(documentWithoutInstant(await download(target))).toEqual(documentWithoutInstant(original));
   });
 
   it("rejects invalid files, mismatched bytes and operation IDs, expiry, and cross-account tokens", async () => {

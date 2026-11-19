@@ -38,6 +38,7 @@ describe("public project sharing", () => {
     const publicPage = await payload<PublicProject>(response);
     expect(publicPage.project).toEqual({
       id: project.id, name: project.name, status: "active", activeCount: 1,
+      defaultSectionName: null,
       view: { layout: "list", sortMode: "manual", showCompleted: false },
     });
     expect(publicPage.sections).toEqual([{ id: section.id, name: "Publicação", taskCount: 3 }]);
@@ -61,8 +62,11 @@ describe("public project sharing", () => {
     await failure(await visitor("PATCH", `/tasks/${task.id}`, { revision: task.revision, title: "Inválido" }), 404, "NOT_FOUND");
     await failure(await visitor("POST", "/tasks", { projectId: project.id, title: "Inválido" }), 404, "NOT_FOUND");
 
-    await payload(await owner("PATCH", `/projects/${project.id}`, { name: "Novo nome", revision: project.revision }));
-    expect(await payload(await send("GET", publicPath))).toMatchObject({ project: { name: "Novo nome" } });
+    await payload(await owner("PATCH", `/projects/${project.id}`, {
+      name: "Novo nome", defaultSectionName: "Entrada", revision: project.revision,
+    }));
+    expect(await payload(await send("GET", publicPath)))
+      .toMatchObject({ project: { name: "Novo nome", defaultSectionName: "Entrada" } });
   });
 
   it("protects management and revokes links on archive, explicit revocation and project deletion", async () => {

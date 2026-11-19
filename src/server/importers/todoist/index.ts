@@ -16,13 +16,18 @@ const LABEL = /(^|\s)@([^\s@]+)/gu;
 
 type Row = { line: number; get: (column: string) => string };
 
-function chars(value: string) {
-  return [...value];
+function prefixEnd(value: string, max: number) {
+  let end = 0;
+  for (const char of value) {
+    if (max-- === 0) break;
+    end += char.length;
+  }
+  return end;
 }
 
 function clip(value: string, max: number) {
-  const list = chars(value);
-  return list.length <= max ? value : list.slice(0, max - 1).join("").trimEnd() + "…";
+  if (value.length <= max || prefixEnd(value, max) === value.length) return value;
+  return value.slice(0, prefixEnd(value, max - 1)).trimEnd() + "…";
 }
 
 export function projectNameFromFile(fileName: string) {
@@ -45,17 +50,33 @@ function priorityOf(value: string): PlannedTask["priority"] {
   return number === 1 || number === 2 || number === 3 ? number : 4;
 }
 
-type Draft = { task: PlannedTask; notes: string[]; extras: string[]; nested: boolean };
+type Draft = { task: PlannedTask; size: number; truncated: boolean; hasNotes: boolean; nested: boolean };
 
-function finish({ task, notes, extras, nested }: Draft, warnings: WarningCollector) {
-  const blocks = [task.description.trim(), ...extras];
-  if (notes.length) blocks.push(`Comentários do Todoist:\n${notes.map((note) => `- ${note}`).join("\n")}`);
-  let description = blocks.filter(Boolean).join("\n\n");
-  if (chars(description).length > LIMITS.description) {
-    description = clip(description, LIMITS.description);
+function appendDescription(draft: Draft, value: string) {
+  if (draft.truncated) return;
+  let end = 0;
+  for (const char of value) {
+    if (draft.size === LIMITS.description) break;
+    draft.size += 1;
+    end += char.length;
+  }
+  draft.task.description += value.slice(0, end);
+  draft.truncated = end < value.length;
+}
+
+function appendBlock(draft: Draft, value: string) {
+  if (!value) return;
+  if (draft.size) appendDescription(draft, "\n\n");
+  appendDescription(draft, value);
+}
+
+function finish(draft: Draft | null, warnings: WarningCollector) {
+  if (!draft) return;
+  const { task, nested, truncated } = draft;
+  if (truncated) {
+    task.description = task.description.slice(0, prefixEnd(task.description, LIMITS.description - 1)).trimEnd() + "…";
     warnings.add("long-description", (count) => `${plural(count, "descrição foi cortada", "descrições foram cortadas")} no limite de 10 000 caracteres.`);
   }
-  task.description = description;
   if (task.recurrence && (nested || task.children.length > 0)) {
     warnings.add("recurrence-dropped", (count) => `${plural(count, "recorrência foi removida", "recorrências foram removidas")} de subtarefas ou tarefas com subtarefas; a próxima data foi mantida.`);
     task.recurrence = null;
@@ -64,22 +85,27 @@ function finish({ task, notes, extras, nested }: Draft, warnings: WarningCollect
 
 function parseFile(file: SourceFile, context: ImporterContext, warnings: WarningCollector, errors: ImportIssue[]) {
   const path = file.name;
-  const { records, unterminated } = parseCsv(file.content);
-  if (unterminated) errors.push({ path, message: "O arquivo termina no meio de um campo entre aspas." });
-  const [header, ...body] = records;
-  const columns = new Map((header?.cells ?? []).map((name, index) => [name.trim().toUpperCase(), index]));
+  const csv = parseCsv(file.content);
+  const firstError = errors.length;
+  const reportUnterminated = () => {
+    if (csv.unterminated) errors.splice(firstError, 0, { path, message: "O arquivo termina no meio de um campo entre aspas." });
+  };
+  const header = csv.records.next();
+  const columns = new Map((header.done ? [] : header.value.cells).map((name, index) => [name.trim().toUpperCase(), index]));
   if (!columns.has("TYPE") || !columns.has("CONTENT")) {
+    for (const _record of csv.records) { /* Valida as aspas mesmo quando o cabeçalho é inválido. */ }
+    reportUnterminated();
     errors.push({ path, message: "Não parece uma exportação CSV do Todoist: faltam as colunas TYPE e CONTENT." });
     return null;
   }
 
   const project: PlannedProject = { name: projectNameFromFile(file.name), layout: "list", tasks: [], sections: [] };
   let section: PlannedSection | null = null;
-  const drafts: Draft[] = [];
+  const finishWarnings = new WarningCollector();
   const ancestors: { indent: number; task: PlannedTask }[] = [];
   let lastTask: Draft | null = null;
 
-  for (const record of body) {
+  for (const record of csv.records) {
     if (record.cells.every((cell) => cell.trim() === "")) continue;
     const row: Row = { line: record.line, get: (column) => record.cells[columns.get(column) ?? -1]?.trim() ?? "" };
     const type = row.get("TYPE").toLowerCase();
@@ -91,17 +117,24 @@ function parseFile(file: SourceFile, context: ImporterContext, warnings: Warning
     }
     if (type === "section") {
       const name = content.normalize("NFC") || "Seção sem nome";
-      if (chars(name).length > LIMITS.name) warnings.add("long-name", (count) => `${plural(count, "nome de seção foi cortado", "nomes de seção foram cortados")} em 120 caracteres.`);
-      section = { name: clip(name, LIMITS.name), tasks: [] };
+      const clipped = clip(name, LIMITS.name);
+      if (clipped !== name) warnings.add("long-name", (count) => `${plural(count, "nome de seção foi cortado", "nomes de seção foram cortados")} em 120 caracteres.`);
+      section = { name: clipped, tasks: [] };
       project.sections.push(section);
       ancestors.length = 0;
+      finish(lastTask, finishWarnings);
       lastTask = null;
       continue;
     }
     if (type === "note") {
       if (!content) continue;
       if (lastTask) {
-        lastTask.notes.push(content.normalize("NFC"));
+        if (!lastTask.truncated) {
+          if (lastTask.hasNotes) appendDescription(lastTask, "\n- ");
+          else appendBlock(lastTask, "Comentários do Todoist:\n- ");
+          appendDescription(lastTask, content.normalize("NFC"));
+          lastTask.hasNotes = true;
+        }
         warnings.add("notes", (count) => `${plural(count, "comentário foi adicionado", "comentários foram adicionados")} à descrição da tarefa, pois o Feito não tem comentários.`);
       } else {
         warnings.add("orphan-notes", (count) => `${plural(count, "comentário de projeto foi ignorado", "comentários de projeto foram ignorados")}.`);
@@ -119,9 +152,8 @@ function parseFile(file: SourceFile, context: ImporterContext, warnings: Warning
       continue;
     }
     const extras: string[] = [];
-    let title = rawTitle;
-    if (chars(title).length > LIMITS.title) {
-      title = clip(rawTitle, LIMITS.title);
+    const title = clip(rawTitle, LIMITS.title);
+    if (title !== rawTitle) {
       extras.push(`Título completo no Todoist:\n${rawTitle}`);
       warnings.add("long-title", (count) => `${plural(count, "título longo foi cortado", "títulos longos foram cortados")}; o texto completo está na descrição.`);
     }
@@ -142,7 +174,7 @@ function parseFile(file: SourceFile, context: ImporterContext, warnings: Warning
     if (row.get("REMINDER_TYPE") || row.get("REMINDER_DATE")) warnings.add("reminder", (count) => `${plural(count, "lembrete foi ignorado", "lembretes foram ignorados")}.`);
 
     const task: PlannedTask = {
-      title, description: row.get("DESCRIPTION").normalize("NFC"), priority: priorityOf(row.get("PRIORITY")),
+      title, description: "", priority: priorityOf(row.get("PRIORITY")),
       dueDate: due?.dueDate ?? null, dueTime: due?.dueTime ?? null, recurrence: due?.recurrence ?? null,
       labels, children: [],
     };
@@ -158,11 +190,15 @@ function parseFile(file: SourceFile, context: ImporterContext, warnings: Warning
       (section ? section.tasks : project.tasks).push(task);
     }
     ancestors.push({ task, indent: parent ? indent : 1 });
-    lastTask = { task, notes: [], extras, nested: !!parent };
-    drafts.push(lastTask);
+    finish(lastTask, finishWarnings);
+    lastTask = { task, size: 0, truncated: false, hasNotes: false, nested: !!parent };
+    appendBlock(lastTask, row.get("DESCRIPTION").normalize("NFC").trim());
+    for (const extra of extras) appendBlock(lastTask, extra);
   }
 
-  for (const draft of drafts) finish(draft, warnings);
+  reportUnterminated();
+  finish(lastTask, finishWarnings);
+  warnings.merge(finishWarnings);
   return project;
 }
 

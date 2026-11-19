@@ -160,7 +160,7 @@ function TaskLabels({ task, onSave }: {
   const [saving, setSaving] = useState(false);
   return (
     <fieldset className="task-field" disabled={saving}>
-      <LabelPicker selected={draft.ids} onChange={(ids) => setDraft((current) => ({ ...current, ids }))} />
+      <LabelPicker selected={draft.ids} onChange={(update) => setDraft((current) => ({ ...current, ids: update(current.ids) }))} />
       <button type="button" className="btn primary" onClick={async () => {
         setSaving(true);
         try { await onSave(draft.ids, draft.revision); } finally { setSaving(false); }

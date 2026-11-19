@@ -4,12 +4,12 @@ import { z } from "zod";
 import { normalizeLabelName, type Product } from "@/domain/product";
 import { mutateProduct, readProduct, type ProductAccess } from "@/server/db/product";
 import { ApiError } from "@/server/errors";
-import { labelDto, orderedLabels, taskItemsWithOrigin, visibleTask } from "./product-dto";
+import { labelDto, labelSummaries, taskItemsWithOrigin, visibleTask } from "./product-dto";
 import { nextRevision, requireRevision, validation, visibleRecord } from "./product-rules";
 
 export function listLabels(access: ProductAccess) {
   return readProduct(access, (product) => ({
-    labels: orderedLabels(product).map((label) => labelDto(product, label)),
+    labels: labelSummaries(product),
   }));
 }
 

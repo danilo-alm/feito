@@ -290,19 +290,23 @@ function copyProduct(product: Product): Product {
 }
 
 type MutationHistory = { recorded: boolean; completion?: CompletedOccurrence; previousCompletion?: CompletedOccurrence };
+type MutationOutcome<T> = { value: T } | { error: ApiError };
 
 export async function mutateProduct<T>(
   access: ProductAccess,
   apply: (draft: Product, original: Product, history: MutationHistory) => T,
   occurrence?: OccurrenceReference,
-  options: { record?: (tx: Transaction) => Promise<void>; removeOccurrence?: OccurrenceReference } = {},
+  options: {
+    beforeCommit?: (tx: Transaction, outcome: MutationOutcome<T>) => Promise<void>;
+    removeOccurrence?: OccurrenceReference;
+  } = {},
 ): Promise<T> {
   const { db, keys, tenantId } = access;
   await ensureWorkspace(db, keys, tenantId);
   for (;;) {
     const { product: original, revision, recorded, previousCompletion } = await readSnapshot(access, occurrence);
     const draft = copyProduct(original);
-    let outcome: { value: T } | { error: ApiError };
+    let outcome: MutationOutcome<T>;
     let plan: Changes | undefined;
     try {
       const history: MutationHistory = { recorded, previousCompletion };
@@ -320,8 +324,8 @@ export async function mutateProduct<T>(
     ) => {
       const tenant = lockedTenant ?? await lockTenant(tx, tenantId);
       if (tenant.productRevision !== revision) return null;
+      await options.beforeCommit?.(tx, outcome);
       if ("error" in outcome) throw outcome.error;
-      await options.record?.(tx);
       if (options.removeOccurrence) {
         await tx.delete(completedOccurrences).where(and(
           eq(completedOccurrences.taskId, options.removeOccurrence.taskId),

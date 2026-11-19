@@ -75,7 +75,7 @@ export async function createFromDraft(draft: TaskDraft, place: { parentId?: stri
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((item) => b.includes(item));
 
-/** Grava só o que mudou, em sequência, cada passo com a revisão devolvida pelo anterior. */
+/** Envia todas as mudanças da edição com a mesma revisão. */
 async function saveEdits(task: TaskItem, before: TaskDraft, after: TaskDraft, fullDescription: string | undefined, reference: string) {
   const patch: Omit<EditTask, "revision"> = {};
   if (after.title !== before.title) patch.title = after.title;
@@ -84,21 +84,16 @@ async function saveEdits(task: TaskItem, before: TaskDraft, after: TaskDraft, fu
   if (after.dueDate !== before.dueDate) patch.dueDate = after.dueDate;
   if (after.dueTime !== before.dueTime) patch.dueTime = after.dueTime;
   if (!sameSet(after.labelIds, before.labelIds)) patch.labelIds = after.labelIds;
-  const repeat = after.frequency !== before.frequency;
-  const moved = !task.parentId && (after.projectId !== before.projectId || after.sectionId !== before.sectionId);
-  const edits = Object.keys(patch).length > 0;
-  if (!edits && !repeat && !moved) return "unchanged" as const;
-
-  let revision = task.revision;
-  // Tirar a repetição vem antes: só então a data pode ficar vazia.
-  if (repeat && !after.frequency) revision = (await api.tasks.clearRecurrence(task.id, revision)).revision;
-  if (edits) revision = (await api.tasks.edit(task.id, { revision, ...patch })).revision;
-  if (repeat && after.frequency) {
-    revision = (await api.tasks.setRecurrence(task.id, {
-      revision, frequency: after.frequency, anchorDate: after.dueDate ?? reference, time: after.dueTime,
-    })).revision;
+  if (after.frequency !== before.frequency) {
+    patch.recurrence = after.frequency
+      ? { frequency: after.frequency, anchorDate: after.dueDate ?? reference, time: after.dueTime }
+      : null;
   }
-  if (moved) await api.tasks.move(task.id, revision, { type: "position", projectId: after.projectId, sectionId: after.sectionId, parentId: null });
+  if (!task.parentId && (after.projectId !== before.projectId || after.sectionId !== before.sectionId)) {
+    patch.destination = { projectId: after.projectId, sectionId: after.sectionId };
+  }
+  if (!Object.keys(patch).length) return "unchanged" as const;
+  await api.tasks.edit(task.id, { revision: task.revision, ...patch });
   return "saved" as const;
 }
 
@@ -273,7 +268,7 @@ export function TaskEditor({
         <PriorityMenu value={draft.priority} onPick={(value) => { set({ priority: value }); closePop(); }} />
       </Popover>
       <Popover anchor={anchorOf("labels")} open={pop === "labels"} onClose={closePop} label="Etiquetas">
-        <LabelPicker selected={draft.labelIds} onChange={(ids) => set({ labelIds: ids })} />
+        <LabelPicker selected={draft.labelIds} onChange={(update) => setDraft((current) => ({ ...current, labelIds: update(current.labelIds) }))} />
       </Popover>
       <Popover anchor={anchors.current.dest ?? null} open={pop === "dest"} onClose={closePop} label="Projeto">
         <DestinationPicker projectId={draft.projectId} sectionId={draft.sectionId}

@@ -1,15 +1,12 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
-import type { Product } from "@/domain/product";
+import { and, eq, sql } from "drizzle-orm";
 import { ApiError, notFound } from "@/server/errors";
 import type { Transaction } from "./client";
-import {
-  mapRows, mapTaskLabels, readCalendar, readLabelRecord, readProjectRecord,
-  readSectionRecord, readTaskRecord, type ProductAccess,
-} from "./product";
+import { readProjectRecord, type ProductAccess } from "./product";
 import { withProductReader } from "./product-crypto";
-import { labels, preferences, projects, projectShares, sections, taskLabels, tasks } from "./schema";
+import { loadProjectView } from "./product-reads";
+import { projects, projectShares } from "./schema";
 import { setTenantContext, withTenant } from "./tenant";
 
 async function requireProject(tx: Transaction, tenantId: string, id: string, lock: boolean) {
@@ -72,28 +69,7 @@ export function readSharedProject({ db, keys }: Omit<ProductAccess, "tenantId">,
       const project = await readProjectRecord(reader, projectRow);
       if (project.data.archived) throw notFound();
 
-      const [preference] = await tx.select().from(preferences).where(eq(preferences.tenantId, tenantId));
-      if (!preference) throw new Error("Preferências indisponíveis.");
-      const calendar = await readCalendar(reader, preference);
-      const projectSections = await mapRows(await tx.select().from(sections)
-        .where(and(eq(sections.tenantId, tenantId), eq(sections.projectId, projectId))),
-        (row) => readSectionRecord(reader, row));
-      const taskScope = and(eq(tasks.tenantId, tenantId), eq(tasks.projectId, projectId));
-      const projectTasks = await mapRows(await tx.select().from(tasks).where(taskScope),
-        (row) => readTaskRecord(reader, row));
-      const projectTaskLabels = tx.select({ taskId: taskLabels.taskId, labelId: taskLabels.labelId })
-        .from(taskLabels).innerJoin(tasks, and(eq(tasks.tenantId, taskLabels.tenantId), eq(tasks.id, taskLabels.taskId)))
-        .where(taskScope);
-      const links = await projectTaskLabels;
-      const assigned = projectTaskLabels.as("assigned");
-      const projectLabels = await mapRows(await tx.select().from(labels).where(and(
-        eq(labels.tenantId, tenantId), inArray(labels.id, tx.select({ labelId: assigned.labelId }).from(assigned)),
-      )), (row) => readLabelRecord(reader, row));
-
-      const product: Product = {
-        ...calendar, projects: new Map([[project.id, project]]), sections: projectSections,
-        tasks: projectTasks, labels: projectLabels, taskLabels: mapTaskLabels(links),
-      };
+      const product = await loadProjectView(tx, reader, tenantId, project);
       return { product, project };
     });
   }, { isolationLevel: "repeatable read", accessMode: "read only" });

@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { Temporal } from "@js-temporal/polyfill";
 import { groupTasks, orderedSections, type Product, type Section } from "@/domain/product";
 import { mutateProduct, readProduct, type ProductAccess } from "@/server/db/product";
+import { readProjectView } from "@/server/db/product-reads";
 import { ApiError } from "@/server/errors";
 import { defaultsForView, type ProjectPayload, type ProjectView, type SectionPayload } from "@/validation/product";
-import { inboxProject, labelDto, orderedLabels, projectCounts, projectPage, projectSummary, sectionDto, visibleTask } from "./product-dto";
+import { inboxProject, labelSummaries, projectCounts, projectPage, projectSummaries, projectSummary, sectionDto, visibleTask } from "./product-dto";
 import { nextRevision, protectInbox, requireRevision, validation, visibleRecord, writableProject } from "./product-rules";
 
 function orderedProjects(product: Product, archived: boolean) {
@@ -24,9 +25,9 @@ export function getNavigation(access: ProductAccess) {
     return {
       inbox: { projectId: inbox.id, activeCount },
       todayCount,
-      projects: orderedProjects(product, false).map((project) => projectSummary(product, project)),
+      projects: projectSummaries(product, orderedProjects(product, false)),
       archivedCount: orderedProjects(product, true).length,
-      labels: orderedLabels(product).map((label) => labelDto(product, label)),
+      labels: labelSummaries(product),
       referenceDate: product.referenceDate,
     };
   });
@@ -34,12 +35,13 @@ export function getNavigation(access: ProductAccess) {
 
 export function listProjects(access: ProductAccess, status: "active" | "archived") {
   return readProduct(access, (product) => ({
-    projects: orderedProjects(product, status === "archived").map((project) => projectSummary(product, project)),
+    projects: projectSummaries(product, orderedProjects(product, status === "archived")),
   }));
 }
 
-export function getProject(access: ProductAccess, id: string, includeCompleted?: boolean) {
-  return readProduct(access, (product) => projectPage(product, visibleRecord(product.projects, id), includeCompleted));
+export async function getProject(access: ProductAccess, id: string, includeCompleted?: boolean) {
+  const { product, project } = await readProjectView(access, id);
+  return projectPage(product, project, includeCompleted);
 }
 
 type NamedDetails = Pick<SectionPayload, "name" | "description">;

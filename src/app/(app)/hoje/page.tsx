@@ -9,7 +9,7 @@ import { FlatGroup } from "@/components/flat-list";
 import { IconCheck, IconPlus } from "@/components/icons";
 import { useTaskActions } from "@/components/task-actions";
 import { AddTaskSlot } from "@/components/task-editor";
-import { Spinner } from "@/components/ui";
+import { ReadFallback } from "@/components/ui";
 
 export default function TodayPage() {
   const actions = useTaskActions();
@@ -34,7 +34,7 @@ export default function TodayPage() {
             <h1 className="title">Hoje</h1>
             {data && <PageTaskCount count={total} />}
           </div>
-          {!data ? <Spinner /> : (
+          {!data ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : (
             <>
               {data.overdue.length > 0 && <FlatGroup title="Atrasadas" count={data.overdue.length} tasks={data.overdue} actions={actions} />}
               <FlatGroup title={`Hoje · ${shortDate(data.referenceDate)}`} count={data.today.length} tasks={data.today} actions={actions} timeOnly

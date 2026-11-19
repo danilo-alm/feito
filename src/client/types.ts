@@ -164,6 +164,8 @@ export type EditTask = {
   dueDate?: string | null;
   dueTime?: string | null;
   labelIds?: string[];
+  recurrence?: { frequency: Frequency; anchorDate: string; time?: string | null } | null;
+  destination?: { projectId: string; sectionId: string | null };
 };
 
 export type ImportCounts = {

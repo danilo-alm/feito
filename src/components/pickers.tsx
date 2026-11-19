@@ -97,7 +97,7 @@ export function TimePicker({ value, onPick }: { value: string | null; onPick: (t
   );
 }
 
-export function LabelPicker({ selected, onChange }: { selected: string[]; onChange: (ids: string[]) => void }) {
+export function LabelPicker({ selected, onChange }: { selected: string[]; onChange: (update: (current: string[]) => string[]) => void }) {
   const id = useId();
   const app = useApp();
   const labels = useQuery<{ labels: Label[] }>("labels", api.labels.list);
@@ -106,13 +106,13 @@ export function LabelPicker({ selected, onChange }: { selected: string[]; onChan
   const needle = text.trim().toLocaleLowerCase("pt-BR");
   const visible = all.filter((label) => !needle || label.name.toLocaleLowerCase("pt-BR").includes(needle));
   const exact = all.some((label) => label.name.toLocaleLowerCase("pt-BR") === needle);
-  const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
+  const toggle = (id: string) => onChange((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   const create = async () => {
     const name = text.trim();
     if (!name) return;
     const label = await app.run(() => api.labels.create(name), { success: `Etiqueta “${name}” criada` });
     if (label) {
-      onChange([...selected, label.id]);
+      onChange((current) => current.includes(label.id) ? current : [...current, label.id]);
       setText("");
       void labels.reload();
     }

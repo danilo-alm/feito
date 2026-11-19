@@ -10,7 +10,7 @@ import { FlatGroup } from "@/components/flat-list";
 import { CreateSlot, useStartCreate } from "@/components/task-editor";
 import { IconChevronLeft, IconChevronRight, IconPlus } from "@/components/icons";
 import { useTaskActions } from "@/components/task-actions";
-import { Spinner } from "@/components/ui";
+import { ReadFallback } from "@/components/ui";
 
 export default function UpcomingPage() {
   const app = useApp();
@@ -48,7 +48,7 @@ export default function UpcomingPage() {
               );
             })}
           </div>
-          {!data ? <Spinner /> : data.days.map((day) => {
+          {!data ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : data.days.map((day) => {
             const relative = dateLabel(day.date, app.reference);
             const title = relative === "Amanhã" ? `Amanhã · ${shortDate(day.date)}` : shortDate(day.date);
             return (

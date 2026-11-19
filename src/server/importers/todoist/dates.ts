@@ -1,5 +1,6 @@
 import "server-only";
 import { Temporal } from "@js-temporal/polyfill";
+import { civilDate } from "@/validation/product";
 import type { PlannedTask } from "../plan";
 
 /**
@@ -46,6 +47,10 @@ const UNITS: Record<string, "days" | "weeks" | "months" | "years"> = {
 };
 
 const ONE = new Set(["a", "an", "one", "um", "uma"]);
+
+function dateToken<T>(tokens: Record<string, T>, text: string): T | undefined {
+  return Object.hasOwn(tokens, text) ? tokens[text] : undefined;
+}
 
 function normalize(text: string) {
   return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()
@@ -106,7 +111,8 @@ function nextMonthDay(today: Temporal.PlainDate, day: number) {
 
 function amount(word: string) {
   if (ONE.has(word)) return 1;
-  return /^\d{1,3}$/.test(word) ? Number(word) : null;
+  // Todoist exports may express any supported civil date as days from today.
+  return /^\d{1,7}$/.test(word) ? Number(word) : null;
 }
 
 function fullYear(value: string | undefined, fallback: number) {
@@ -126,13 +132,22 @@ function parseDay(text: string, today: Temporal.PlainDate, lang: string): Tempor
   if (/^(?:next month|proximo mes|mes que vem)$/.test(words)) return today.toPlainYearMonth().add({ months: 1 }).toPlainDate({ day: 1 });
   if (/^(?:this weekend|weekend|fim de semana|neste fim de semana)$/.test(words)) return nextWeekday(today, 6, true);
 
-  const relative = /^(?:in |em |daqui a |daqui )(\S+) (\S+)$/.exec(words) ?? /^(\d{1,3}) (\S+)(?: from now)?$/.exec(words);
-  if (relative && UNITS[relative[2]] && amount(relative[1]) !== null) {
-    return today.add({ [UNITS[relative[2]]]: amount(relative[1])! });
+  const relative = /^(?:in |em |daqui a |daqui )(\S+) (\S+)$/.exec(words) ?? /^(\d{1,7}) (\S+)(?: from now)?$/.exec(words);
+  if (relative) {
+    const unit = dateToken(UNITS, relative[2]);
+    const count = amount(relative[1]);
+    if (unit && count !== null) {
+      try {
+        return today.add({ [unit]: count });
+      } catch {
+        return null;
+      }
+    }
   }
 
   const weekday = /^(?:next |this |proxima |proximo |nesta |neste )?(\S+)$/.exec(words);
-  if (weekday && WEEKDAYS[weekday[1]] !== undefined) return nextWeekday(today, WEEKDAYS[weekday[1]], false);
+  const dayOfWeek = weekday && dateToken(WEEKDAYS, weekday[1]);
+  if (dayOfWeek) return nextWeekday(today, dayOfWeek, false);
 
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(words);
   if (iso) return makeDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
@@ -145,17 +160,19 @@ function parseDay(text: string, today: Temporal.PlainDate, lang: string): Tempor
   }
 
   const monthFirst = /^(\p{L}+) (\d{1,2})(?:st|nd|rd|th)?(?: (\d{4}))?$/u.exec(words);
-  if (monthFirst && MONTHS[monthFirst[1]]) {
-    return makeDate(fullYear(monthFirst[3], today.year), MONTHS[monthFirst[1]], Number(monthFirst[2]));
+  if (monthFirst) {
+    const month = dateToken(MONTHS, monthFirst[1]);
+    if (month) return makeDate(fullYear(monthFirst[3], today.year), month, Number(monthFirst[2]));
   }
   const dayFirst = /^(\d{1,2})(?:st|nd|rd|th)? (?:de )?(\p{L}+)(?: (?:de )?(\d{4}))?$/u.exec(words);
-  if (dayFirst && MONTHS[dayFirst[2]]) {
-    return makeDate(fullYear(dayFirst[3], today.year), MONTHS[dayFirst[2]], Number(dayFirst[1]));
+  if (dayFirst) {
+    const month = dateToken(MONTHS, dayFirst[2]);
+    if (month) return makeDate(fullYear(dayFirst[3], today.year), month, Number(dayFirst[1]));
   }
   return null;
 }
 
-const EVERY = /^(?:every!?|ev!?|each|todo|toda|todos|todas|todos os|todas as|cada) (.+)$/;
+const EVERY = /^(?:every!?|ev!?|each|todos os|todas as|todo|toda|todos|todas|cada) (.+)$/;
 
 function parseRecurrence(text: string, today: Temporal.PlainDate): ParsedDue | null {
   const simple: Record<string, "daily" | "weekly" | "monthly"> = {
@@ -163,18 +180,19 @@ function parseRecurrence(text: string, today: Temporal.PlainDate): ParsedDue | n
     weekly: "weekly", semanalmente: "weekly",
     monthly: "monthly", mensalmente: "monthly",
   };
-  if (simple[text]) return { dueDate: today.toString(), dueTime: null, recurrence: { frequency: simple[text], anchorDate: today.toString() } };
+  const anchored = (frequency: "daily" | "weekly" | "monthly", date: Temporal.PlainDate | null): ParsedDue | null =>
+    date ? { dueDate: date.toString(), dueTime: null, recurrence: { frequency, anchorDate: date.toString() } } : null;
+  const frequency = dateToken(simple, text);
+  if (frequency) return anchored(frequency, today);
 
   const every = EVERY.exec(text);
   if (!every) return null;
   const rest = every[1].replace(/^(?:1|one|um|uma) /, "");
-  const anchored = (frequency: "daily" | "weekly" | "monthly", date: Temporal.PlainDate | null): ParsedDue | null =>
-    date ? { dueDate: date.toString(), dueTime: null, recurrence: { frequency, anchorDate: date.toString() } } : null;
-
   if (/^(?:day|dia|dias)$/.test(rest)) return anchored("daily", today);
   if (/^(?:week|semana|semanas)$/.test(rest)) return anchored("weekly", today);
   if (/^(?:month|mes|meses)$/.test(rest)) return anchored("monthly", today);
-  if (WEEKDAYS[rest] !== undefined) return anchored("weekly", nextWeekday(today, WEEKDAYS[rest], true));
+  const dayOfWeek = dateToken(WEEKDAYS, rest);
+  if (dayOfWeek) return anchored("weekly", nextWeekday(today, dayOfWeek, true));
   const monthDay = /^(?:dia )?(\d{1,2})(?:st|nd|rd|th)?(?: (?:of the month|do mes))?$/.exec(rest);
   if (monthDay && Number(monthDay[1]) >= 1 && Number(monthDay[1]) <= 31) {
     return anchored("monthly", nextMonthDay(today, Number(monthDay[1])));
@@ -192,9 +210,11 @@ export function parseTodoistDate(raw: string, lang: string, referenceDate: strin
 
   if (EVERY.test(timed.rest) || /^(?:daily|weekly|monthly|diariamente|semanalmente|mensalmente)$/.test(timed.rest)) {
     const recurring = parseRecurrence(timed.rest, today);
-    return recurring && { ...recurring, dueTime: timed.time };
+    return recurring && civilDate.safeParse(recurring.dueDate).success ? { ...recurring, dueTime: timed.time } : null;
   }
   // Só um horário ("10:00") significa hoje, como no Todoist.
   const day = timed.rest === "" && timed.time ? today : parseDay(timed.rest, today, language);
-  return day && { dueDate: day.toString(), dueTime: timed.time, recurrence: null };
+  if (!day) return null;
+  const dueDate = day.toString();
+  return civilDate.safeParse(dueDate).success ? { dueDate, dueTime: timed.time, recurrence: null } : null;
 }

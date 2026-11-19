@@ -54,6 +54,10 @@ export class WarningCollector {
     else this.counts.set(key, { count: amount, render });
   }
 
+  merge(other: WarningCollector) {
+    for (const [key, { count, render }] of other.counts) this.add(key, render, count);
+  }
+
   list() {
     return [...this.counts.values()].map(({ count, render }) => render(count));
   }

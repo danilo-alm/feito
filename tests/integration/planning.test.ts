@@ -80,6 +80,7 @@ describe("recurring occurrences", () => {
       }, completedOccurrencePayload)));
     expect(decoded).toEqual({
       nominalDate: "2026-11-16", dueDate: "2026-11-16", dueTime: "09:30", completedAt: "2026-11-17T14:15:00Z",
+      nextOccurrenceId: a.task.occurrenceId,
     });
     expect(await historyRows(other, task.id)).toEqual([]);
     await failure(await other("POST", `/tasks/${task.id}/complete`, {

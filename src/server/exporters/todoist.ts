@@ -50,7 +50,7 @@ export function dueText(task: Task, today: string, relative: boolean) {
     if (days === 1) return `tomorrow${at}`;
     if (days > 1) return `in ${days} days${at}`;
   }
-  return `${MONTHS[date.month - 1]} ${date.day} ${date.year}${at}`;
+  return `${MONTHS[date.month - 1]} ${date.day} ${String(date.year).padStart(4, "0")}${at}`;
 }
 
 /** Etiquetas viram `@nome` no título; espaços viram `_`, pois o Todoist termina a etiqueta no espaço. */

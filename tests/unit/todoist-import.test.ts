@@ -14,17 +14,19 @@ function csv(...rows: string[]) {
 
 describe("CSV", () => {
   it("handles BOM, quoted commas, escaped quotes, multiline cells and CRLF", () => {
-    const { records, unterminated } = parseCsv('﻿a,b\r\n"x, ""y""","linha 1\nlinha 2"\r\n,\r\n');
-    expect(unterminated).toBe(false);
-    expect(records).toEqual([
+    const csv = parseCsv('﻿a,b\r\n"x, ""y""","linha 1\nlinha 2"\r\n,\r\n');
+    expect([...csv.records]).toEqual([
       { line: 1, cells: ["a", "b"] },
       { line: 2, cells: ['x, "y"', "linha 1\nlinha 2"] },
       { line: 4, cells: ["", ""] },
     ]);
+    expect(csv.unterminated).toBe(false);
   });
 
   it("reports an unterminated quoted field", () => {
-    expect(parseCsv('a\n"aberto').unterminated).toBe(true);
+    const csv = parseCsv('a\n"aberto');
+    expect([...csv.records]).toEqual([{ line: 1, cells: ["a"] }, { line: 2, cells: ["aberto"] }]);
+    expect(csv.unterminated).toBe(true);
   });
 });
 
@@ -73,6 +75,14 @@ describe("Todoist dates", () => {
     expect(due("every year")).toBeNull();
     expect(due("feb 30")).toBeNull();
     expect(due("25:00")).toBeNull();
+  });
+
+  it("parses plural Portuguese recurrences and rejects dates outside the supported years", () => {
+    expect(due("todos os dias", "pt_BR")?.recurrence).toEqual({ frequency: "daily", anchorDate: today });
+    expect(due("todas as semanas", "pt_BR")?.recurrence).toEqual({ frequency: "weekly", anchorDate: today });
+    expect(due("in 9999999 years")).toBeNull();
+    expect(parseTodoistDate("tomorrow", "en", "9999-12-31")).toBeNull();
+    expect(parseTodoistDate("every monday", "en", "9999-12-31")).toBeNull();
   });
 });
 
@@ -142,6 +152,23 @@ describe("Todoist import", () => {
       .toMatchObject({ title: "Escrever para ana@exemplo.com", labels: [] });
     expect(run("nome,valor\nx,1\n").errors[0].message).toMatch(/TYPE e CONTENT/);
     expect(importTodoist([], { referenceDate: today }).plan).toBeNull();
+  });
+
+  it("clips many notes at the description limit and keeps subsequent rows", () => {
+    const note = "á🙂".repeat(6000);
+    const { plan, errors, warnings } = run(csv("task,Primeira", `note,${note}`, "note,Depois do limite", "task,Segunda", "note,Última"));
+    const previous = Array.from(`Comentários do Todoist:\n- ${note}\n- Depois do limite`);
+    expect(errors).toEqual([]);
+    const [first, second] = plan!.projects[0].tasks;
+    expect(first.description).toBe(previous.slice(0, 9999).join("").trimEnd() + "…");
+    expect(second.description).toBe("Comentários do Todoist:\n- Última");
+    expect(warnings).toEqual([
+      "3 comentários foram adicionados à descrição da tarefa, pois o Feito não tem comentários.",
+      "1 descrição foi cortada no limite de 10 000 caracteres.",
+    ]);
+    expect(run("TYPE,CONTENT\ntask,\nsection,\"aberta").errors.map(({ path }) => path)).toEqual([
+      "Projeto.csv", "Projeto.csv:2",
+    ]);
   });
 
   it("names projects after the file", () => {

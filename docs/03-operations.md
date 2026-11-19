@@ -159,7 +159,7 @@ pnpm test
 pnpm build
 ```
 
-Os testes ponta a ponta usam Playwright com o Chrome instalado contra um servidor local. O passo a passo está em [`tests/e2e/README.md`](../tests/e2e/README.md).
+Os testes ponta a ponta usam Playwright com Chromium headless em HTTPS, nos perfis desktop e celular. O passo a passo está em [`tests/e2e/README.md`](../tests/e2e/README.md).
 
 Para a integração, use um arquivo privado de teste com chaves novas, outra porta de PostgreSQL e URLs atualizadas. O banco precisa ser PostgreSQL 18. A suíte cria contas e dados sintéticos nesse banco, usando `feito_auth`, `feito_app` e a role da CLI para as operações administrativas.
 
@@ -176,9 +176,11 @@ docker compose -p feito-test --env-file "$FEITO_TEST_ENV" up -d --wait postgres
 
 A suíte verifica isolamento entre contas pelo HTTP e pelas políticas do PostgreSQL. Também cobre revisões concorrentes, arquivamento, ordenação, seções, movimentação de tarefas, vínculos com etiquetas, conclusão idempotente de ocorrências, virada de dia no fuso da conta, busca paginada e portabilidade entre contas com chaves de dados distintas.
 
+Com o mesmo ambiente de integração carregado, `pnpm test:coverage` executa Vitest com cobertura V8 para as suítes unitária e de integração. O relatório no terminal e o HTML em `coverage/index.html` incluem as rotas da API, o domínio, as validações, os módulos de servidor e a lógica em `src/client`. O back-end tem limites agregados de 90% de linhas e 80% de ramificações. Os fluxos das telas e dos componentes React são exercitados pelo Playwright.
+
 ### CI e imagens
 
-O workflow [`.github/workflows/ci.yaml`](../.github/workflows/ci.yaml) roda em pull requests e em pushes na `main` e na `dev`: typecheck, testes unitários, build e testes de integração (PostgreSQL 18 descartável, com segredos gerados na execução). Os testes ponta a ponta não rodam no CI.
+O workflow roda em pull requests e em pushes na `main` e na `dev`. Ele executa typecheck, build, testes unitários e de integração com cobertura e Playwright headless. O workflow migra um PostgreSQL 18 descartável e gera os segredos e o certificado HTTPS a cada execução. [Workflow do GitHub Actions](../.github/workflows/ci.yaml)
 
 Em push na `main` ou na `dev`, com os testes aprovados, publica no GitHub Container Registry as imagens `ghcr.io/<dono>/feito` (alvo `prod`) e `ghcr.io/<dono>/feito-tools` (alvo `tools`), com as tags `sha-<commit>` e, conforme a branch, `latest` (`main`) ou `dev` (`dev`). Os pacotes nascem privados; torne-os públicos ou vincule-os ao repositório nas configurações do pacote, se necessário.
 

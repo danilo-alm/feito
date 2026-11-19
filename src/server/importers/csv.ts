@@ -1,55 +1,63 @@
 import "server-only";
 
-/**
- * Lê CSV no formato RFC 4180: campos entre aspas podem conter vírgulas, quebras de linha e `""`.
- * Remove o BOM inicial. Devolve cada registro com a linha do arquivo onde ele começa.
- */
+type CsvRecord = { line: number; cells: string[] };
+
+/** Lê registros sob demanda, preservando a linha inicial e o texto dentro de campos entre aspas. */
 export function parseCsv(text: string, delimiter = ",") {
-  const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  const records: { line: number; cells: string[] }[] = [];
-  let cells: string[] = [];
-  let cell = "";
-  let quoted = false;
-  let line = 1;
-  let start = 1;
   let unterminated = false;
 
-  const endCell = () => {
-    cells.push(cell);
-    cell = "";
-  };
-  const endRecord = () => {
-    endCell();
-    records.push({ line: start, cells });
-    cells = [];
-  };
+  function* readRecords(): Generator<CsvRecord> {
+    let fragment = text.charCodeAt(0) === 0xfeff ? 1 : 0;
+    let cells: string[] = [];
+    let cell = "";
+    let quoted = false;
+    let line = 1;
+    let start = 1;
 
-  for (let index = 0; index < source.length; index += 1) {
-    const char = source[index];
-    if (quoted) {
-      if (char === '"') {
-        if (source[index + 1] === '"') {
-          cell += '"';
-          index += 1;
-        } else {
-          quoted = false;
+    const endCell = (index: number) => {
+      cells.push(cell + text.slice(fragment, index));
+      cell = "";
+    };
+
+    for (let index = fragment; index < text.length; index += 1) {
+      const char = text[index];
+      if (quoted) {
+        if (char === '"') {
+          cell += text.slice(fragment, index);
+          if (text[index + 1] === '"') {
+            cell += '"';
+            index += 1;
+          } else {
+            quoted = false;
+          }
+          fragment = index + 1;
+        } else if (char === "\n") {
+          line += 1;
         }
-      } else {
-        if (char === "\n") line += 1;
-        cell += char;
+        continue;
       }
-      continue;
+      if (char === '"' && index === fragment && cell === "") {
+        quoted = true;
+        fragment = index + 1;
+      } else if (char === delimiter) {
+        endCell(index);
+        fragment = index + 1;
+      } else if (char === "\r" || char === "\n") {
+        endCell(index);
+        if (char === "\r" && text[index + 1] === "\n") index += 1;
+        yield { line: start, cells };
+        cells = [];
+        fragment = index + 1;
+        line += 1;
+        start = line;
+      }
     }
-    if (char === '"' && cell === "") quoted = true;
-    else if (char === delimiter) endCell();
-    else if (char === "\r" || char === "\n") {
-      if (char === "\r" && source[index + 1] === "\n") index += 1;
-      endRecord();
-      line += 1;
-      start = line;
-    } else cell += char;
+    unterminated = quoted;
+    if (fragment < text.length || cell !== "" || cells.length) {
+      endCell(text.length);
+      yield { line: start, cells };
+    }
   }
-  if (quoted) unterminated = true;
-  if (cell !== "" || cells.length) endRecord();
-  return { records, unterminated };
+
+  return { records: readRecords(), get unterminated() { return unterminated; } };
 }

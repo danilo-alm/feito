@@ -65,10 +65,10 @@ export async function exportAccount(access: ProductAccess) {
     taskLabels: tasks.flatMap((task) => (product.taskLabels.get(task.id) ?? []).map((labelId) => ({
       taskId: taskIds.get(task.id)!, labelId: labelIds.get(labelId)!,
     })).sort((a, b) => a.labelId.localeCompare(b.labelId))),
-    occurrences: history.map((row) => ({
-      taskId: taskIds.get(row.taskId)!,
-      occurrenceId: occurrenceIds.get(occurrenceKey(row.taskId, row.occurrenceId))!,
-      ...row.data,
+    occurrences: history.map(({ taskId, occurrenceId, data: { nominalDate, dueDate, dueTime, completedAt } }) => ({
+      taskId: taskIds.get(taskId)!,
+      occurrenceId: occurrenceIds.get(occurrenceKey(taskId, occurrenceId))!,
+      nominalDate, dueDate, dueTime, completedAt,
     })),
   };
   return { document, referenceDate: product.referenceDate };

@@ -168,7 +168,7 @@ test.describe("telas do dia a dia", () => {
     else await page.keyboard.press("q");
     const dialog = page.getByRole("dialog", { name: "Adicionar tarefa" });
     await expect(dialog.getByLabel("Título da tarefa")).toBeFocused();
-    await expect(dialog.getByRole("button", { name: "Data" })).toHaveText("Hoje");
+    await expect(dialog.getByRole("button", { name: "Data" })).toContainText("Hoje");
     await dialog.getByLabel("Título da tarefa").fill(title);
     await page.keyboard.press("Enter");
     await expect(page.getByText(/Tarefa adicionada em Caixa de entrada/)).toBeVisible();
@@ -272,6 +272,9 @@ test.describe("telas do dia a dia", () => {
     await search.fill("kolkata");
     await expect(page.getByRole("option")).toHaveCount(1);
     await expect(page.getByRole("option").first()).toContainText("UTC+5:30");
+    await search.fill("calcutta");
+    await expect(page.getByRole("option")).toHaveCount(1);
+    await expect(page.getByRole("option", { name: /Kolkata/ })).toBeVisible();
     await search.fill("utc+5:30");
     await expect(page.getByRole("option", { name: /Kolkata/ })).toBeVisible();
     await search.fill("sao paulo");

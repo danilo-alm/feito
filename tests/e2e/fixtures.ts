@@ -1,17 +1,13 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { test as base, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { ACCOUNTS_FILE, AUTH_DIR } from "./global-setup";
+import { sessionFile } from "./global-setup";
 
 type Account = { email: string; password: string };
 export type Api = <T = unknown>(method: string, path: string, body?: unknown) => Promise<T>;
 
-function accounts(): Record<string, Account> {
-  return JSON.parse(readFileSync(ACCOUNTS_FILE, "utf8"));
-}
-
-export async function login(page: Page, account: Account) {
-  await page.goto("/entrar");
+export async function login(page: Page, account: Account, path = "/entrar") {
+  const ready = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/session");
+  await page.goto(path);
+  await ready;
   await page.getByLabel("E-mail").fill(account.email);
   await page.getByLabel("Senha", { exact: true }).fill(account.password);
   await page.getByRole("button", { name: "Entrar" }).click();
@@ -29,22 +25,9 @@ export function apiFor(request: APIRequestContext, origin: string): Api {
   };
 }
 
-/** Cada projeto de teste (desktop, celular) usa uma conta própria e entra uma única vez. */
-export const test = base.extend<{ api: Api }, { authState: string }>({
-  authState: [async ({ browser }, use, workerInfo) => {
-    const name = workerInfo.project.name;
-    const file = join(AUTH_DIR, `state-${name}.json`);
-    if (!existsSync(file)) {
-      const context = await browser.newContext({ baseURL: workerInfo.project.use.baseURL });
-      const page = await context.newPage();
-      await login(page, accounts()[name]);
-      await page.waitForURL("**/hoje");
-      await context.storageState({ path: file });
-      await context.close();
-    }
-    await use(file);
-  }, { scope: "worker" }],
-  storageState: async ({ authState }, use) => use(authState),
+/** Os perfis desktop e celular usam sessões próprias, preparadas no setup global. */
+export const test = base.extend<{ api: Api }>({
+  storageState: async ({}, use, testInfo) => use(sessionFile(testInfo.project.name)),
   api: async ({ page, baseURL }, use) => use(apiFor(page.request, new URL(baseURL!).origin)),
 });
 

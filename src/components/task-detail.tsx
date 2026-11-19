@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiFailure, errorMessage } from "@/client/api";
 import { tagColor } from "@/client/colors";
 import { dateLabel, dayOfMonth, dueTone, FREQUENCY_LABEL } from "@/client/dates";
-import { useQuery } from "@/client/store";
+import { getQueryData, useQuery } from "@/client/store";
 import type { EditTask, Frequency, Label, TaskDetail as Detail } from "@/client/types";
 import { refreshAll, useApp, type TaskSelection } from "./app";
 import {
@@ -15,9 +15,12 @@ import { DatePicker, LabelPicker, PRIORITY_NAMES, PriorityMenu, RepeatMenu, Time
 import { useTaskActions } from "./task-actions";
 import { TaskContent } from "./task-content";
 import { Checkbox } from "./task-row";
-import { Dialog, MenuButton, Popover, Spinner, useAutoGrow, useToast } from "./ui";
+import { Dialog, MenuButton, Popover, ReadFallback, useAutoGrow, useToast } from "./ui";
 
 type Pop = "date" | "time" | "repeat" | "priority" | "labels" | null;
+type TextField = "title" | "description";
+type TextDraft = { value: string; submitted?: boolean };
+type TaskDraft = { taskId: string | null } & Partial<Record<TextField, TextDraft>>;
 
 export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelection | null; onClose: () => void }) {
   const taskId = selection?.id ?? null;
@@ -28,11 +31,14 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
   const app = useApp();
   const toast = useToast();
   const actions = useTaskActions();
-  const query = useQuery<Detail>(taskId ? `task:${taskId}` : null, () => api.tasks.get(taskId!));
+  const taskKey = taskId ? `task:${taskId}` : null;
+  const query = useQuery<Detail>(taskKey, () => api.tasks.get(taskId!));
   const task = query.data?.id === taskId ? query.data : undefined;
   const labelsQuery = useQuery<{ labels: Label[] }>(taskId ? "labels" : null, api.labels.list);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [draft, setDraft] = useState<TaskDraft>({ taskId });
+  if (draft.taskId !== taskId) setDraft({ taskId });
+  const title = draft.title?.value ?? task?.title ?? "";
+  const description = draft.description?.value ?? task?.description ?? "";
   const [pop, setPop] = useState<Pop>(null);
   const [manualLink, setManualLink] = useState<string | null>(null);
   const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -43,13 +49,9 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
   const descRef = useAutoGrow(description);
 
   useEffect(() => {
-    if (task) {
-      setTitle(task.title);
-      setDescription(task.description);
-      if (focusTask.current === task.id) {
-        titleRef.current?.focus();
-        focusTask.current = null;
-      }
+    if (task && focusTask.current === task.id) {
+      titleRef.current?.focus();
+      focusTask.current = null;
     }
   }, [task]);
 
@@ -98,6 +100,14 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
   const save = (patch: Omit<EditTask, "revision">, success?: string) =>
     enqueue((current) => api.tasks.edit(task!.id, { revision: current, ...patch }), success);
 
+  const changeLabels = (update: (current: string[]) => string[]) => {
+    if (!task || !taskKey) return;
+    return enqueue((revision) => {
+      const latest = getQueryData<Detail>(taskKey) ?? task;
+      return api.tasks.edit(task.id, { revision, labelIds: update(latest.labels.map((label) => label.id)) });
+    });
+  };
+
   const setRepeat = (frequency: Frequency | null) => {
     if (!task) return;
     setPop(null);
@@ -107,14 +117,23 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
     frequency ? `Repete: ${FREQUENCY_LABEL[frequency].toLowerCase()}` : "Repetição removida");
   };
 
-  const commitTitle = () => {
-    if (!task) return;
-    const next = title.trim();
-    if (!next) setTitle(task.title);
-    else if (next !== task.title) void save({ title: next });
+  const updateText = (field: TextField, value: string) => {
+    setDraft((current) => ({ ...current, [field]: { value } }));
   };
-  const commitDescription = () => {
-    if (task && description !== task.description) void save({ description });
+
+  const commitText = (field: TextField) => {
+    const change = draft[field];
+    if (!task || !change || change.submitted) return;
+    const value = field === "title" ? change.value.trim() : change.value;
+    if (field === "title" && !value) {
+      setDraft((current) => ({ ...current, title: undefined }));
+      return;
+    }
+    const submitted = { value, submitted: true };
+    setDraft((current) => ({ ...current, [field]: submitted }));
+    void save({ [field]: value }).finally(() => {
+      setDraft((current) => current[field] === submitted ? { ...current, [field]: undefined } : current);
+    });
   };
 
   const closePop = () => setPop(null);
@@ -174,7 +193,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar (Esc)" data-autofocus><IconX /></button>
         </div>
       </div>
-      {!task ? <Spinner /> : (
+      {!task ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : (
         <div style={{ display: "flex", flexWrap: "wrap" }}>
           <div style={{ flex: "999 1 420px", minWidth: 0, padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
             {completed && (
@@ -191,12 +210,12 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
                 <label htmlFor="detail-title" className="sr-only">Título</label>
                 <input id="detail-title" ref={titleRef} className="title-input" value={title} readOnly={completed} maxLength={500}
-                  onChange={(event) => setTitle(event.target.value)} onBlur={commitTitle}
+                  onChange={(event) => updateText("title", event.target.value)} onBlur={() => commitText("title")}
                   onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} />
                 <label htmlFor="detail-desc" className="sr-only">Descrição</label>
                 <textarea id="detail-desc" ref={descRef} className="desc-input" value={description} readOnly={completed} rows={1}
                   placeholder="Descrição" maxLength={10_000} style={{ color: description ? "var(--text)" : undefined }}
-                  onChange={(event) => setDescription(event.target.value)} onBlur={commitDescription} />
+                  onChange={(event) => updateText("description", event.target.value)} onBlur={() => commitText("description")} />
               </div>
             </div>
             {(!completed || task.children.length > 0) && (
@@ -274,7 +293,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
                       <IconTag className="sm" style={{ color: tagColor(label.id) }} />{label.name}
                       {!completed && (
                         <button type="button" className="icon-btn" style={{ width: 20, height: 20, minHeight: 0 }} aria-label={`Remover ${label.name}`}
-                          onClick={() => void save({ labelIds: task.labels.filter((item) => item.id !== label.id).map((item) => item.id) })}>
+                          onClick={() => void changeLabels((current) => current.filter((id) => id !== label.id))}>
                           <IconX className="sm" />
                         </button>
                       )}
@@ -302,7 +321,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
             <PriorityMenu value={task.priority} onPick={(priority) => { closePop(); if (priority !== task.priority) void save({ priority }); }} />
           </Popover>
           <Popover anchor={anchors.current.labels ?? null} open={pop === "labels"} onClose={() => { closePop(); void labelsQuery.reload(); }} label="Etiquetas">
-            <LabelPicker selected={task.labels.map((label) => label.id)} onChange={(ids) => void save({ labelIds: ids })} />
+            <LabelPicker selected={task.labels.map((label) => label.id)} onChange={(update) => void changeLabels(update)} />
           </Popover>
         </>
       )}

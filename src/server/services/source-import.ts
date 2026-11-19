@@ -1,15 +1,16 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { findImportSource, type ImportSourceId } from "@/domain/import-sources";
 import { groupTasks, normalizeLabelName, orderedSections, type Product, type Project, type Task } from "@/domain/product";
 import { findReceipt, replay } from "@/server/db/portability";
 import { mutateProduct, readProduct, type ProductAccess } from "@/server/db/product";
+import { withTenant } from "@/server/db/tenant";
 import { notFound } from "@/server/errors";
 import { importers } from "@/server/importers";
 import { projectTasks, walkTasks, type ImportPlan, type ImporterResult, type PlannedTask } from "@/server/importers/plan";
 import {
-  checkPreviewToken, fileDigest, invalidImport, makePreviewToken, receiptFingerprint,
+  checkPreviewToken, invalidImport, makePreviewToken, receiptFingerprint,
 } from "@/server/portability/token";
 import { importOperations } from "@/server/db/schema";
 import type { ImportCounts } from "@/validation/portability";
@@ -20,8 +21,12 @@ import { visibleRecord, writableProject } from "./product-rules";
 // ao fim de um projeto existente (`projectId`), sem alterar o que já existe.
 
 const MAX_FILES = 100;
+const wellFormed = (value: string) => value.isWellFormed();
 const body = z.strictObject({
-  files: z.array(z.strictObject({ name: z.string().max(255), content: z.string() })).min(1).max(MAX_FILES),
+  files: z.array(z.strictObject({
+    name: z.string().max(255).refine(wellFormed),
+    content: z.string().refine(wellFormed),
+  })).min(1).max(MAX_FILES),
   projectId: entityId.optional(),
 });
 
@@ -39,7 +44,10 @@ function readFiles(file: Uint8Array) {
     throw invalidImport([{ path: "", message: "Envie os arquivos em JSON UTF-8." }]);
   }
   const parsed = body.safeParse(value);
-  if (!parsed.success) throw invalidImport([{ path: "files", message: `Envie de 1 a ${MAX_FILES} arquivos.` }]);
+  if (!parsed.success) throw invalidImport(parsed.error.issues.slice(0, MAX_FILES).map(({ path }) => ({
+    path: path.join("."),
+    message: path.length === 1 && path[0] === "files" ? `Envie de 1 a ${MAX_FILES} arquivos.` : "Campo fora do formato esperado.",
+  })));
   return parsed.data;
 }
 
@@ -55,8 +63,9 @@ function mergeInto(target: Project, plan: ImportPlan, warnings: string[]): Impor
   return { projects: [{ name: target.data.name, layout: target.data.view.layout, tasks, sections }] };
 }
 
-function run(product: Product, source: ImportSourceId, file: Uint8Array): ImporterResult & { target: Project | null } {
-  const { files, projectId } = readFiles(file);
+function run(
+  product: Product, source: ImportSourceId, { files, projectId }: z.infer<typeof body>,
+): ImporterResult & { target: Project | null } {
   const target = projectId ? writableProject(visibleRecord(product.projects, projectId)) : null;
   const result = importers[source](files, { referenceDate: product.referenceDate });
   if (!target || !result.plan) return { ...result, target };
@@ -107,14 +116,15 @@ function projectPreview(plan: ImportPlan) {
 
 const binding = (access: ProductAccess, sessionId: string, operationId: string, source: ImportSourceId, file: Uint8Array) => ({
   sessionId, operationId, tenantId: access.tenantId,
-  digest: fileDigest(Buffer.concat([Buffer.from(`feito:import:${source}\0`), file])),
+  digest: createHash("sha256").update(`feito:import:${source}\0`).update(file).digest("base64url"),
 });
 
 export async function previewSourceImport(
   access: ProductAccess, sessionId: string, source: ImportSourceId, operationId: string, secret: string, file: Uint8Array,
 ) {
+  const input = readFiles(file);
   const product = await readProduct(access, (snapshot) => snapshot);
-  const result = run(product, source, file);
+  const result = run(product, source, input);
   const token = result.plan
     ? makePreviewToken(secret, binding(access, sessionId, operationId, source, file))
     : { previewToken: null, expiresAt: null };
@@ -219,19 +229,27 @@ export async function confirmSourceImport(
   const bound = binding(access, sessionId, operationId, source, file);
   checkPreviewToken(token, secret, bound);
   const fingerprint = receiptFingerprint(secret, bound);
-  let summary: ImportCounts | null = null;
+  const receipt = await withTenant(access.db, access.tenantId, (tx) => findReceipt(tx, operationId));
+  if (receipt) return replay(receipt, fingerprint);
+  const input = readFiles(file);
+
   try {
     return await mutateProduct(access, (product) => {
-      const result = run(product, source, file);
+      const result = run(product, source, input);
       if (!result.plan) throw invalidImport(result.errors);
-      summary = countsFor(result.plan, newLabels(product, result.plan).size, result.target);
+      const summary = countsFor(result.plan, newLabels(product, result.plan).size, result.target);
       return { operationId, summary, projectIds: applyPlan(product, result.plan, result.target) };
     }, undefined, {
-      // Recibo e dados entram no mesmo commit; repetir a operação devolve o mesmo resumo.
-      async record(tx) {
+      // Precisa verificar o recibo novamente sob o bloqueio do tenant, inclusive
+      // quando uma operação já registrada perdeu o destino antes da nova tentativa.
+      async beforeCommit(tx, outcome) {
         const receipt = await findReceipt(tx, operationId);
         if (receipt) throw new AlreadyImported(receipt);
-        await tx.insert(importOperations).values({ tenantId: access.tenantId, operationId, fingerprint, summary: summary! });
+        if ("value" in outcome) {
+          await tx.insert(importOperations).values({
+            tenantId: access.tenantId, operationId, fingerprint, summary: outcome.value.summary,
+          });
+        }
       },
     });
   } catch (error) {
