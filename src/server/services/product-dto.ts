@@ -31,6 +31,7 @@ export function projectSummary(product: Product, project: Project) {
     id: project.id,
     revision: project.revision,
     name: project.data.name,
+    defaultSectionName: project.data.defaultSectionName ?? null,
     description: project.data.description,
     color: project.data.color,
     icon: project.data.icon,

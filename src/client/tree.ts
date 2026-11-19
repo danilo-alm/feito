@@ -4,6 +4,7 @@ import type { Layout, MoveTarget, PositionTarget, ProjectPage, TaskItem } from "
 import { taskAncestors, walkTaskTree } from "@/domain/task-tree";
 
 export const maxOverviewDepth = 5;
+export const unnamedColumnTitle = "(Nenhuma seção)";
 
 export type Zone = "before" | "after" | "center";
 export type DropOver =
@@ -25,7 +26,7 @@ export function taskMap(page: ProjectPage) {
 }
 
 export function sectionName(page: ProjectPage, sectionId: string | null) {
-  if (sectionId === null) return page.project.isInbox ? page.project.name : "Sem seção";
+  if (sectionId === null) return page.project.isInbox ? page.project.name : page.project.defaultSectionName ?? "Sem seção";
   return page.sections.find((section) => section.id === sectionId)?.name ?? "Seção";
 }
 

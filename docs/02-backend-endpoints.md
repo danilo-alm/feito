@@ -126,6 +126,7 @@ type ProjectSummary = {
   id: string;
   revision: number;
   name: string;
+  defaultSectionName: string | null; // null: seção inicial sem nome
   description: string;
   color: ProjectColor | null;        // null: cor automática pela posição na lista
   icon: ProjectIcon;                 // padrão "hash"
@@ -173,7 +174,7 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 | `GET /api/v1/projects?status=active\|archived` | 2 | Padrão `active`. | `200 { projects: ProjectSummary[] }`. |
 | `POST /api/v1/projects` | 2 | `{ name, description?, color?, icon? }`. `color` é uma das cores de `src/validation/project-style.ts` ou `null` (automática, padrão); `icon` é um dos ícones de lá, padrão `hash`. | `201 ProjectSummary`. View inicial: `list`, `manual`, `showCompleted: false`. |
 | `GET /api/v1/projects/{id}` | 2 | `?includeCompleted=true\|false`. Padrão: o `showCompleted` salvo. | `200 ProjectPage` (abaixo). Funciona também para a Caixa de entrada e para projetos arquivados, em modo leitura. |
-| `PATCH /api/v1/projects/{id}` | 2 | `{ revision, name?, description?, color?, icon? }`, com pelo menos um campo editável. | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
+| `PATCH /api/v1/projects/{id}` | 2 | `{ revision, name?, defaultSectionName?, description?, color?, icon? }`, com pelo menos um campo editável. Envie `defaultSectionName: null` para limpar o nome da primeira seção. | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
 | `PATCH /api/v1/projects/{id}/view` | 2 | `{ layout?, sortMode?, showCompleted? }` | `200 ProjectView`. Sem `revision`: vale a última escrita. Caixa de entrada com `board`: `422 VALIDATION_FAILED`. |
 | `POST /api/v1/projects/{id}/archive` | 2 | `{ revision }` | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
 | `POST /api/v1/projects/{id}/unarchive` | 2 | `{ revision }` | `200 ProjectSummary`. Tarefas voltam com os mesmos estados, datas e posições. |
@@ -185,7 +186,7 @@ type ProjectPage = {
   project: ProjectSummary & { view: ProjectView };
   sections: Section[];                 // ordem manual das seções
   groups: {
-    sectionId: string | null;          // null = grupo "Sem seção", sempre primeiro
+    sectionId: string | null;          // null = seção inicial, sempre primeiro
     rootIds: string[];                 // raízes já na ordem do sortMode
   }[];
   tasks: TaskItem[];                   // raízes e descendentes referenciados por rootIds e childIds
@@ -223,6 +224,7 @@ type PublicProjectPage = {
   project: {
     id: string;
     name: string;
+    defaultSectionName: string | null;
     status: "active";
     view: ProjectView;
     activeCount: number;

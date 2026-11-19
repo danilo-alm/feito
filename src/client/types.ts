@@ -60,6 +60,7 @@ export type ProjectDetails = NamedDetails & ProjectStyle;
 export type ProjectSummary = ProjectDetails & {
   id: string;
   revision: number;
+  defaultSectionName: string | null;
   isInbox: boolean;
   status: "active" | "archived";
   activeCount: number;
@@ -216,7 +217,7 @@ export type PublicTask = Pick<TaskItem,
 
 export type PublicProjectPage = {
   referenceDate: string;
-  project: { id: string; name: string; status: "active"; view: ProjectView; activeCount: number };
+  project: { id: string; name: string; defaultSectionName: string | null; status: "active"; view: ProjectView; activeCount: number };
   sections: { id: string; name: string; taskCount: number }[];
   groups: { sectionId: string | null; rootIds: string[] }[];
   tasks: PublicTask[];

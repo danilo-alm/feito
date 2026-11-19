@@ -139,8 +139,8 @@ function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => vo
   const [busy, setBusy] = useState(false);
   const projects = useMemo(() => {
     if (!app.nav) return [];
-    const inbox = { id: app.nav.inbox.projectId, name: "Caixa de entrada", isInbox: true };
-    return [inbox, ...app.nav.projects.map((project) => ({ id: project.id, name: project.name, isInbox: false }))];
+    const inbox = { id: app.nav.inbox.projectId, name: "Caixa de entrada", isInbox: true, defaultSectionName: null };
+    return [inbox, ...app.nav.projects];
   }, [app.nav]);
   const sections = useQuery<ProjectPage>(expanded ? `project:${expanded}` : null, () => api.projects.get(expanded!));
   const needle = filter.trim().toLocaleLowerCase("pt-BR");
@@ -184,6 +184,7 @@ function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => vo
           {projects.filter((project) => !needle || project.name.toLocaleLowerCase("pt-BR").includes(needle)).map((project) => {
             const open = expanded === project.id;
             const current = task?.projectId === project.id;
+            const defaultSectionName = project.defaultSectionName ?? "Sem seção";
             return (
               <div key={project.id}>
                 <button type="button" className="mi" role="option" aria-selected={current && task?.sectionId === null}
@@ -196,8 +197,8 @@ function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => vo
                 <Collapse open={open}>
                   <div>
                     <button type="button" className="mi" role="option" style={{ paddingLeft: 36 }} aria-selected={false}
-                      onClick={() => choose(project.id, null, `${project.name} · Sem seção`)}>
-                      <span style={{ flex: 1 }}>Sem seção</span>
+                      onClick={() => choose(project.id, null, `${project.name} · ${defaultSectionName}`)}>
+                      <span style={{ flex: 1 }}>{defaultSectionName}</span>
                       {current && task?.sectionId === null && <IconCheck />}
                     </button>
                     {sections.data?.project.id === project.id && sections.data.sections.map((section) => (

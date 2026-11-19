@@ -6,10 +6,10 @@ import { projectPage } from "./product-dto";
 export async function getPublicProject(access: Omit<ProductAccess, "tenantId">, token: string, includeCompleted?: boolean) {
   const { product, project } = await readSharedProject(access, token);
   const page = projectPage(product, project, includeCompleted);
-  const { id, name, view, activeCount } = page.project;
+  const { id, name, defaultSectionName, view, activeCount } = page.project;
   return {
     referenceDate: page.referenceDate,
-    project: { id, name, status: "active" as const, view, activeCount },
+    project: { id, name, defaultSectionName, status: "active" as const, view, activeCount },
     sections: page.sections.map(({ id, name, taskCount }) => ({ id, name, taskCount })),
     groups: page.groups,
     tasks: page.tasks.map((task) => ({

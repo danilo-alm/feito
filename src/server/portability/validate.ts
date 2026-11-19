@@ -62,6 +62,7 @@ function validateReferences(document: PortableDocument) {
     if (inbox.archived || inbox.view.layout !== "list" || inbox.name !== inboxName) {
       report("projects", "A Caixa de entrada deve estar ativa, com nome fixo e layout Lista.");
     }
+    if (inbox.defaultSectionName) report("projects", "A Caixa de entrada não pode ter seção.");
   }
   for (const [index, section] of document.sections.entries()) {
     const path = `sections.${index}`;

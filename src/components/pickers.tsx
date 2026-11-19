@@ -162,7 +162,7 @@ export function DestinationPicker({ projectId, sectionId, onPick }: {
             <ProjectGlyph id={project.id} /><span style={{ flex: 1 }}>{project.name}</span>
           </button>
           <Collapse open={expanded === project.id && page.data?.project.id === project.id}>
-            {page.data && [{ id: null as string | null, name: "Sem seção" }, ...page.data.sections].map((section) => (
+            {page.data && [{ id: null, name: page.data.project.defaultSectionName ?? "Sem seção" }, ...page.data.sections].map((section) => (
               <button key={section.id ?? "none"} type="button" role="option" className="mi" style={{ paddingLeft: 36 }}
                 aria-selected={projectId === project.id && sectionId === section.id}
                 onClick={() => onPick(project.id, section.id)}>

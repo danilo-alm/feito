@@ -17,6 +17,7 @@ function fixture(sortMode: SortMode = "manual"): ProjectPage {
     referenceDate: "2026-11-17",
     project: {
       id: "p", revision: 1, name: "Casa nova", description: "", color: null, icon: "hash", isInbox: false, status: "active", activeCount: 7,
+      defaultSectionName: null,
       view: { layout: "list", sortMode, showCompleted: false },
     },
     sections: [
@@ -41,6 +42,17 @@ function fixture(sortMode: SortMode = "manual"): ProjectPage {
 }
 
 describe("resolveDrop", () => {
+  it("uses the saved name of the default section when moving a task there", () => {
+    const page = fixture();
+    page.project.defaultSectionName = "Entrada";
+    const plan = resolveDrop(page, "e", { kind: "group", sectionId: null }, "board");
+    expect(plan).toMatchObject({
+      valid: true,
+      steps: [{ type: "position", projectId: "p", sectionId: null, parentId: null }],
+      message: "Movida para Entrada",
+    });
+  });
+
   it("reorders between roots with an insertion line", () => {
     const plan = resolveDrop(fixture(), "e", { kind: "task", id: "a", zone: "after" }, "list");
     expect(plan).toMatchObject({

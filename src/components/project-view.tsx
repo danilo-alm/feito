@@ -9,7 +9,7 @@ import { api, ApiFailure, errorMessage } from "@/client/api";
 import { editKey, insertKey, useEditorOpen } from "@/client/editor-store";
 import { getQueryData, invalidate, setQueryData, useQuery } from "@/client/store";
 import {
-  applyStep, keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, sectionName, taskMap,
+  applyStep, keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, sectionName, taskMap, unnamedColumnTitle,
   type DropOver, type KeyAction, type Plan, type Zone,
 } from "@/client/tree";
 import type { MoveTarget, NamedDetails, ProjectPage, Section, TaskItem } from "@/client/types";
@@ -245,6 +245,26 @@ export function ProjectView({ projectId }: { projectId: string }) {
   };
 
   const indicator = drag?.plan?.indicator;
+  const renameSection = async (sectionId: string | null, name: string | null) => {
+    await app.run(async () => {
+      if (sectionId === null) {
+        const saved = await api.projects.edit(project.id, project.revision, { defaultSectionName: name });
+        query.mutate((current) => current && current.project.revision <= saved.revision
+          ? { ...current, project: { ...current.project, ...saved } }
+          : current);
+      } else {
+        const section = page.sections.find((item) => item.id === sectionId);
+        if (!section || !name) return;
+        const saved = await api.sections.edit(section.id, section.revision, { name });
+        query.mutate((current) => current && {
+          ...current,
+          sections: current.sections.map((item) => item.id === saved.id && item.revision <= saved.revision
+            ? { ...item, name: saved.name, revision: saved.revision }
+            : item),
+        });
+      }
+    });
+  };
   const sectionMenu = (sectionId: string): MenuItem[] => {
     const section = page.sections.find((item) => item.id === sectionId)!;
     const index = page.sections.indexOf(section);
@@ -261,7 +281,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
         const ok = await app.confirm({
           title: `Excluir a seção “${section.name}”?`,
           body: section.taskCount
-            ? `${section.taskCount} ${section.taskCount === 1 ? "tarefa vai" : "tarefas vão"} para o fim de “Sem seção”, com subtarefas, etiquetas e estados preservados.`
+            ? `${section.taskCount} ${section.taskCount === 1 ? "tarefa vai" : "tarefas vão"} para o fim de “${sectionName(page, null)}”, com subtarefas, etiquetas e estados preservados.`
             : "A seção está vazia.",
           confirmLabel: "Excluir seção", danger: true,
         });
@@ -386,10 +406,10 @@ export function ProjectView({ projectId }: { projectId: string }) {
         onDragEnd={onDragEnd} onDragCancel={onDragCancel}
         accessibility={{ screenReaderInstructions: { draggable: "Para mover sem arrastar, use Alt e as setas ou o menu de ações da tarefa." } }}>
         {board
-          ? <BoardLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator} dragging={!!drag}
-            mobile={mobile} sectionMenu={sectionMenu} archived={archived} />
+          ? <BoardLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator}
+            mobile={mobile} sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />
           : <ListLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator} dragging={!!drag}
-            sectionMenu={sectionMenu} archived={archived} />}
+            sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />}
         <DragOverlay dropAnimation={null}>
           {dragActive && (
             <div className="drag-overlay" data-nesting={drag?.byMouse && indicator?.type === "nest" ? true : undefined}
@@ -509,8 +529,8 @@ type LayoutProps = {
   tasks: Map<string, TaskItem>;
   renderTask: (task: TaskItem, variant: "row" | "card", depth: number) => ReactNode;
   indicator: Plan["indicator"] | undefined;
-  dragging: boolean;
   sectionMenu: (sectionId: string) => MenuItem[];
+  renameSection: (sectionId: string | null, name: string | null) => Promise<void>;
   archived: boolean;
 };
 
@@ -633,7 +653,58 @@ function ProjectHeading({ project }: { project: ProjectPage["project"] }) {
   );
 }
 
-function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu, archived }: LayoutProps) {
+function SectionTitle({ sectionId, name, archived, renameSection }: {
+  sectionId: string | null; name: string | null; archived: boolean; renameSection: LayoutProps["renameSection"];
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+  const title = name ?? unnamedColumnTitle;
+
+  useEffect(() => {
+    if (draft !== null || !returnFocus.current) return;
+    button.current?.focus();
+    returnFocus.current = false;
+  }, [draft]);
+
+  if (archived) return <span>{title}</span>;
+  if (draft === null) {
+    return <button type="button" className="section-title" ref={button} onClick={() => setDraft(name ?? "")}
+      aria-description="Editar nome da seção">{title}</button>;
+  }
+
+  const commit = async () => {
+    if (saving) return;
+    const next = draft.trim() || (sectionId === null ? null : name);
+    if (next !== name) {
+      setSaving(true);
+      await renameSection(sectionId, next);
+      setSaving(false);
+    }
+    setDraft(null);
+  };
+
+  return <input className="section-title section-title-input" aria-label="Nome da seção" autoFocus
+    maxLength={120} value={draft} readOnly={saving} placeholder={name === null ? unnamedColumnTitle : undefined}
+    onChange={(event) => setDraft(event.target.value)} onBlur={() => {
+      returnFocus.current = false;
+      void commit();
+    }} onKeyDown={(event) => {
+      if (saving || event.nativeEvent.isComposing) return;
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        returnFocus.current = true;
+        setDraft(null);
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        returnFocus.current = true;
+        void commit();
+      }
+    }} />;
+}
+
+function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu, renameSection, archived }: LayoutProps & { dragging: boolean }) {
   const app = useApp();
   const [adding, setAdding] = useState<string | null | undefined>(undefined);
   const { project } = page;
@@ -655,26 +726,26 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
       <div className="col">
         {page.groups.map((group) => {
           const { active, done } = rowsOf(page, tasks, group.sectionId);
-          const isNone = group.sectionId === null;
-          const showHeader = !project.isInbox && (!isNone || active.length + done.length > 0);
           const over = indicator?.type === "group" && indicator.sectionId === group.sectionId;
-          const title = sectionName(page, group.sectionId);
-          const description = page.sections.find((section) => section.id === group.sectionId)?.description;
-          if (isNone && !showHeader && !project.isInbox && !dragging && page.sections.length) {
-            return <GroupDrop key="none" sectionId={null} className="list-group" label="Sem seção"><span /></GroupDrop>;
+          const section = page.sections.find((item) => item.id === group.sectionId);
+          const title = section?.name ?? project.defaultSectionName;
+          if (group.sectionId === null && !title && !project.isInbox && !dragging && page.sections.length
+            && !active.length && !done.length) {
+            return <GroupDrop key="none" sectionId={null} className="list-group" label="Tarefas do projeto"><span /></GroupDrop>;
           }
           return (
-            <GroupDrop key={group.sectionId ?? "none"} sectionId={group.sectionId} label={title}
+            <GroupDrop key={group.sectionId ?? "none"} sectionId={group.sectionId} label={title ?? (project.isInbox ? project.name : "Tarefas do projeto")}
               className={`list-group${over ? " over" : ""}`}>
-              {showHeader || (isNone && dragging && !project.isInbox) ? (
-                <div className="sec-h" data-flip={`sec:${group.sectionId ?? "none"}`} style={{ color: isNone ? "var(--muted)" : undefined }}>
-                  {title}<span className="count">{activeCounts.get(group.sectionId) ?? 0}</span>
-                  {!isNone && !archived && (
-                    <MenuButton label={`Ações da seção ${title}`} title={title} items={() => sectionMenu(group.sectionId!)}><IconMore /></MenuButton>
+              {!project.isInbox && title ? (
+                <div className="sec-h" data-flip={`sec:${group.sectionId ?? "none"}`}>
+                  <SectionTitle sectionId={group.sectionId} name={title} archived={archived} renameSection={renameSection} />
+                  <span className="count">{activeCounts.get(group.sectionId) ?? 0}</span>
+                  {section && !archived && (
+                    <MenuButton label={`Ações da seção ${title}`} title={title} items={() => sectionMenu(section.id)}><IconMore /></MenuButton>
                   )}
                 </div>
               ) : <div style={{ height: 10, borderBottom: "1px solid var(--border)" }} />}
-              {description && <p className="section-description">{description}</p>}
+              {section?.description && <p className="section-description">{section.description}</p>}
               {active.flatMap(block)}
               {!archived && (
                 <AddTaskSlot slot={`add:${project.id}:${group.sectionId ?? "none"}`} defaults={{ projectId: project.id, sectionId: group.sectionId }}>
@@ -723,13 +794,13 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
   );
 }
 
-function BoardLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu, archived, mobile }: LayoutProps & { mobile: boolean }) {
+function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSection, archived, mobile }: LayoutProps & { mobile: boolean }) {
   const app = useApp();
   const [adding, setAdding] = useState(false);
   const { project } = page;
   const block = (task: TaskItem) => renderTaskBlock(task, "card", tasks, renderTask);
-  const columns = page.groups.filter((group) => group.sectionId !== null || dragging
-    || (group.rootIds.length > 0) || page.sections.length === 0);
+  const columnName = (sectionId: string | null) =>
+    sectionId === null ? project.defaultSectionName : sectionName(page, sectionId);
   const scrollTo = (sectionId: string | null) => {
     document.getElementById(`col-${sectionId ?? "none"}`)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
   };
@@ -742,28 +813,30 @@ function BoardLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu
     <>
       {mobile && (
         <div className="col-tabs" role="tablist" aria-label="Colunas">
-          {columns.map((group) => {
+          {page.groups.map((group) => {
             const { active } = rowsOf(page, tasks, group.sectionId);
             return (
               <button key={group.sectionId ?? "none"} type="button" role="tab" aria-selected={false} className="pill" onClick={() => scrollTo(group.sectionId)}>
-                {sectionName(page, group.sectionId)} · {active.length}
+                {columnName(group.sectionId) ?? unnamedColumnTitle} · {active.length}
               </button>
             );
           })}
         </div>
       )}
       <div className="board">
-        {columns.map((group) => {
+        {page.groups.map((group) => {
           const { active, done } = rowsOf(page, tasks, group.sectionId);
-          const title = sectionName(page, group.sectionId);
+          const name = columnName(group.sectionId);
+          const title = name ?? unnamedColumnTitle;
           const description = page.sections.find((section) => section.id === group.sectionId)?.description;
           const target = indicator?.type === "group" && indicator.sectionId === group.sectionId;
           return (
             <Fragment key={group.sectionId ?? "none"}>
               <GroupDrop sectionId={group.sectionId} as="section" label={`Coluna ${title}`} id={`col-${group.sectionId ?? "none"}`}
                 className={`column${target ? " target" : ""}`}>
-                <div className="col-h" style={{ color: group.sectionId === null ? "var(--muted)" : undefined }}>
-                  {title}<span className="count">{active.length}</span>
+                <div className="col-h" style={{ color: name === null ? "var(--muted)" : undefined }}>
+                  <SectionTitle sectionId={group.sectionId} name={name} archived={archived} renameSection={renameSection} />
+                  <span className="count">{active.length}</span>
                   {group.sectionId !== null && !archived && (
                     <MenuButton label={`Ações da seção ${title}`} title={title} items={() => sectionMenu(group.sectionId!)}><IconMore /></MenuButton>
                   )}

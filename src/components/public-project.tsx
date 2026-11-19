@@ -5,7 +5,7 @@ import { api, ApiFailure } from "@/client/api";
 import { tagColor } from "@/client/colors";
 import { completedLabel, dayOfMonth, dueLabel, dueTone, FREQUENCY_LABEL } from "@/client/dates";
 import { useQuery } from "@/client/store";
-import { maxOverviewDepth, taskBranch } from "@/client/tree";
+import { maxOverviewDepth, taskBranch, unnamedColumnTitle } from "@/client/tree";
 import type { PublicProjectPage, PublicTask } from "@/client/types";
 import { PageTaskCount } from "./chrome";
 import { DueIcon, IconCheck, IconEye, IconFlag, IconRepeat, IconSub, IconTag, Logo } from "./icons";
@@ -85,7 +85,7 @@ function PublicFrame({ children }: { children: ReactNode }) {
 type LayoutProps = { page: PublicProjectPage; tasks: Map<string, PublicTask>; onOpen: (id: string) => void };
 
 function sectionTitle(page: PublicProjectPage, sectionId: string | null) {
-  return sectionId === null ? "Sem seção" : page.sections.find((section) => section.id === sectionId)?.name ?? "Seção";
+  return sectionId === null ? page.project.defaultSectionName : page.sections.find((section) => section.id === sectionId)?.name ?? "Seção";
 }
 
 function roots(page: PublicProjectPage, tasks: Map<string, PublicTask>, sectionId: string | null) {
@@ -103,12 +103,11 @@ function PublicList({ page, tasks, onOpen }: LayoutProps) {
       <div className="col">
         {page.groups.map((group) => {
           const { active, done } = roots(page, tasks, group.sectionId);
-          if (group.sectionId === null && !active.length && !done.length) return null;
+          const title = sectionTitle(page, group.sectionId);
+          if (!title && !active.length && !done.length) return null;
           return (
-            <section key={group.sectionId ?? "none"} className="list-group" aria-label={sectionTitle(page, group.sectionId)}>
-              <div className="sec-h" style={{ color: group.sectionId === null ? "var(--muted)" : undefined }}>
-                {sectionTitle(page, group.sectionId)}<span className="count">{active.length}</span>
-              </div>
+            <section key={group.sectionId ?? "none"} className="list-group" aria-label={title ?? "Tarefas do projeto"}>
+              {title && <div className="sec-h">{title}<span className="count">{active.length}</span></div>}
               {active.flatMap(block)}
               {done.length > 0 && (
                 <>
@@ -131,15 +130,15 @@ function PublicBoard({ page, tasks, onOpen }: LayoutProps) {
   const block = (root: PublicTask) => Array.from(taskBranch(root, tasks, maxOverviewDepth), ({ task, depth }) => (
     <PublicTaskRow key={task.id} task={task} depth={depth} reference={page.referenceDate} onOpen={onOpen} card />
   ));
-  const columns = page.groups.filter((group) => group.sectionId !== null || group.rootIds.length > 0 || page.sections.length === 0);
   return (
     <div className="board">
-      {columns.map((group) => {
+      {page.groups.map((group) => {
         const { active, done } = roots(page, tasks, group.sectionId);
-        const title = sectionTitle(page, group.sectionId);
+        const name = sectionTitle(page, group.sectionId);
+        const title = name ?? unnamedColumnTitle;
         return (
           <section key={group.sectionId ?? "none"} className="column" aria-label={`Coluna ${title}`}>
-            <div className="col-h" style={{ color: group.sectionId === null ? "var(--muted)" : undefined }}>
+            <div className="col-h" style={{ color: name === null ? "var(--muted)" : undefined }}>
               {title}<span className="count">{active.length}</span>
             </div>
             {active.flatMap(block)}

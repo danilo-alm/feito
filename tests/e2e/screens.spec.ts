@@ -117,6 +117,49 @@ test.describe("telas do dia a dia", () => {
     await expect(board.getByRole("region", { name: "Coluna Compras" })).toContainText("Pesquisar preços.");
   });
 
+  test("renomeia seções no Painel e só exibe um título na Lista quando há nome", async ({ page, api }) => {
+    const { id } = await api<{ id: string }>("POST", "/projects", { name: "Seções editáveis" });
+    await api("POST", `/projects/${id}/sections`, { name: "Compras", description: "Pesquisar preços." });
+    await api("POST", "/tasks", { projectId: id, title: "Revisar o orçamento" });
+    await page.goto(`/projetos/${id}`);
+
+    const list = page.locator(".content");
+    await expect(list.getByRole("button", { name: "Compras", exact: true })).toBeVisible();
+    await expect(list.getByText("Revisar o orçamento")).toBeVisible();
+    await expect(list.getByText(/^(Sem seção|\(Nenhuma seção\))$/)).toHaveCount(0);
+
+    await api("PATCH", `/projects/${id}/view`, { layout: "board" });
+    await page.reload();
+    const board = page.locator(".board");
+    const editor = board.getByRole("textbox", { name: "Nome da seção" });
+    await board.getByRole("button", { name: "(Nenhuma seção)", exact: true }).click();
+    await expect(editor).toHaveValue("");
+    await editor.fill("Entrada");
+    await editor.press("Enter");
+    await expect(board.getByRole("region", { name: "Coluna Entrada" })).toContainText("Revisar o orçamento");
+
+    await board.getByRole("button", { name: "Compras", exact: true }).click();
+    await editor.fill("Nome descartado");
+    await editor.press("Escape");
+    await expect(board.getByRole("button", { name: "Compras", exact: true })).toBeFocused();
+    await board.getByRole("button", { name: "Compras", exact: true }).click();
+    await editor.fill("Cotações");
+    await editor.press("Tab");
+    await expect(board.getByRole("region", { name: "Coluna Cotações" })).toContainText("Pesquisar preços.");
+
+    await api("PATCH", `/projects/${id}/view`, { layout: "list" });
+    await page.reload();
+    await expect(list.getByRole("region", { name: "Entrada" })).toContainText("Revisar o orçamento");
+    await expect(list.getByRole("button", { name: "Cotações", exact: true })).toBeVisible();
+
+    await list.getByRole("button", { name: "Entrada", exact: true }).click();
+    const listEditor = list.getByRole("textbox", { name: "Nome da seção" });
+    await listEditor.clear();
+    await listEditor.press("Enter");
+    await expect(list.getByRole("region", { name: "Tarefas do projeto" })).toContainText("Revisar o orçamento");
+    await expect(list.getByRole("button", { name: "Entrada", exact: true })).toHaveCount(0);
+  });
+
   test("cria pela captura rápida, conclui em Hoje e reabre no projeto", async ({ page, api, isMobile }) => {
     const title = `Comprar tinta ${Date.now()}`;
     await page.goto("/hoje");

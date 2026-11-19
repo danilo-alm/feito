@@ -510,6 +510,11 @@ body:has(.drag-overlay) {user-select:none;-webkit-user-select:none}
 .col-new-editor{flex:0 0 264px;min-width:0;margin-top:6px}
 .section-description,.project-description{color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
 .section-description{font-size:13px;margin:6px 4px 10px}
+.section-title{min-width:0;padding:2px 4px;margin:-2px 0 -2px -4px;border:1px solid transparent;border-radius:6px;background:none;color:inherit;font:inherit;text-align:left;overflow-wrap:anywhere}
+.section-title-input{width:100%;border-color:var(--border-strong);color:var(--text)}
+@media (hover:hover){
+  button.section-title:hover{border-color:var(--border-strong)}
+}
 .project-description{font-size:14px}
 p.project-description{max-width:680px}
 .project-heading-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;width:100%}

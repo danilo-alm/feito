@@ -55,7 +55,9 @@ export function createProject(access: ProductAccess, details: ProjectDetails) {
   });
 }
 
-export function editProject(access: ProductAccess, id: string, revision: number, patch: Partial<ProjectDetails>) {
+export function editProject(
+  access: ProductAccess, id: string, revision: number, patch: Partial<ProjectDetails & Pick<ProjectPayload, "defaultSectionName">>,
+) {
   return mutateProduct(access, (product, original) => {
     const current = visibleRecord(product.projects, id);
     protectInbox(current);

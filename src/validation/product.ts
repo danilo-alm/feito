@@ -10,6 +10,7 @@ function boundedText(schema: z.ZodString, max: number) {
 }
 
 export const name = boundedText(z.string().trim().min(1), 120);
+export const defaultSectionName = name.nullable().optional();
 export const title = boundedText(z.string().trim().min(1), 500);
 export const description = boundedText(z.string(), 10_000);
 export const priority = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]);
@@ -63,6 +64,7 @@ export const projectColor = z.enum(PROJECT_COLORS);
 export const projectIcon = z.enum(PROJECT_ICONS);
 export const projectPayload = z.strictObject({
   name,
+  defaultSectionName,
   description: description.default(""),
   color: projectColor.nullable().default(null),
   icon: projectIcon.default("hash"),
@@ -95,6 +97,7 @@ export const createProjectInput = createNamedDetailsInput.extend({
 });
 export const editProjectInput = z.strictObject({
   revision, name: name.optional(), description: description.optional(),
+  defaultSectionName,
   color: projectColor.nullable().optional(), icon: projectIcon.optional(),
 }).refine((input) => Object.keys(input).length > 1);
 export const revisionInput = z.strictObject({ revision });

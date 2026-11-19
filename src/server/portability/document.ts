@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { preferences } from "@/validation/account";
 import {
-  civilDate, description, instant, localTime, name, position, priority, projectColor, projectIcon, projectView, recurrenceRule, title,
+  civilDate, defaultSectionName, description, instant, localTime, name, position, priority, projectColor, projectIcon, projectView, recurrenceRule, title,
 } from "@/validation/product";
 import type { ImportCounts } from "@/validation/portability";
 
@@ -17,6 +17,7 @@ export const portableDocument = z.strictObject({
   preferences,
   projects: z.array(z.strictObject({
     id: ref, isInbox: z.boolean(), name, description: description.default(""),
+    defaultSectionName,
     color: projectColor.nullable().default(null), icon: projectIcon.default("hash"), archived: z.boolean(), view: projectView, createdAt: instant,
   })),
   sections: z.array(z.strictObject({ id: ref, projectId: ref, name, description: description.default(""), position })),

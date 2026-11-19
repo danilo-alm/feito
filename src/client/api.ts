@@ -107,7 +107,7 @@ export const api = {
     create: (details: ProjectDetails) => request<ProjectSummary>("POST", "/projects", details),
     get: (id: string, includeCompleted?: boolean) =>
       request<ProjectPage>("GET", `/projects/${enc(id)}${query({ includeCompleted })}`),
-    edit: (id: string, revision: number, patch: Partial<ProjectDetails>) =>
+    edit: (id: string, revision: number, patch: Partial<ProjectDetails & Pick<ProjectSummary, "defaultSectionName">>) =>
       request<ProjectSummary>("PATCH", `/projects/${enc(id)}`, { revision, ...patch }),
     setView: (id: string, view: Partial<{ layout: Layout; sortMode: SortMode; showCompleted: boolean }>) =>
       request<ProjectView>("PATCH", `/projects/${enc(id)}/view`, view),
