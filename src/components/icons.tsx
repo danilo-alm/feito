@@ -1,4 +1,5 @@
 import type { SVGProps } from "react";
+import { MARK_PATHS, MARK_SMALL_PATHS, MARK_SMALL_STROKE, MARK_STROKE } from "./brand-mark";
 
 type IconProps = SVGProps<SVGSVGElement> & { label?: string };
 
@@ -61,6 +62,8 @@ export const IconMoon = make(<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.
 export const IconMonitor = make(<><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>);
 export const IconDownload = make(<path d="M12 4v11M7 10l5 5 5-5M5 20h14" />);
 export const IconUpload = make(<path d="M12 20V9M7 13l5-5 5 5M5 4h14" />);
+export const IconFileUp = make(<><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M12 17v-6M9 14l3-3 3 3" /></>);
+export const IconLock = make(<><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>);
 export const IconEdit = make(<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" />);
 export const IconInsertAbove = make(<><path d="M8 20V6M4 10l4-4 4 4" /><path d="M17 15v6M14 18h6" /></>);
 export const IconInsertBelow = make(<><path d="M8 4v14M4 14l4 4 4-4" /><path d="M17 3v6M14 6h6" /></>);
@@ -80,10 +83,24 @@ export function IconCalendarDay({ day, className, ...rest }: SVGProps<SVGSVGElem
 }
 export const IconLogout = make(<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />);
 
-export function Logo({ size = 26 }: { size?: number }) {
+// Símbolo Visto-F. Abaixo de 24 px usa o desenho próprio para tamanhos pequenos.
+export function Logo({ size = 24 }: { size?: number }) {
+  const small = size < 24;
+  const paths = small ? MARK_SMALL_PATHS : MARK_PATHS;
   return (
-    <span className="logo" style={{ width: size, height: size, borderRadius: size * 0.3 }} aria-hidden="true">
-      <IconCheck style={{ width: size * 0.6, height: size * 0.6 }} />
-    </span>
+    <svg
+      className="logo"
+      viewBox="0 0 32 32"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={small ? MARK_SMALL_STROKE : MARK_STROKE}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths.map((d) => <path key={d} d={d} />)}
+    </svg>
   );
 }

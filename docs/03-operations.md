@@ -85,7 +85,7 @@ O valor fica vinculado ao banco e permite abrir os registros existentes. A aplic
 
 O [`Dockerfile`](../Dockerfile) é multi-stage. `dev` roda `next dev` com o código montado do host, `tools` contém o código completo e as devDependencies para migração e CLIs, e `prod` leva só a saída standalone do Next.js, sem devDependencies, executando como usuário `node`. Cada Compose parte do stage correspondente. Em ambos, o [Caddy](../docker/Caddyfile) termina o TLS na frente do Next.js e sobrescreve `X-Real-IP`, lido via `AUTH_CLIENT_IP_HEADER`. Um serviço `migrate` aplica `pnpm db:migrate` antes de a aplicação subir.
 
-O arquivo privado de ambiente é o mesmo de [Rodar sem Docker](#rodar-sem-docker) (o [`scripts/new-env.sh`](../scripts/new-env.sh) gera um completo), mas as URLs de conexão não são usadas: o Compose as monta a partir das senhas `POSTGRES_*_PASSWORD`, apontando para o serviço `postgres`, e entrega a cada processo só as credenciais dele. As KEKs aceitas são `DATA_KEK_V1` a `DATA_KEK_V3`.
+O [`scripts/new-env.sh`](../scripts/new-env.sh) gera o arquivo privado de ambiente. No desenvolvimento e na produção com banco interno, o Compose monta as URLs a partir das senhas `POSTGRES_*_PASSWORD`. Na produção com banco externo, o Compose lê as URLs do arquivo. Cada processo recebe apenas as credenciais que usa. As KEKs aceitas são `DATA_KEK_V1` a `DATA_KEK_V3`.
 
 ### Desenvolvimento
 
@@ -103,13 +103,42 @@ docker compose -f compose.dev.yaml cp caddy:/data/caddy/pki/authorities/local/ro
 
 O projeto Compose se chama `feito-dev`. O PostgreSQL continua publicado em `127.0.0.1:${POSTGRES_PORT:-5432}` para ferramentas no host.
 
-### Produção
+### Produção com PostgreSQL interno
 
 ```sh
 docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --build --wait
 ```
 
 `FEITO_ORIGIN` é o endereço do site no Caddy. Com um domínio público (`https://feito.example.org`) e as portas 80 e 443 acessíveis, o certificado vem via ACME. Com `localhost` ou um IP, vem da CA interna. Para uma porta HTTPS diferente de 443, inclua-a em `FEITO_ORIGIN` e defina `FEITO_HTTPS_PORT` com o mesmo valor. O Next.js e o PostgreSQL não publicam portas no host. O contêiner da aplicação roda com sistema de arquivos somente leitura, sem capabilities, e tem healthcheck em `/api/health`.
+
+### Produção com PostgreSQL externo
+
+O [`compose.prod.external.yaml`](../compose.prod.external.yaml) sobe o Feito e o Caddy com a mesma configuração de produção. O PostgreSQL já deve estar acessível a partir do host e dos contêineres.
+
+Para uma instalação nova, gere o arquivo privado e prepare o banco uma vez. Use os parâmetros administrativos do provedor no comando `psql`, incluindo o nome do banco de destino. O `psql` pede a senha administrativa no terminal. O script lê as quatro senhas de serviço do arquivo gerado, cria as roles e concede ao migrador permissão para criar schemas no banco selecionado.
+
+```sh
+FEITO_ENV="$HOME/.config/feito/prod.env"
+scripts/new-env.sh "$FEITO_ENV" https://feito.example.org
+(
+  set -a
+  . "$FEITO_ENV"
+  set +a
+  PGSSLMODE=require psql -X --single-transaction --set=feito_external=1 \
+    --host=db.example.org --port=5432 --username=postgres --dbname=postgres \
+    --file=scripts/postgres-init.sql
+)
+```
+
+Edite as quatro variáveis `*_DATABASE_URL` da [tabela acima](#rodar-sem-docker), trocando `127.0.0.1:5432/feito` pelo host, porta e banco externos. Mantenha o usuário e a senha correspondentes a cada role e configure TLS de acordo com o provedor. A senha `POSTGRES_BOOTSTRAP_PASSWORD` gerada serve ao banco interno.
+
+No Supabase, o banco padrão se chama `postgres`. Use a conexão direta ou o pooler em modo **Session** na porta 5432. No pooler compartilhado, acrescente `.<project-ref>` ao nome do usuário, tanto no `psql` quanto nas URLs. O Feito usa o Better Auth e acessa seus schemas via PostgreSQL. [Conexões do Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres)
+
+```sh
+docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" up -d --build --wait
+```
+
+O serviço `migrate` aplica as migrações no banco externo antes de iniciar o app. Para criar contas e operar as chaves, use os comandos da seção a seguir com `compose.prod.external.yaml`.
 
 ### CLIs
 

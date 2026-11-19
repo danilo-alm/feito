@@ -179,3 +179,23 @@ export type ImportPreview = {
 };
 
 export type ImportResult = { operationId: string; summary: ImportCounts };
+
+export type SourceImportProject = {
+  name: string; layout: Layout; sections: number; tasks: number; subtasks: number; dated: number; recurring: number;
+};
+
+export type SourceImportPreview = {
+  source: string;
+  /** Projeto existente que recebe as tarefas; `null` cria projetos novos. */
+  target: { id: string; name: string } | null;
+  counts: ImportCounts | null;
+  projects: SourceImportProject[];
+  warnings: string[];
+  errors: { path: string; message: string }[];
+  referenceDate: string;
+  previewToken: string | null;
+  expiresAt: string | null;
+};
+
+/** `projectIds` só vem na primeira confirmação; repetições devolvem apenas o resumo. */
+export type SourceImportResult = ImportResult & { projectIds?: string[] };

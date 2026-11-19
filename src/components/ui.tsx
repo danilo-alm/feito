@@ -128,6 +128,21 @@ export function Dialog({
 
 // ---------- Popover ancorado ----------
 
+// Popovers abertos, do mais antigo ao mais novo. Um popover aberto a partir de outro (ex.: o calendário
+// sobre o menu da tarefa) fica no topo: clicar nele não fecha o de baixo, e Esc/setas só valem para o topo.
+const popoverStack: HTMLElement[] = [];
+
+function swallowNextClick() {
+  const swallow = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const release = () => setTimeout(() => document.removeEventListener("click", swallow, true));
+  document.addEventListener("click", swallow, true);
+  document.addEventListener("pointerup", release, { capture: true, once: true });
+  document.addEventListener("pointercancel", release, { capture: true, once: true });
+}
+
 export function Popover({
   anchor, open, onClose, children, align = "start", width, label, role = "dialog",
 }: {
@@ -151,14 +166,22 @@ export function Popover({
     const place = () => {
       // A largura precisa estar no DOM antes de medir; senão a 1ª abertura mede o popover largo demais.
       if (width) ref.current!.style.width = `${width}px`;
+      // Mede na altura natural; --pop-max limita o conteúdo quando nenhum dos lados comporta tudo.
+      ref.current!.style.removeProperty("--pop-max");
       const rect = anchor.getBoundingClientRect();
       const box = ref.current!.getBoundingClientRect();
       const margin = 8;
+      const gap = 6;
       let left = align === "end" ? rect.right - box.width : rect.left;
       left = Math.max(margin, Math.min(left, window.innerWidth - box.width - margin));
-      let top = rect.bottom + 6;
-      const above = top + box.height > window.innerHeight - margin;
-      if (above) top = Math.max(margin, rect.top - box.height - 6);
+      // Abre abaixo da âncora; senão acima; senão no lado com mais espaço, sem cobrir a âncora.
+      const below = window.innerHeight - margin - (rect.bottom + gap);
+      const over = rect.top - gap - margin;
+      const above = box.height > below && (box.height <= over || over > below);
+      const room = above ? over : below;
+      if (box.height > room) ref.current!.style.setProperty("--pop-max", `${Math.floor(room)}px`);
+      const height = Math.min(box.height, room);
+      const top = above ? Math.max(margin, rect.top - gap - height) : rect.bottom + gap;
       // A escala parte do lado da âncora, inclusive quando o popover vira para cima.
       const placed = { top, left, width, transformOrigin: `${align === "end" ? "right" : "left"} ${above ? "bottom" : "top"}` };
       // Aplica já no DOM: o foco inicial (efeito seguinte) falha num nó ainda com visibility:hidden.
@@ -179,12 +202,19 @@ export function Popover({
     const node = ref.current;
     const first = node?.querySelector<HTMLElement>("[data-autofocus]") ?? node?.querySelector<HTMLElement>(FOCUSABLE);
     first?.focus();
+    if (node) popoverStack.push(node);
+    const above = () => (node ? popoverStack.slice(popoverStack.indexOf(node) + 1) : []);
     const onDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (node?.contains(target) || anchor?.contains(target)) return;
+      if (above().some((child) => child.contains(target))) return;
+      // Clique num popover de baixo (ex.: o menu sob o calendário) só fecha este: o clique não aciona nada lá.
+      const below = node ? popoverStack.slice(0, popoverStack.indexOf(node)) : [];
+      if (below.some((parent) => parent.contains(target))) swallowNextClick();
       onClose();
     };
     const onKey = (event: KeyboardEvent) => {
+      if (above().length) return;
       if (event.key === "Escape") {
         event.stopPropagation();
         onClose();
@@ -203,6 +233,7 @@ export function Popover({
     return () => {
       document.removeEventListener("pointerdown", onDown, true);
       document.removeEventListener("keydown", onKey, true);
+      if (node && popoverStack.includes(node)) popoverStack.splice(popoverStack.indexOf(node), 1);
     };
   }, [open, onClose, anchor, role]);
 
@@ -215,7 +246,11 @@ export function Popover({
   );
 }
 
-export type MenuChoice = { label: string; icon: ReactNode; active?: boolean; className?: string; onSelect: () => void };
+export type MenuChoice = { label: string; icon: ReactNode; active?: boolean; className?: string } & (
+  | { onSelect: () => void }
+  /** Abre um popover ancorado na opção, por cima do menu, que continua aberto. `close` fecha os dois. */
+  | { popover: (close: () => void) => ReactNode }
+);
 
 export type MenuItem = {
   label: string;
@@ -232,6 +267,10 @@ export type MenuItem = {
 };
 
 function MenuEntries({ items, onClose, large }: { items: MenuItem[]; onClose: () => void; large?: boolean }) {
+  const [sub, setSub] = useState<{ label: string; anchor: HTMLElement } | null>(null);
+  const closeSub = useCallback(() => setSub(null), []);
+  const subOption = sub && items.flatMap((item) => (item !== "separator" && "kind" in item ? item.options : []))
+    .find((option) => option.label === sub.label);
   return (
     <>
       {items.map((item, index) => {
@@ -244,7 +283,17 @@ function MenuEntries({ items, onClose, large }: { items: MenuItem[]; onClose: ()
                 {item.options.map((option) => (
                   <button key={option.label} type="button" role="menuitemradio" aria-checked={!!option.active}
                     aria-label={option.label} title={option.label} className={`mchoice ${option.className ?? ""}`}
-                    onClick={() => { onClose(); option.onSelect(); }}>
+                    aria-haspopup={"popover" in option ? "dialog" : undefined}
+                    aria-expanded={"popover" in option ? sub?.label === option.label : undefined}
+                    onClick={(event) => {
+                      if ("popover" in option) {
+                        const anchor = event.currentTarget;
+                        setSub((current) => (current?.label === option.label ? null : { label: option.label, anchor }));
+                        return;
+                      }
+                      onClose();
+                      option.onSelect();
+                    }}>
                     {option.icon}
                   </button>
                 ))}
@@ -271,6 +320,10 @@ function MenuEntries({ items, onClose, large }: { items: MenuItem[]; onClose: ()
           </button>
         );
       })}
+      <Popover anchor={sub?.anchor ?? null} open={!!subOption && "popover" in subOption} onClose={closeSub}
+        label={sub?.label ?? ""} align="end">
+        {subOption && "popover" in subOption && subOption.popover(() => { closeSub(); onClose(); })}
+      </Popover>
     </>
   );
 }

@@ -54,14 +54,14 @@ export async function destinationIsEmpty({ db, keys, tenantId }: ProductAccess) 
   return status.kind !== "filled";
 }
 
-async function findReceipt(tx: Transaction, operationId: string) {
+export async function findReceipt(tx: Transaction, operationId: string) {
   const [row] = await tx.select().from(importOperations).where(eq(importOperations.operationId, operationId));
   if (!row) return null;
   const summary = importCounts.parse(row.summary);
   return { operationId, summary, fingerprint: row.fingerprint };
 }
 
-function replay(receipt: NonNullable<Awaited<ReturnType<typeof findReceipt>>>, fingerprint: Buffer) {
+export function replay(receipt: NonNullable<Awaited<ReturnType<typeof findReceipt>>>, fingerprint: Buffer) {
   if (!timingSafeEqual(receipt.fingerprint, fingerprint)) {
     throw invalidImport([{ path: "", message: "A operação já foi usada com outro arquivo." }]);
   }

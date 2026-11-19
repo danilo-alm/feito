@@ -1,11 +1,17 @@
 "use client";
-import { useState } from "react";
-import { addDays, dateLabel, nextWeek } from "@/client/dates";
+import { useLayoutEffect, useRef, useState } from "react";
+import {
+  addDays, dateLabel, dayOfMonth, daysBetween, daysInMonth, longDate, monthShort, monthStart, nextWeek, parseDueInput, shortDate,
+  weekday, weekdayShort, weekend,
+} from "@/client/dates";
 import { api } from "@/client/api";
 import { useQuery } from "@/client/store";
 import type { Frequency, Label, Priority, ProjectPage } from "@/client/types";
 import { useApp } from "./app";
-import { IconCalendar, IconCheck, IconFlag, IconHash, IconInbox, IconPlus, IconX } from "./icons";
+import {
+  IconBan, IconCalendar, IconCalendarDay, IconCheck, IconChevronLeft, IconChevronRight, IconFlag, IconHash, IconInbox, IconNextWeek,
+  IconPlus, IconSofa, IconSun,
+} from "./icons";
 import { Collapse } from "./motion";
 
 export const PRIORITY_NAMES: Record<Priority, string> = {
@@ -133,34 +139,127 @@ export function destinationLabel(app: ReturnType<typeof useApp>, projectId: stri
   return sectionName ? `${project?.name ?? "Projeto"} / ${sectionName}` : project?.name ?? "Projeto";
 }
 
+const WEEK_HEAD = ["D", "S", "T", "Q", "Q", "S", "S"];
+const CALENDAR_MONTHS = 18;
+
+/**
+ * Seletor de vencimento: campo de texto ("sexta", "25/12"…), atalhos e um calendário rolável
+ * com os meses em sequência. É o mesmo no editor, no detalhe e no "Escolher data…" do menu da tarefa.
+ */
 export function DatePicker({ value, reference, onPick, onClose, allowClear = true }: {
   value: string | null; reference: string; onPick: (date: string | null) => void; onClose: () => void; allowClear?: boolean;
 }) {
+  const [text, setText] = useState("");
+  const typed = text.trim() ? parseDueInput(text, reference) : null;
+  const pick = (date: string | null) => { onPick(date); onClose(); };
+
   const options = [
-    { label: "Hoje", date: reference },
-    { label: "Amanhã", date: addDays(reference, 1) },
-    { label: "Próxima semana", date: nextWeek(reference) },
+    { label: "Hoje", date: reference, icon: <IconCalendarDay day={dayOfMonth(reference)} />, className: "c-today" },
+    { label: "Amanhã", date: addDays(reference, 1), icon: <IconSun />, className: "c-tomorrow" },
+    { label: "Este fim de semana", date: weekend(reference), icon: <IconSofa />, className: "c-weekend" },
+    { label: "Próxima semana", date: nextWeek(reference), icon: <IconNextWeek />, className: "c-week", full: true },
   ];
+
   return (
-    <div className="date-pop">
-      {options.map((option) => (
-        <button key={option.label} type="button" className="mi" onClick={() => { onPick(option.date); onClose(); }}>
-          <IconCalendar /><span style={{ flex: 1 }}>{option.label}</span>
-          <span className="sub">{dateLabel(option.date, reference) === option.label ? "" : dateLabel(option.date, reference)}</span>
-        </button>
-      ))}
-      <label className="lbl" style={{ padding: "8px 4px 2px" }} htmlFor="date-pick">Escolher data</label>
-      <input id="date-pick" type="date" defaultValue={value ?? ""} onChange={(event) => {
-        if (event.target.value) {
-          onPick(event.target.value);
-          onClose();
-        }
-      }} />
-      {allowClear && value && (
-        <button type="button" className="mi" style={{ marginTop: 4 }} onClick={() => { onPick(null); onClose(); }}>
-          <IconX /><span>Sem data</span>
-        </button>
-      )}
+    <div className="due-pop">
+      {/* Portal: eventos React ainda sobem até o formulário do editor; o Enter daqui não pode salvar a tarefa. */}
+      <form className="due-input" onKeyDown={(event) => event.stopPropagation()}
+        onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); if (typed) pick(typed); }}>
+        <input value={text} onChange={(event) => setText(event.target.value)} placeholder="Digite um vencimento"
+          aria-label="Digite um vencimento" data-autofocus autoComplete="off" spellCheck={false} />
+        {text.trim() && (
+          typed
+            ? <button type="submit" className="due-typed" aria-label={longDate(typed)}><IconCalendar />
+              <span>{`${shortDate(typed)} ${typed.slice(0, 4)}`}</span>
+              {Math.abs(daysBetween(reference, typed)) <= 1 && <span className="sub">{dateLabel(typed, reference)}</span>}</button>
+            : <p className="due-typed none">Não reconheci essa data</p>
+        )}
+      </form>
+      <div className="due-options">
+        {options.map((option) => (
+          <button key={option.label} type="button" className={`due-option${value === option.date ? " on" : ""}`}
+            onClick={() => pick(option.date)}>
+            <span className={`due-icon ${option.className}`}>{option.icon}</span>
+            <span className="due-name">{option.label}</span>
+            <span className="sub">{"full" in option ? shortDate(option.date) : weekdayShort(option.date)}</span>
+          </button>
+        ))}
+        {allowClear && (
+          <button type="button" className={`due-option${value ? "" : " on"}`} onClick={() => pick(null)}>
+            <span className="due-icon"><IconBan /></span><span className="due-name">Sem vencimento</span>
+          </button>
+        )}
+      </div>
+      <MonthScroller value={value} reference={reference} onPick={pick} />
+    </div>
+  );
+}
+
+function MonthScroller({ value, reference, onPick }: { value: string | null; reference: string; onPick: (date: string) => void }) {
+  const first = monthStart(value && value < reference ? value : reference);
+  const last = monthStart(value && value > reference ? value : reference, CALENDAR_MONTHS - 1);
+  const months: string[] = [];
+  for (let month = first; month <= last; month = monthStart(month, 1)) months.push(month);
+
+  const scroller = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(monthStart(value ?? reference));
+
+  const sectionOf = (month: string) => scroller.current?.querySelector<HTMLElement>(`[data-month="${month}"]`);
+  const scrollTo = (month: string, behavior: ScrollBehavior = "smooth") => {
+    const node = sectionOf(month);
+    if (node && scroller.current) scroller.current.scrollTo({ top: node.offsetTop, behavior });
+  };
+
+  // Abre no mês da data escolhida (ou no atual), sem animação.
+  useLayoutEffect(() => {
+    scrollTo(monthStart(value ?? reference), "instant");
+  }, []);
+
+  const onScroll = () => {
+    const box = scroller.current;
+    if (!box) return;
+    const top = box.scrollTop + 8;
+    let current = months[0];
+    for (const node of box.querySelectorAll<HTMLElement>("[data-month]")) {
+      if (node.offsetTop <= top) current = node.dataset.month!;
+    }
+    setVisible(current);
+  };
+
+  const index = months.indexOf(visible);
+  return (
+    <div className="cal">
+      <div className="cal-head">
+        <strong aria-live="polite">{monthShort(visible)}</strong>
+        <div className="cal-nav">
+          <button type="button" className="icon-btn" aria-label="Mês anterior" disabled={index <= 0}
+            onClick={() => scrollTo(months[index - 1])}><IconChevronLeft /></button>
+          <button type="button" className="icon-btn cal-today" aria-label="Voltar para hoje" title="Hoje"
+            onClick={() => scrollTo(monthStart(reference))}><span /></button>
+          <button type="button" className="icon-btn" aria-label="Próximo mês" disabled={index >= months.length - 1}
+            onClick={() => scrollTo(months[index + 1])}><IconChevronRight /></button>
+        </div>
+      </div>
+      <div className="cal-week" aria-hidden="true">{WEEK_HEAD.map((day, i) => <span key={i}>{day}</span>)}</div>
+      <div className="cal-scroll" ref={scroller} onScroll={onScroll}>
+        {months.map((month, position) => (
+          <section key={month} data-month={month} aria-label={monthShort(month)}>
+            {position > 0 && <h4 className="cal-month">{monthShort(month, month.slice(0, 4) !== reference.slice(0, 4))}</h4>}
+            <div className="cal-grid">
+              {Array.from({ length: weekday(month) }, (_, i) => <span key={`pad-${i}`} />)}
+              {Array.from({ length: daysInMonth(month) }, (_, i) => {
+                const date = addDays(month, i);
+                const state = date === value ? "picked" : date === reference ? "today" : date < reference ? "past" : "";
+                return (
+                  <button key={date} type="button" className={`cal-day ${state}`} aria-label={longDate(date)}
+                    aria-pressed={date === value} aria-current={date === reference ? "date" : undefined}
+                    onClick={() => onPick(date)}>{i + 1}</button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }

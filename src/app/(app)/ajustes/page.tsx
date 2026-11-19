@@ -9,6 +9,7 @@ import { applyTheme, useApp } from "@/components/app";
 import { PageHeader } from "@/components/chrome";
 import { IconAlert, IconDownload, IconHash, IconMonitor, IconMoon, IconSun, IconUpload } from "@/components/icons";
 import { TimezonePicker } from "@/components/timezone-picker";
+import { ImportPanel } from "@/components/import-panel";
 import { useToast } from "@/components/ui";
 
 const THEMES: { value: Theme; label: string; icon: React.ReactNode }[] = [
@@ -93,6 +94,7 @@ export default function SettingsPage() {
                   </div>
                 ))}
               </section>
+              <ImportPanel />
               <DataPanel onToast={toast} />
             </div>
           </div>
@@ -137,16 +139,16 @@ function DataPanel({ onToast }: { onToast: ReturnType<typeof useToast> }) {
   const confirm = async () => {
     if (!file || !preview?.previewToken || !operationId) return;
     const ok = await app.confirm({
-      title: "Importar este arquivo?",
+      title: "Restaurar este backup?",
       body: "Os dados serão restaurados nesta conta. A operação é atômica: se algo falhar, nada muda.",
-      confirmLabel: "Importar",
+      confirmLabel: "Restaurar",
     });
     if (!ok) return;
     setBusy(true);
     setFailure(null);
     try {
       setResult(await api.portability.confirm(file, preview.previewToken, operationId));
-      onToast("Importação concluída");
+      onToast("Backup restaurado");
       void app.refresh();
     } catch (error) {
       if (error instanceof ApiFailure && error.code === "NETWORK_ERROR") {
@@ -172,7 +174,7 @@ function DataPanel({ onToast }: { onToast: ReturnType<typeof useToast> }) {
 
   return (
     <section className="panel" style={{ display: "flex", flexDirection: "column", gap: 14 }} aria-labelledby="dados">
-      <h2 id="dados" style={{ fontSize: 15, fontWeight: 700 }}>Seus dados</h2>
+      <h2 id="dados" style={{ fontSize: 15, fontWeight: 700 }}>Backup do Feito</h2>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
         <IconDownload style={{ color: "var(--brand-text)", marginTop: 2 }} />
         <div style={{ flex: "1 1 200px", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -185,8 +187,8 @@ function DataPanel({ onToast }: { onToast: ReturnType<typeof useToast> }) {
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
         <IconUpload style={{ color: "var(--brand-text)", marginTop: 2 }} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
-          <div style={{ fontWeight: 600 }}>Importar um arquivo</div>
-          <div className="hint">A restauração só acontece numa conta vazia, com apenas a Caixa de entrada inicial.</div>
+          <div style={{ fontWeight: 600 }}>Restaurar um backup</div>
+          <div className="hint">Restaura um arquivo exportado pelo Feito. Só acontece numa conta vazia, com apenas a Caixa de entrada inicial.</div>
           <input ref={fileInput} type="file" accept="application/json,.json" className="sr-only" id="import-file"
             onChange={(event) => { void choose(event.target.files?.[0]); event.target.value = ""; }} />
           {(preview || failure || result) && (
@@ -216,7 +218,7 @@ function DataPanel({ onToast }: { onToast: ReturnType<typeof useToast> }) {
             <button type="button" className="btn" disabled={busy} onClick={() => fileInput.current?.click()}>
               {file ? "Escolher outro arquivo" : "Escolher arquivo"}
             </button>
-            {!result && <button type="button" className="btn primary" disabled={busy || !preview?.previewToken} onClick={() => void confirm()}>Importar</button>}
+            {!result && <button type="button" className="btn primary" disabled={busy || !preview?.previewToken} onClick={() => void confirm()}>Restaurar</button>}
             {failure && operationId && preview?.previewToken && !result && <button type="button" className="btn ghost" onClick={() => void check()}>Verificar resultado</button>}
           </div>
         </div>

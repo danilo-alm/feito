@@ -12,6 +12,7 @@ import * as project from "@/app/api/v1/projects/[id]/route";
 import * as archive from "@/app/api/v1/projects/[id]/archive/route";
 import * as unarchive from "@/app/api/v1/projects/[id]/unarchive/route";
 import * as projectView from "@/app/api/v1/projects/[id]/view/route";
+import * as projectExport from "@/app/api/v1/projects/[id]/export/route";
 import * as createSectionRoute from "@/app/api/v1/projects/[id]/sections/route";
 import * as section from "@/app/api/v1/sections/[id]/route";
 import * as moveSectionRoute from "@/app/api/v1/sections/[id]/move/route";
@@ -30,6 +31,8 @@ import * as download from "@/app/api/v1/export/route";
 import * as preview from "@/app/api/v1/import/preview/route";
 import * as confirm from "@/app/api/v1/import/confirm/route";
 import * as operation from "@/app/api/v1/import/operations/[id]/route";
+import * as sourcePreview from "@/app/api/v1/import/sources/[source]/preview/route";
+import * as sourceConfirm from "@/app/api/v1/import/sources/[source]/confirm/route";
 import { connectDatabase } from "@/server/db/client";
 import { user } from "@/server/db/schema";
 import { getRuntime } from "@/server/runtime";
@@ -37,7 +40,7 @@ import { createAccount } from "@/server/services/admin";
 import type { getNavigation, getProject } from "@/server/services/projects";
 import type { completeTask, getTask, moveTask } from "@/server/services/tasks";
 
-type Handler = (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>;
+type Handler = (request: Request, context: { params: Promise<any> }) => Promise<Response>;
 type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 export type Resource = { id: string; revision: number };
 export type ProjectPage = Awaited<ReturnType<typeof getProject>>;
@@ -53,6 +56,7 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "/projects/:id/archive": archive,
   "/projects/:id/unarchive": unarchive,
   "/projects/:id/view": projectView,
+  "/projects/:id/export": projectExport,
   "/projects/:id/sections": createSectionRoute,
   "/sections/:id": section,
   "/sections/:id/move": moveSectionRoute,
@@ -74,6 +78,8 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "/import/preview": preview,
   "/import/confirm": confirm,
   "/import/operations/:id": operation,
+  "/import/sources/:source/preview": sourcePreview,
+  "/import/sources/:source/confirm": sourceConfirm,
 };
 
 let runtime: ReturnType<typeof getRuntime>;
@@ -108,6 +114,12 @@ export function send(
   const id = pathname.startsWith("/import/operations/") ? pathname.split("/").at(-1)! : pathname.split("/")[2] ?? "";
   const pattern = ["/projects/", "/sections/", "/tasks/", "/labels/", "/import/operations/"].some((prefix) => pathname.startsWith(prefix))
     ? pathname.replace(`/${id}`, "/:id") : pathname;
+  const source = /^\/import\/sources\/([^/]+)\/(preview|confirm)$/.exec(pathname);
+  if (source) {
+    const handler = routes[`/import/sources/:source/${source[2]}`]?.[method];
+    if (!handler) throw new Error(`Missing test route ${method} ${pathname}`);
+    return handler(request, { params: Promise.resolve({ source: source[1] }) });
+  }
   const handler = routes[pattern]?.[method];
   if (!handler) throw new Error(`Missing test route ${method} ${pattern}`);
   return handler(request, { params: Promise.resolve({ id }) });

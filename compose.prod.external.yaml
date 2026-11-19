@@ -1,0 +1,37 @@
+# Produção com PostgreSQL externo.
+#   docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" up -d --build --wait
+name: feito-external
+
+services:
+  migrate:
+    extends:
+      file: compose.prod.yaml
+      service: migrate
+    environment:
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?Defina MIGRATION_DATABASE_URL}
+    depends_on: !reset {}
+
+  app:
+    extends:
+      file: compose.prod.yaml
+      service: app
+    environment:
+      DOMAIN_DATABASE_URL: ${DOMAIN_DATABASE_URL:?Defina DOMAIN_DATABASE_URL}
+      AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:?Defina AUTH_DATABASE_URL}
+
+  caddy:
+    extends:
+      file: compose.prod.yaml
+      service: caddy
+
+  cli:
+    extends:
+      file: compose.prod.yaml
+      service: cli
+    environment:
+      IDENTITY_ADMIN_DATABASE_URL: ${IDENTITY_ADMIN_DATABASE_URL:?Defina IDENTITY_ADMIN_DATABASE_URL}
+    depends_on: !reset {}
+
+volumes:
+  caddy-data:
+  caddy-config:

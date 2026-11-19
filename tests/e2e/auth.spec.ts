@@ -16,8 +16,8 @@ test.describe("entrar", () => {
     await expect(page.getByRole("heading", { name: "Defina sua senha" })).toBeVisible();
     const next = `${fresh.password}-definitiva`;
     await page.getByLabel("Senha provisória").fill(fresh.password);
-    await page.getByLabel("Nova senha", { exact: true }).fill("curta");
-    await expect(page.getByText("Frase-senha com 15 a 128 caracteres · 5.")).toHaveClass(/field-error/);
+    await page.getByLabel("Nova senha", { exact: true }).fill("abcd");
+    await expect(page.getByText("Senha com 5 a 128 caracteres · 4.")).toHaveClass(/field-error/);
     await page.getByLabel("Nova senha", { exact: true }).fill(next);
     await page.getByLabel("Repita a nova senha").fill(next);
     await page.getByRole("button", { name: "Salvar nova senha" }).click();

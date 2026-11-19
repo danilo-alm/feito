@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Inter_Tight } from "next/font/google";
 import type { ReactNode } from "react";
 import { AppProviders } from "@/components/app";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+// Fonte do nome "Feito" (docs/05-brand.md). Só o peso 600 é carregado.
+const interTight = Inter_Tight({ subsets: ["latin"], weight: "600", variable: "--font-brand", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Feito", template: "%s · Feito" },
@@ -26,7 +28,7 @@ const themeScript = `(function(){try{var t=localStorage.getItem("feito:theme")||
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
+    <html lang="pt-BR" className={`${inter.variable} ${interTight.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

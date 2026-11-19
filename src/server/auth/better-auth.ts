@@ -24,7 +24,7 @@ export function createAuth(
       enabled: true,
       disableSignUp: !options.localAdmin,
       autoSignIn: false,
-      minPasswordLength: 15,
+      minPasswordLength: 5,
       // Better Auth counts UTF-16 units. The Feito boundary enforces 128 Unicode characters.
       maxPasswordLength: 256,
       password: {

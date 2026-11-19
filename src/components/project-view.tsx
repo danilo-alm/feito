@@ -15,7 +15,9 @@ import type { MoveTarget, ProjectPage, TaskItem } from "@/client/types";
 import { useApp } from "./app";
 import { PageHeader } from "./chrome";
 import { Collapse, flipFrom } from "./motion";
-import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconMore, IconPlus, IconSub, IconTrash } from "./icons";
+import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconMore, IconPlus, IconDownload, IconSub, IconTrash, IconUpload } from "./icons";
+import { useExportDialog } from "./export-dialog";
+import { useImportDialog } from "./import-panel";
 import { useTaskActions } from "./task-actions";
 import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
 import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
@@ -81,6 +83,8 @@ export function ProjectView({ projectId }: { projectId: string }) {
   const page = query.data?.project.id === projectId ? query.data : undefined;
   const [drag, setDrag] = useState<DragState | null>(null);
   const focusAfter = useRef<string | null>(null);
+  const [importDialog, openImport] = useImportDialog();
+  const [exportDialog, openExport] = useExportDialog();
 
   useEffect(() => {
     if (query.error instanceof ApiFailure && query.error.code === "NOT_FOUND") router.replace("/hoje");
@@ -264,6 +268,8 @@ export function ProjectView({ projectId }: { projectId: string }) {
       const name = await app.prompt({ title: "Renomear projeto", label: "Nome do projeto", initial: project.name, confirmLabel: "Salvar" });
       if (name && name !== project.name) await app.run(() => api.projects.rename(project.id, project.revision, name), { success: "Projeto renomeado" });
     } },
+    ...(archived ? [] : [{ label: "Importar…", icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) }]),
+    { label: "Exportar…", icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) },
     archived
       ? { label: "Reativar projeto", icon: <IconArchive />, onSelect: () => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado" }) }
       : { label: "Arquivar projeto", icon: <IconArchive />, onSelect: async () => {
@@ -325,6 +331,8 @@ export function ProjectView({ projectId }: { projectId: string }) {
   return (
     <>
       <PageHeader crumb={crumb} tools={tools} mobileTitle={project.name} back={project.isInbox ? undefined : "/navegar"} />
+      {importDialog}
+      {exportDialog}
       <div style={{ padding: "4px 32px 0" }} className="project-head">
         <div className={board ? "" : "col"}>
           <div className="page-h">

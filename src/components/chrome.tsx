@@ -2,13 +2,17 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { api } from "@/client/api";
-import type { Navigation } from "@/client/types";
+import { api, ApiFailure, errorMessage } from "@/client/api";
+import { invalidate } from "@/client/store";
+import type { Navigation, ProjectSummary } from "@/client/types";
 import { useApp } from "./app";
 import {
-  IconArchive, IconBrowse, IconChevronLeft, IconChevronRight, IconGear, IconHash, IconInbox, IconPlus, IconSearch, IconTag,
-  IconToday, IconUpcoming, Logo,
+  IconArchive, IconBrowse, IconChevronLeft, IconChevronRight, IconEdit, IconGear, IconHash, IconInbox, IconMore, IconPlus,
+  IconSearch, IconTag, IconToday, IconTrash, IconUpcoming, IconUpload, IconDownload, Logo,
 } from "./icons";
+import { useExportDialog } from "./export-dialog";
+import { useImportDialog } from "./import-panel";
+import { MenuButton, useToast, type MenuItem } from "./ui";
 
 function NavLink({ href, icon, label, count, active }: { href: string; icon: ReactNode; label: string; count?: number; active: boolean }) {
   return (
@@ -44,8 +48,7 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
         </button>
       </div>
       {nav?.projects.map((project) => (
-        <NavLink key={project.id} href={`/projetos/${project.id}`} icon={<IconHash />} label={project.name}
-          count={project.activeCount} active={is(`/projetos/${project.id}`)} />
+        <ProjectRow key={project.id} project={project} active={is(`/projetos/${project.id}`)} />
       ))}
       {nav && !nav.projects.length && <p className="hint" style={{ padding: "2px 10px 6px" }}>Crie seu primeiro projeto com o +.</p>}
       {!!nav?.archivedCount && (
@@ -62,6 +65,63 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
         <NavLink href="/ajustes" icon={<IconGear />} label="Ajustes" active={is("/ajustes")} />
       </div>
     </nav>
+  );
+}
+
+function ProjectRow({ project, active }: { project: ProjectSummary; active: boolean }) {
+  const app = useApp();
+  const router = useRouter();
+  const toast = useToast();
+  const [importDialog, openImport] = useImportDialog();
+  const [exportDialog, openExport] = useExportDialog();
+
+  const menu = (): MenuItem[] => [
+    { label: "Editar projeto", icon: <IconEdit />, onSelect: async () => {
+      const name = await app.prompt({ title: "Editar projeto", label: "Nome do projeto", initial: project.name, confirmLabel: "Salvar" });
+      if (name && name !== project.name) await app.run(() => api.projects.rename(project.id, project.revision, name), { success: "Projeto renomeado" });
+    } },
+    { label: "Importar…", icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) },
+    { label: "Exportar…", icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) },
+    { label: "Arquivar projeto", icon: <IconArchive />, onSelect: async () => {
+      const ok = await app.confirm({
+        title: `Arquivar “${project.name}”?`,
+        body: "O projeto sai das listas, da busca e da agenda, com tarefas e estados guardados. Você pode reativar em Ajustes.",
+        confirmLabel: "Arquivar",
+      });
+      if (ok && await app.run(() => api.projects.archive(project.id, project.revision), { success: "Projeto arquivado" }) && active) router.push("/hoje");
+    } },
+    "separator",
+    { label: "Excluir projeto…", icon: <IconTrash />, danger: true, onSelect: async () => {
+      const ok = await app.confirm({
+        title: `Excluir “${project.name}”?`,
+        body: "Só projetos sem tarefas, ativas ou concluídas, podem ser excluídos. Seções vazias vão junto.",
+        confirmLabel: "Excluir projeto", danger: true,
+      });
+      if (!ok) return;
+      try {
+        await api.projects.remove(project.id, project.revision);
+        toast("Projeto excluído");
+        await invalidate();
+        if (active) router.push("/hoje");
+      } catch (error) {
+        toast(error instanceof ApiFailure && error.code === "PROJECT_NOT_EMPTY"
+          ? "O projeto ainda tem tarefas. Arquive-o ou mova as tarefas antes." : errorMessage(error), { bad: true });
+      }
+    } },
+  ];
+
+  return (
+    <div className={`nav proj-row${active ? " on" : ""}`}>
+      <Link href={`/projetos/${project.id}`} className="proj-link" aria-current={active ? "page" : undefined}>
+        <IconHash /><span className="nav-name">{project.name}</span>
+      </Link>
+      {project.activeCount ? <span className="count">{project.activeCount}</span> : null}
+      <MenuButton label={`Ações de ${project.name}`} title={project.name} items={menu} className="icon-btn proj-menu">
+        <IconMore className="sm" />
+      </MenuButton>
+      {importDialog}
+      {exportDialog}
+    </div>
   );
 }
 

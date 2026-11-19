@@ -1,0 +1,25 @@
+﻿TYPE,CONTENT,DESCRIPTION,ICON,IS_COLLAPSED,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,DEADLINE,DEADLINE_LANG,REMINDER_TYPE,REMINDER_OFFSET,REMINDER_DATE,REMINDER_DATE_LANG
+meta,view_style=list,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+task,Ligar para a companhia de luz,,,,1,1,Ana (10000001),,nov 20,pt,America/Sao_Paulo,,,,,,,,
+task,Montar o guarda-roupa do quarto,"O manual está na caixa menor. Separar os parafusos por tamanho antes de começar, porque, da última vez, sobraram três peças sem lugar.",,,4,1,Ana (10000001),,nov 20,pt,America/Sao_Paulo,,,,,,,,
+task,Trocar a fechadura da porta dos fundos?,,,,4,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,Vazamento na pia,"Quando a torneira fica aberta por muito tempo, aparece uma poça ""misteriosa"" embaixo do armário. Verificar o sifão e a vedação.",,,2,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,Revisar orçamento da pintura,"Depois de receber as três propostas, comparar o preço por metro quadrado e o prazo de cada uma.",,,2,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,Organizar a garagem,"Na prateleira da esquerda, as caixas da mudança ainda estão **sem etiqueta**. Abrir uma por uma e anotar o conteúdo.
+
+Doar o que não for usado em seis meses.",,,2,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,Pesquisar plano de internet,"Comparar a velocidade de upload e a fidelidade de cada operadora.
+
+A preferida até agora é a de fibra do bairro, pelo preço e pelo suporte que responde rápido.",,,3,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,Comprar cortinas para a sala,,,,4,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,pendurar quadros do corredor,,,,4,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,Instalar suporte da TV,,,,4,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,lâmpada da cozinha piscando,,,,4,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,"caixa de ferramentas, ""chave inglesa"", ""trena"" estão faltando.",,,,4,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,limpar calhas antes da chuva,,,,4,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,Mandar cópia da chave para a vizinha,,,,4,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,Combinar o dia da mudança com a transportadora,Pode ser num sábado de manhã!,,,4,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+task,Atualizar endereço no banco.,,,,4,1,Ana (10000001),,,,America/Sao_Paulo,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+section,teste,,,False,,,,,,,,,,,,,,,

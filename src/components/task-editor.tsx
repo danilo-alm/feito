@@ -220,7 +220,7 @@ export function TaskEditor({
         placeholder={loadingDescription ? "Carregando descrição…" : "Descrição"} readOnly={loadingDescription} value={draft.description}
         onChange={(event) => { descTouched.current = true; set({ description: event.target.value }); }}
         onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
             void submit();
           }

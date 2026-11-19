@@ -276,6 +276,7 @@ export async function mutateProduct<T>(
   access: ProductAccess,
   apply: (draft: Product, original: Product, history: MutationHistory) => T,
   occurrence?: OccurrenceReference,
+  options: { record?: (tx: Transaction) => Promise<void> } = {},
 ): Promise<T> {
   const { db, keys, tenantId } = access;
   await ensureWorkspace(db, keys, tenantId);
@@ -301,6 +302,7 @@ export async function mutateProduct<T>(
       const tenant = lockedTenant ?? await lockTenant(tx, tenantId);
       if (tenant.productRevision !== revision) return null;
       if ("error" in outcome) throw outcome.error;
+      await options.record?.(tx);
       if (!plan?.hasChanges) return outcome;
       if (plan.encryptions) {
         if (!dek || version === undefined) throw new Error("Reserva criptográfica indisponível.");

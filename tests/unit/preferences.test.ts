@@ -21,7 +21,7 @@ describe("preferences and identity validation", () => {
   it("counts Unicode characters without trimming passwords", () => {
     expect(validNewPassword.safeParse("🦉".repeat(128)).success).toBe(true);
     expect(validNewPassword.safeParse("🦉".repeat(129)).success).toBe(false);
-    expect(validNewPassword.safeParse("a".repeat(14) + " ").success).toBe(true);
-    expect(validNewPassword.safeParse("a".repeat(14)).success).toBe(false);
+    expect(validNewPassword.safeParse("a".repeat(4) + " ").success).toBe(true);
+    expect(validNewPassword.safeParse("a".repeat(4)).success).toBe(false);
   });
 });

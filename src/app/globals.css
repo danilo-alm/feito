@@ -47,9 +47,8 @@ h1,h2,h3,p{margin:0}
 /* app shell */
 .app{display:flex;flex-wrap:wrap;width:100%;height:900px;overflow:hidden;position:relative}
 .side{flex:0 0 264px;height:100%;background:var(--side);border-right:1px solid var(--border);padding:14px 12px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.01em;padding:4px 8px 14px}
-.logo{width:26px;height:26px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;flex:none}
-.logo svg{width:16px;height:16px;stroke-width:2.6}
+.brand{display:flex;align-items:center;gap:6px;font-family:var(--font-brand),var(--font-inter),Inter,system-ui,sans-serif;font-weight:600;font-size:19px;letter-spacing:-.02em;padding:4px 8px 14px}
+.logo{color:var(--brand-text);flex:none}
 .nav{display:flex;align-items:center;gap:10px;padding:0 10px;min-height:36px;border-radius:8px;color:var(--text);font-size:14px}
 .nav:hover{background:var(--hover)}
 .nav svg{color:var(--muted)}
@@ -57,6 +56,12 @@ h1,h2,h3,p{margin:0}
 .nav.on svg{color:var(--brand-text)}
 .nav .count{margin-left:auto;font-size:12px;color:var(--muted);font-weight:500}
 .nav-label{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;color:var(--muted);padding:18px 10px 6px}
+.proj-row{position:relative}
+.proj-row .proj-link{display:flex;align-items:center;gap:10px;flex:1;min-width:0;color:inherit;text-decoration:none}
+.proj-row .count{transition:opacity .1s}
+.proj-row .proj-menu{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:24px;height:24px;opacity:0;pointer-events:none}
+.proj-row:hover .count,.proj-row:focus-within .count,.proj-row:has(.proj-menu[aria-expanded=true]) .count{opacity:0}
+.proj-row:hover .proj-menu,.proj-row:focus-within .proj-menu,.proj-row:has(.proj-menu[aria-expanded=true]) .proj-menu{opacity:1;pointer-events:auto}
 .side-add{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;border-radius:8px;border:0;background:none;color:var(--brand-text);font-weight:600;margin-bottom:8px;width:100%;text-align:left}
 .side-add .plus{width:24px;height:24px;border-radius:50%;background:var(--brand);color:var(--on-brand);display:grid;place-items:center}
 .side-add .plus svg{width:15px;height:15px;stroke-width:2.4}
@@ -317,7 +322,7 @@ input,textarea,select{font:inherit;color:inherit}
 .banner.error{background:var(--p1-soft);color:var(--late)}
 .field-error{color:var(--late);font-size:12.5px}
 .pop{z-index:40}
-.popover{position:fixed;z-index:60}
+.popover{position:fixed;z-index:60;max-height:var(--pop-max,none);overflow-y:auto;scrollbar-width:none}
 .menu .mi:disabled{opacity:.45;cursor:not-allowed}
 .dialog-wrap{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:72px 16px 16px}
 .dialog-wrap .scrim{position:fixed}
@@ -343,6 +348,44 @@ body:has(.drag-overlay) {user-select:none;-webkit-user-select:none}
 .inline-input{height:36px;border:1px solid var(--border-strong);border-radius:8px;padding:0 10px;background:var(--surface);color:var(--text);width:100%}
 .date-pop{padding:10px;width:260px;display:flex;flex-direction:column;gap:4px}
 .date-pop input{height:36px;border:1px solid var(--border-strong);border-radius:8px;padding:0 10px;background:var(--surface);color:var(--text)}
+/* Seletor de vencimento (DatePicker) */
+.due-pop{width:264px;display:flex;flex-direction:column;max-height:calc(var(--pop-max,100dvh - 16px) - 2px)}
+.due-input{border-bottom:1px solid var(--border)}
+.due-input input{width:100%;height:38px;border:0;background:none;padding:0 12px;font:inherit;font-size:14px;color:var(--text)}
+.due-input input:focus{outline:none}
+.due-input input::placeholder{color:var(--faint)}
+.due-typed{display:flex;align-items:center;gap:10px;width:calc(100% - 8px);margin:0 4px 4px;min-height:30px;padding:0 8px;border:0;border-radius:8px;background:var(--hover);color:var(--text);font:inherit;font-size:13px;text-align:left}
+.due-typed svg{width:16px;height:16px;color:var(--brand-text)}
+.due-typed span:nth-child(2){flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.due-typed .sub{white-space:nowrap}
+.due-typed.none{background:none;color:var(--faint);margin-top:0}
+.due-options{display:flex;flex-direction:column;padding:4px;border-bottom:1px solid var(--border)}
+.due-option{display:flex;align-items:center;gap:10px;min-height:30px;padding:0 8px;border:0;border-radius:6px;background:none;color:var(--text);font:inherit;font-size:13px;text-align:left}
+.due-option:hover,.due-option:focus-visible{background:var(--hover)}
+.due-option.on .due-name{font-weight:600}
+.due-icon{display:grid;place-items:center;color:var(--muted)}
+.due-icon svg{width:17px;height:17px}
+.due-name{flex:1}
+.due-option .sub,.due-typed .sub{color:var(--faint);font-size:12px}
+.cal{display:flex;flex-direction:column;min-height:0;padding:6px 8px 6px}
+.cal-head{display:flex;align-items:center;justify-content:space-between;padding:0 0 0 6px}
+.cal-head strong{font-size:13px}
+.cal-nav{display:flex;align-items:center}
+.cal-nav .icon-btn{width:26px;height:26px;min-height:0}
+.cal-nav .icon-btn svg{width:16px;height:16px}
+.cal-nav .icon-btn:disabled{opacity:.35}
+.cal-today span{width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor}
+.cal-week,.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);justify-items:center}
+.cal-week span{font-size:10.5px;font-weight:600;color:var(--faint);padding:2px 0}
+.cal-scroll{position:relative;overflow-y:auto;height:174px;flex:0 1 auto;min-height:88px;overscroll-behavior:contain;scrollbar-width:none}
+.cal-scroll::-webkit-scrollbar{display:none}
+.cal-month{margin:8px 6px 4px;padding-bottom:4px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700}
+.cal-grid{row-gap:1px}
+.cal-day{width:28px;height:28px;border-radius:50%;border:0;background:none;color:var(--text);font:inherit;font-size:13px;font-variant-numeric:tabular-nums}
+.cal-day:hover,.cal-day:focus-visible{background:var(--hover)}
+.cal-day.past{color:var(--faint)}
+.cal-day.today{color:var(--brand-text);font-weight:700}
+.cal-day.picked{background:var(--brand);color:var(--on-brand);font-weight:700}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .qa-title{border:0;background:none;font:inherit;font-size:18px;font-weight:600;color:var(--text);padding:4px 2px;border-radius:6px;width:100%}
 .qa-desc{border:0;background:none;font:inherit;font-size:14px;color:var(--text);padding:2px;resize:none;overflow:hidden;width:100%;display:block}

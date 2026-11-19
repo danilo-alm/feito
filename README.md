@@ -1,91 +1,120 @@
 # Feito
 
-Aplicação self-hosted de tarefas pessoais. Next.js + PostgreSQL, com os dados de cada conta cifrados no banco.
+Feito é um app de tarefas pessoais que você hospeda na sua máquina ou no seu servidor. Capture tarefas na Caixa de entrada, planeje o que fazer em Hoje e Em breve e organize seus projetos em listas ou painéis. O app oferece subtarefas, etiquetas, prioridades e recorrência, além de importação do Todoist e exportação de dados. Os dados de tarefas e projetos são armazenados cifrados no PostgreSQL.
 
-Você só precisa de Docker para rodar. Para os testes, também de Node.js 24 e pnpm 10.
+![Visão Hoje com tarefas do dia, atrasos, horários e prioridades](docs/screenshots/hoje.png)
 
-## 1. Gerar a configuração
+<details>
+<summary>Ver um projeto em painel e a interface no celular</summary>
 
-O Feito precisa de senhas do banco e chaves de criptografia. Este script gera um arquivo com tudo:
+![Projeto Site do estúdio em painel, com colunas A fazer, Em andamento e Em revisão](docs/screenshots/quadro.png)
 
-```sh
-scripts/new-env.sh ~/.config/feito/dev.env
-```
+![Visão Hoje no celular, com navegação inferior](docs/screenshots/hoje-no-celular.png)
 
-O arquivo fica **fora** da pasta do projeto de propósito: o Next.js carrega qualquer `.env` da raiz e entregaria todas as senhas ao servidor. Guarde-o bem, porque sem as chaves os dados cifrados não podem ser lidos.
+</details>
 
-## 2. Rodar
+## Instalação
 
-### Desenvolvimento
-
-```sh
-docker compose -f compose.dev.yaml --env-file ~/.config/feito/dev.env up --build
-```
-
-Abra <https://localhost:3000>. Ao salvar um arquivo em `src/`, o navegador recarrega sozinho. O navegador vai avisar que o certificado não é confiável; aceite, ou confie na CA local de uma vez:
+Você precisa de Docker com o plugin Docker Compose, Git e OpenSSL. Execute os comandos em um shell como Bash ou Zsh. Se for usar um PostgreSQL externo, instale também o cliente `psql` na máquina que fará a configuração.
 
 ```sh
-docker compose -f compose.dev.yaml cp caddy:/data/caddy/pki/authorities/local/root.crt ./feito-dev-ca.crt
+git clone https://github.com/danilo-alm/feito.git
+cd feito
+
+FEITO_ENV="$HOME/.config/feito/feito.env"
+scripts/new-env.sh "$FEITO_ENV" https://localhost:3000
 ```
 
-Depois, abra o `feito-dev-ca.crt` no Acesso às Chaves e marque como confiável.
+Para instalar num servidor público, substitua `https://localhost:3000` pelo domínio HTTPS do Feito, por exemplo `https://feito.example.org`. Aponte o DNS para o servidor e deixe as portas 80 e 443 acessíveis para que o Caddy emita o certificado. Use o mesmo endereço para abrir o app depois de instalar.
 
-Depois de mudar dependências (`package.json` ou `pnpm-lock.yaml`), suba com `up --build -V`.
+O script gera as credenciais e as chaves de criptografia. Mantenha o arquivo fora da pasta do projeto, preserve-o ao atualizar a instalação e guarde uma cópia segura. Você precisará das chaves para recuperar os dados cifrados de um backup.
 
-### Produção
-
-Gere uma configuração própria, com o endereço público, e suba:
+### Opção A — PostgreSQL no Docker
 
 ```sh
-scripts/new-env.sh ~/.config/feito/prod.env https://feito.example.org
-docker compose -f compose.prod.yaml --env-file ~/.config/feito/prod.env up -d --build
+FEITO_COMPOSE=compose.prod.yaml
+docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" up -d --build --wait
 ```
 
-O domínio precisa apontar para o servidor, com as portas 80 e 443 abertas. O certificado HTTPS é emitido automaticamente.
+O Compose inicia o PostgreSQL 18, cria as credenciais do banco na primeira inicialização do volume e aplica as migrações. Depois, siga para [Criar a primeira conta](#criar-a-primeira-conta).
 
-### Parar
+### Opção B — PostgreSQL externo
+
+Use um banco acessível pelo host e pelos contêineres do Feito. Para a configuração inicial, obtenha o host, a porta, o nome do banco e um login administrativo que possa criar usuários e conceder permissão de criação de schemas.
+
+#### Parâmetros para Supabase
+
+No painel do projeto Supabase, abra **Connect** e copie os dados de conexão do PostgreSQL. O banco padrão se chama `postgres`. Ambos os modos abaixo usam a porta `5432`.
+
+| Campo | Conexão direta | Pooler Session |
+| --- | --- | --- |
+| Host | `db.<project-ref>.supabase.co` | Host do **Session pooler** mostrado em **Connect** |
+| Usuário administrativo | `postgres` | `postgres.<project-ref>` |
+| Usuário de cada URL do Feito | Nome da role, por exemplo `feito_app` | Nome da role com sufixo, por exemplo `feito_app.<project-ref>` |
+
+Se a rede do servidor só tiver IPv4, use o pooler **Session** ou uma conexão direta com o adicional de IPv4. Use a senha do banco do Supabase no comando de inicialização. O Feito gerencia o login dos usuários pelo Better Auth. [Conexões do Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres)
+
+#### Criar os usuários do banco e iniciar
+
+Execute uma vez, substituindo os parâmetros pelos do seu provedor. O `psql` pede a senha administrativa no terminal. O script cria quatro usuários no PostgreSQL com as senhas geradas no `$FEITO_ENV`.
 
 ```sh
-docker compose -f compose.dev.yaml down
+(
+  set -a
+  . "$FEITO_ENV"
+  set +a
+  PGSSLMODE=require psql -X -W --single-transaction --set=feito_external=1 \
+    --host=db.example.org --port=5432 --dbname=postgres --username=postgres \
+    --file=scripts/postgres-init.sql
+)
 ```
 
-Em produção, use `compose.prod.yaml` e o arquivo de produção. Os dados ficam em volumes do Docker; `down -v` apaga o banco.
+Edite as quatro URLs já geradas em `$FEITO_ENV`. Em cada uma, troque `127.0.0.1:5432/feito` pelo host, porta e banco externos e conserve a senha gerada para aquele usuário. No pooler Session do Supabase, acrescente `.<project-ref>` ao usuário em cada URL. Para o Supabase, acrescente `?sslmode=require` ao fim das quatro URLs. Para outro provedor, use os parâmetros de TLS indicados por ele.
 
-## 3. Comandos do dia a dia
-
-As migrações do banco rodam sozinhas ao subir. Os comandos abaixo usam o ambiente de desenvolvimento; em produção, troque o arquivo do Compose e o de configuração.
-
-**Contas.** Não existe cadastro público: as contas são criadas pela linha de comando. A senha é pedida no terminal, e a pessoa troca no primeiro acesso.
+| Variável | Usuário do PostgreSQL |
+| --- | --- |
+| `DOMAIN_DATABASE_URL` | `feito_app` |
+| `AUTH_DATABASE_URL` | `feito_auth` |
+| `MIGRATION_DATABASE_URL` | `feito_migrator` |
+| `IDENTITY_ADMIN_DATABASE_URL` | `feito_identity_admin` |
 
 ```sh
-docker compose -f compose.dev.yaml --env-file ~/.config/feito/dev.env run --rm cli pnpm admin account:create --email voce@example.org
+FEITO_COMPOSE=compose.prod.external.yaml
+docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" up -d --build --wait
 ```
 
-Outras ações, todas com `--email`: `account:list`, `account:reset-password`, `account:revoke-sessions`, `account:disable` e `account:enable`.
+O serviço de migração prepara as tabelas antes de o app iniciar.
 
-**Chaves de criptografia.** `pnpm keys kek:rewrap`, `dek:activate` e `dek:rekey`, com `--tenant`. Antes de usar, leia [Rotação de chaves](docs/03-operations.md#rotação-local).
+### Criar a primeira conta
 
-**Banco.** Para abrir um `psql` no ambiente de desenvolvimento:
+Com o arquivo Compose da opção escolhida, crie a conta com seu e-mail. O comando pede uma senha provisória e o Feito solicita a troca no primeiro acesso.
 
 ```sh
-docker compose -f compose.dev.yaml exec postgres psql -U feito_migrator -d feito
+docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" \
+  run --rm cli pnpm admin account:create --email voce@example.org
 ```
 
-**Testes e verificação.** Rodam no host, após `pnpm install`:
+Abra [https://localhost:3000](https://localhost:3000) ou o domínio que você configurou. Em localhost, o Caddy emite o certificado com uma autoridade local. Para o navegador confiar nela, exporte o certificado raiz e adicione-o às autoridades confiáveis do seu sistema ou navegador.
 
 ```sh
-pnpm typecheck
-pnpm test
-pnpm build
+docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" \
+  cp caddy:/data/caddy/pki/authorities/local/root.crt ./feito-local-ca.crt
 ```
 
-Testes de integração e ponta a ponta precisam de banco próprio; veja [Testes](docs/03-operations.md#testes).
+### Atualizar ou parar
 
-**Nova migração.** Depois de alterar `src/server/db/schema.ts`, rode `pnpm db:generate` e reinicie o ambiente.
+Ao atualizar o código, execute novamente `up -d --build --wait` com o mesmo arquivo de configuração e a mesma opção de banco. Antes de atualizar, consulte as [instruções de backup e restauração](docs/03-operations.md#backup-e-restauração-isolada).
+
+Para parar a instalação preservando os volumes do Docker:
+
+```sh
+docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" down
+```
 
 ## Documentação
 
-- [Arquitetura e stack](docs/01-architecture-and-stack.md)
-- [Contrato da API](docs/02-backend-endpoints.md)
-- [Operação e detalhes](docs/03-operations.md): rodar sem Docker, interface, backup, rotação de chaves e medições
-- [Movimento e interação](docs/04-motion-and-interaction.md): padrão obrigatório de transições para tudo que aparece ou some
+- [Operação e manutenção](docs/03-operations.md)
+- [Arquitetura](docs/01-architecture-and-stack.md)
+- [API](docs/02-backend-endpoints.md)
+- [Movimento e interação](docs/04-motion-and-interaction.md)
+- [Marca](docs/05-brand.md)

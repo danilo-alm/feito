@@ -78,7 +78,7 @@ export function LoginForm() {
           <label htmlFor="password">Senha</label>
           <input id="password" className="input" type="password" autoComplete="current-password" required
             value={password} onChange={(event) => setPassword(event.target.value)} aria-describedby="password-hint" />
-          <span id="password-hint" className="hint">Frase-senha com 15 a 128 caracteres.</span>
+          <span id="password-hint" className="hint">Senha com 5 a 128 caracteres.</span>
         </div>
         <button type="submit" className="btn primary lg" style={{ justifyContent: "center", width: "100%" }}
           disabled={busy || !email.trim() || !password}>
@@ -103,7 +103,7 @@ export function ChangePasswordForm() {
   }, [router]);
 
   const length = [...next].length;
-  const tooShort = next.length > 0 && length < 15;
+  const tooShort = next.length > 0 && length < 5;
   const tooLong = length > 128;
   const mismatch = confirm.length > 0 && confirm !== next;
 
@@ -148,7 +148,7 @@ export function ChangePasswordForm() {
           <input id="new" className="input" type="password" autoComplete="new-password" aria-describedby="new-hint"
             aria-invalid={tooShort || tooLong} value={next} onChange={(event) => setNext(event.target.value)} />
           <span id="new-hint" className={tooShort || tooLong ? "field-error" : "hint"}>
-            {tooLong ? "Use no máximo 128 caracteres." : `Frase-senha com 15 a 128 caracteres${next ? ` · ${length}` : ""}.`}
+            {tooLong ? "Use no máximo 128 caracteres." : `Senha com 5 a 128 caracteres${next ? ` · ${length}` : ""}.`}
           </span>
         </div>
         <div className="field">
@@ -158,7 +158,7 @@ export function ChangePasswordForm() {
           {mismatch && <span id="confirm-error" className="field-error">As senhas não conferem.</span>}
         </div>
         <button type="submit" className="btn primary lg" style={{ justifyContent: "center", width: "100%" }}
-          disabled={busy || !current || length < 15 || tooLong || confirm !== next}>
+          disabled={busy || !current || length < 5 || tooLong || confirm !== next}>
           {busy ? "Salvando…" : "Salvar nova senha"}
         </button>
       </form>

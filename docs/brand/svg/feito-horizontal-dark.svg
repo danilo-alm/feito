@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 166 48" width="166" height="48" role="img" aria-label="Feito">
+  <g fill="none" stroke="#8CD1AB" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" transform="scale(1.5)">
+    <path d="M4.5 19 L10.5 26.5 L17.5 5.5 H27.5"/>
+    <path d="M14.2 15.5 H23"/>
+  </g>
+  <!-- Nome em Inter Tight SemiBold. Converta em contornos antes de usar fora do navegador. -->
+  <text x="58" y="37.4" fill="#EDE9E2" font-family="'Inter Tight', Inter, system-ui, sans-serif" font-weight="600" font-size="36.5" letter-spacing="-0.73">Feito</text>
+</svg>

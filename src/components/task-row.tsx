@@ -80,12 +80,13 @@ const ARRANGE_ICONS = { up: <IconArrowUp />, down: <IconArrowDown />, nest: <Ico
 export type InsertSide = "above" | "below";
 
 /** Menu "⋯" da tarefa: inserir perto, editar, datas e prioridades rápidas, organizar, mover, duplicar, excluir. */
-export function taskMenu({ task, actions, reference, edit, pickDate, insert, arrange = [], onArrange }: {
+export function taskMenu({ task, actions, reference, edit, datePicker, insert, arrange = [], onArrange }: {
   task: TaskItem;
   actions: TaskActions;
   reference: string;
   edit: () => void;
-  pickDate: () => void;
+  /** Calendário aberto por cima do menu em "Escolher data…"; `close` fecha o calendário e o menu. */
+  datePicker: (close: () => void) => ReactNode;
   insert?: (side: InsertSide) => void;
   arrange?: ArrangeItem[];
   onArrange?: (action: ArrangeItem["action"]) => void;
@@ -119,7 +120,7 @@ export function taskMenu({ task, actions, reference, edit, pickDate, insert, arr
           })),
           ...(task.dueDate && !task.recurrence
             ? [{ label: "Sem data", icon: <IconBan />, onSelect: () => void actions.reschedule(task, null) }] : []),
-          { label: "Escolher data…", icon: <IconMore />, onSelect: pickDate },
+          { label: "Escolher data…", icon: <IconMore />, popover: datePicker },
         ],
       },
       {
@@ -213,7 +214,11 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
           )}
           <MenuButton label={`Ações de “${task.title}”`} title={task.title}
             items={() => taskMenu({
-              task, actions, reference: app.reference, edit, pickDate: () => setDateOpen(true), insert, arrange, onArrange,
+              task, actions, reference: app.reference, edit, insert, arrange, onArrange,
+              datePicker: (close) => (
+                <DatePicker value={task.dueDate} reference={app.reference} onClose={close}
+                  allowClear={!task.recurrence} onPick={(date) => void actions.reschedule(task, date)} />
+              ),
             })}>
             <IconMore />
           </MenuButton>

@@ -1,10 +1,12 @@
-# Produção: build otimizada (Next.js standalone) atrás do Caddy com TLS.
+# Produção com PostgreSQL interno: Next.js standalone atrás do Caddy com TLS.
 #
 #   docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --build --wait
 #
 # FEITO_ORIGIN define o site do Caddy: um domínio público (https://feito.example.org)
 # obtém certificado via ACME nas portas 80/443; localhost ou IP usa a CA interna.
 # O Next.js e o PostgreSQL não publicam portas no host.
+# O serviço postgres exige as senhas. Os defaults vazios permitem que o Compose
+# externo reutilize os outros serviços e substitua suas URLs sem avisos.
 name: feito
 
 x-runtime-env: &runtime-env
@@ -33,7 +35,7 @@ services:
     <<: *tools-image
     command: ["pnpm", "db:migrate"]
     environment:
-      MIGRATION_DATABASE_URL: postgresql://feito_migrator:${POSTGRES_MIGRATOR_PASSWORD}@postgres:5432/feito
+      MIGRATION_DATABASE_URL: postgresql://feito_migrator:${POSTGRES_MIGRATOR_PASSWORD:-}@postgres:5432/feito
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,8 +51,8 @@ services:
       IMPORT_PREVIEW_SECRET: ${IMPORT_PREVIEW_SECRET:?Defina IMPORT_PREVIEW_SECRET}
       IMPORT_MAX_BYTES: ${IMPORT_MAX_BYTES:-}
       AUTH_CLIENT_IP_HEADER: x-real-ip
-      DOMAIN_DATABASE_URL: postgresql://feito_app:${POSTGRES_APP_PASSWORD}@postgres:5432/feito
-      AUTH_DATABASE_URL: postgresql://feito_auth:${POSTGRES_AUTH_PASSWORD}@postgres:5432/feito
+      DOMAIN_DATABASE_URL: postgresql://feito_app:${POSTGRES_APP_PASSWORD:-}@postgres:5432/feito
+      AUTH_DATABASE_URL: postgresql://feito_auth:${POSTGRES_AUTH_PASSWORD:-}@postgres:5432/feito
     read_only: true
     tmpfs:
       - /app/.next/cache:uid=1000,gid=1000
@@ -86,7 +88,7 @@ services:
     command: ["pnpm", "admin", "--help"]
     environment:
       <<: *runtime-env
-      IDENTITY_ADMIN_DATABASE_URL: postgresql://feito_identity_admin:${POSTGRES_IDENTITY_ADMIN_PASSWORD}@postgres:5432/feito
+      IDENTITY_ADMIN_DATABASE_URL: postgresql://feito_identity_admin:${POSTGRES_IDENTITY_ADMIN_PASSWORD:-}@postgres:5432/feito
       KEY_MAINTENANCE_DATABASE_URL: ${KEY_MAINTENANCE_DATABASE_URL:-}
     depends_on:
       postgres:

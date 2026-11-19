@@ -184,7 +184,7 @@ describe("Phase 1 HTTP contract", () => {
     expect(rows).toHaveLength(1);
 
     await expectError(await patch(cookie, { theme: "dark" }), 403, "PASSWORD_CHANGE_REQUIRED");
-    await expectError(await passwordChange(cookie, identity.password, "short"), 422, "WEAK_PASSWORD");
+    await expectError(await passwordChange(cookie, identity.password, "abcd"), 422, "WEAK_PASSWORD");
     await expectError(await passwordChange(cookie, identity.password, identity.password), 422, "VALIDATION_FAILED");
     const next = randomPassword();
     await expectError(await passwordChange(cookie, randomPassword(), next), 401, "INVALID_CREDENTIALS");

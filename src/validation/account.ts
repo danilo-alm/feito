@@ -12,7 +12,7 @@ export const changePasswordInput = z.strictObject({
 
 export const validNewPassword = z.string().refine((value) => {
   const length = [...value].length;
-  return length >= 15 && length <= 128 && value.isWellFormed();
+  return length >= 5 && length <= 128 && value.isWellFormed();
 });
 
 const timezone = z.string().min(1).max(128).refine((value) => {

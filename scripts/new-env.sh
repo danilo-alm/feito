@@ -45,7 +45,7 @@ POSTGRES_MIGRATOR_PASSWORD=$migrator
 POSTGRES_APP_PASSWORD=$app
 POSTGRES_AUTH_PASSWORD=$auth
 POSTGRES_IDENTITY_ADMIN_PASSWORD=$identity_admin
-# Usadas só ao rodar sem Docker (o Compose monta as próprias URLs).
+# Usadas sem Docker ou com compose.prod.external.yaml (ajuste para o banco externo).
 DOMAIN_DATABASE_URL=postgresql://feito_app:$app@127.0.0.1:$db_port/feito
 AUTH_DATABASE_URL=postgresql://feito_auth:$auth@127.0.0.1:$db_port/feito
 MIGRATION_DATABASE_URL=postgresql://feito_migrator:$migrator@127.0.0.1:$db_port/feito

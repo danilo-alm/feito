@@ -63,7 +63,7 @@ Contrato HTTP proposto em 17 de novembro de 2026 para o MVP descrito em [Arquite
 | 422 | `INVALID_ANCHOR` | `beforeId` ou `afterId` fora do grupo de destino. |
 | 422 | `RECURRENCE_NOT_ALLOWED` | Recorrência em subtarefa ou em tarefa com filhos. |
 | 422 | `INBOX_PROTECTED` | Renomear, arquivar ou excluir a Caixa de entrada, ou criar seção nela. |
-| 422 | `WEAK_PASSWORD` | Senha fora da política de 15 a 128 caracteres. |
+| 422 | `WEAK_PASSWORD` | Senha fora da política de 5 a 128 caracteres. |
 | 422 | `IMPORT_INVALID` | Arquivo com erros de validação. `details.errors` lista os caminhos. |
 | 429 | `RATE_LIMITED` | Excesso de tentativas ou de logins simultâneos. Enviar `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Falha inesperada. Mensagem genérica, sem detalhes internos. |
@@ -401,6 +401,58 @@ type ImportPreview = {
 - Importar em uma transação: remapear IDs, reutilizar a Caixa de entrada provisionada, cifrar com a DEK do destino e gravar o recibo da operação. Qualquer falha mantém a conta como estava.
 - Prévia e confirmação têm limite padrão de 32 MiB, configurável até 64 MiB com `IMPORT_MAX_BYTES` em bytes. Um documento estruturalmente inválido retorna erros por caminho na prévia, sem token. `counts.projects` inclui a Caixa de entrada.
 - Não gravar o arquivo em disco nem em logs.
+
+#### Importação de outros apps
+
+Diferente da restauração, é **aditiva**: cria projetos novos em qualquer conta ou, com `projectId`, acrescenta tarefas e seções ao fim de um projeto existente, sem alterar os dados existentes. Na interface, fica em Ajustes → Importar e em “Importar…” nos menus do projeto (cabeçalho e barra lateral). As fontes ficam em [`src/domain/import-sources.ts`](../src/domain/import-sources.ts) (metadados para a interface) e [`src/server/importers`](../src/server/importers) (um parser por fonte que produz um plano neutro de projetos, seções, tarefas, subtarefas e etiquetas). Hoje a única fonte é `todoist`.
+
+| Método e rota | Entrada | Resposta |
+| --- | --- | --- |
+| `POST /api/v1/import/sources/{source}/preview` | Corpo `application/json` `{ files: [{ name, content }], projectId? }`, de 1 a 100 arquivos. `X-Operation-Id` opcional. | `200 SourceImportPreview`. Fonte ou projeto desconhecido: `404`. Projeto arquivado: `409 PROJECT_ARCHIVED`. |
+| `POST /api/v1/import/sources/{source}/confirm` | Os mesmos bytes, com `X-Preview-Token` e `X-Operation-Id`. | `200 { operationId, summary, projectIds }`. Repetir a operação devolve o mesmo `summary`, sem `projectIds`. |
+
+```ts
+type SourceImportPreview = {
+  source: string;
+  target: { id: string; name: string } | null;   // projeto de destino, quando há projectId
+  counts: ImportCounts | null;   // labels conta só as etiquetas novas
+  projects: { name: string; layout: "list" | "board"; sections: number; tasks: number;
+    subtasks: number; dated: number; recurring: number }[];
+  warnings: string[];            // o que foi adaptado ou ignorado, já agregado
+  errors: { path: string; message: string }[];
+  referenceDate: string;
+  previewToken: string | null; expiresAt: string | null;
+};
+```
+
+- Token, recibo e `GET /import/operations/{operationId}` funcionam como na restauração; o token também é vinculado à fonte.
+- Etiquetas são reaproveitadas pelo nome normalizado; as que faltam são criadas.
+- Com `projectId`, todos os arquivos vão para esse projeto: tarefas soltas depois das raízes existentes e seções depois das existentes. `counts.projects` é `0` e o layout do arquivo é ignorado. Na Caixa de entrada, as seções são desfeitas, com aviso.
+
+**Todoist.** Cada CSV de projeto (Projeto → Importar e exportar → Exportar como CSV) vira um projeto com o nome do arquivo. O formato oficial está na [central de ajuda do Todoist](https://www.todoist.com/help/articles/import-or-export-a-project-as-a-CSV-file-in-todoist-YC8YvN); exemplos reais em [`tests/fixtures/todoist`](../tests/fixtures/todoist).
+
+| CSV do Todoist | No Feito |
+| --- | --- |
+| `TYPE=section` | Seção; as tarefas seguintes ficam nela. |
+| `TYPE=task`, `INDENT` | Tarefa raiz (`1`) ou subtarefa (`2`). Níveis `3+` sobem para subtarefa da raiz. |
+| `@etiqueta` no `CONTENT` | Etiqueta, removida do título. |
+| `PRIORITY` | Igual: `1` é a mais alta; vazio vira `4`. |
+| `DATE`, `DATE_LANG` | Texto em linguagem natural, em inglês ou português: `today`, `tomorrow`, `in 3 days`, `nov 20`, `20 de novembro 2027 14:30`, `monday`. Sem ano, vale o ano corrente. Datas relativas contam a partir do dia da importação. |
+| `every day/week/month`, `every monday`, `every 20th`, `toda segunda` | Recorrência diária, semanal ou mensal. Em subtarefas ou tarefas com filhos, só a próxima data. |
+| `TYPE=note` | Anexada à descrição da tarefa acima, em “Comentários do Todoist”. |
+| Datas não reconhecidas (`every 2 weeks`, `every workday`), `DEADLINE` | Texto original copiado para a descrição. |
+| `meta view_style=board` | Projeto em Painel. |
+| `RESPONSIBLE`, `DURATION`, `REMINDER_*`, `AUTHOR`, `ICON`, `IS_COLLAPSED`, `TIMEZONE` | Ignorados (os três primeiros geram aviso). |
+
+#### Exportação de um projeto em outros modelos
+
+| Método e rota | Entrada | Resposta |
+| --- | --- | --- |
+| `GET /api/v1/projects/{id}/export?format=todoist` | `format` obrigatório; opções do modelo como `?<opção>=true\|false`. Parâmetro desconhecido ou repetido: `422 VALIDATION_FAILED`. | `200` com o arquivo e `Content-Disposition: attachment` (nome do projeto, com `filename*` em UTF-8). |
+
+Os modelos ficam em [`src/domain/export-formats.ts`](../src/domain/export-formats.ts) (nome, descrição e opções para a interface) e [`src/server/exporters`](../src/server/exporters) (um gerador por modelo). Na interface, “Exportar…” nos menus do projeto pergunta o modelo; hoje só existe `todoist`.
+
+**Todoist** (`text/csv`, UTF-8 com BOM): o mesmo cabeçalho de 20 colunas da exportação oficial, com `meta view_style`, seções, tarefas (`INDENT` 1) e subtarefas (`INDENT` 2) na ordem manual. Como no Todoist, tarefas concluídas ficam de fora. Datas em inglês (`Nov 20 2026 at 09:30`, `DATE_LANG=en`); recorrências como `every day`, `every monday at 07:00` e `every 30th`. Etiquetas viram `@nome` no conteúdo, com espaços trocados por `_`. A opção `relativeDates=true` escreve `today`, `tomorrow` e `in N days` para datas de hoje em diante. O arquivo é aceito pela importação do Todoist e pela do Feito.
 
 ## 4. Comandos administrativos
 

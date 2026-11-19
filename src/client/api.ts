@@ -2,7 +2,8 @@
 import type {
   CompleteResponse, CreateTask, EditTask, Frequency, ImportPreview, ImportResult, Label, LabelTasks, Layout,
   Me, MoveResponse, MoveTarget, Navigation, Preferences, ProjectPage, ProjectSummary, ProjectView, ReopenResponse,
-  SearchInput, SearchResult, Section, Session, SortMode, TaskDetail, TodayView, UpcomingView,
+  SearchInput, SearchResult, Section, Session, SortMode, SourceImportPreview, SourceImportResult, TaskDetail,
+  TodayView, UpcomingView,
 } from "./types";
 
 export class ApiFailure extends Error {
@@ -158,6 +159,10 @@ export const api = {
 
   portability: {
     exportUrl: () => `${config.base}/export`,
+    /** Download de um projeto num modelo de `exportFormats`. */
+    projectExportUrl: (projectId: string, format: string, options: Record<string, boolean>) =>
+      `${config.base}/projects/${enc(projectId)}/export?${new URLSearchParams({ format, ...Object.fromEntries(
+        Object.entries(options).map(([name, value]) => [name, String(value)])) })}`,
     preview: async (file: Blob, operationId: string) => {
       const response = await send("POST", "/import/preview", {
         body: file, headers: { "Content-Type": "application/json", "X-Operation-Id": operationId },
@@ -173,6 +178,24 @@ export const api = {
     },
     operation: (operationId: string) =>
       request<ImportResult & { status: "completed" }>("GET", `/import/operations/${enc(operationId)}`),
+    /** Corpo das importações de outros apps. Reenvie o mesmo Blob na confirmação. */
+    sourceBody: async (files: File[], projectId?: string) => new Blob([JSON.stringify({
+      files: await Promise.all(files.map(async (file) => ({ name: file.name, content: await file.text() }))),
+      ...(projectId && { projectId }),
+    })], { type: "application/json" }),
+    sourcePreview: async (source: string, body: Blob, operationId: string) => {
+      const response = await send("POST", `/import/sources/${enc(source)}/preview`, {
+        body, headers: { "Content-Type": "application/json", "X-Operation-Id": operationId },
+      });
+      return await response.json() as SourceImportPreview;
+    },
+    sourceConfirm: async (source: string, body: Blob, previewToken: string, operationId: string) => {
+      const response = await send("POST", `/import/sources/${enc(source)}/confirm`, {
+        body,
+        headers: { "Content-Type": "application/json", "X-Preview-Token": previewToken, "X-Operation-Id": operationId },
+      });
+      return await response.json() as SourceImportResult;
+    },
   },
 };
 
