@@ -1,4 +1,5 @@
 import "server-only";
+import { walkTaskTree } from "@/domain/task-tree";
 import type { RecurrenceRule } from "@/validation/product";
 
 type Frequency = RecurrenceRule["frequency"];
@@ -60,10 +61,9 @@ export class WarningCollector {
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-export function walkTasks(tasks: PlannedTask[], visit: (task: PlannedTask, depth: number) => void, depth = 0) {
-  for (const task of tasks) {
+export function walkTasks(tasks: PlannedTask[], visit: (task: PlannedTask, depth: number) => void) {
+  for (const { task, depth } of walkTaskTree(tasks, (task) => task.children)) {
     visit(task, depth);
-    walkTasks(task.children, visit, depth + 1);
   }
 }
 

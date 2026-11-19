@@ -1,11 +1,11 @@
 "use client";
 import { useState } from "react";
 import { api } from "@/client/api";
-import { addDays, dateLabel, dayParts, monthTitle, rangeLabel, shortDate } from "@/client/dates";
+import { addDays, dateLabel, dayParts, rangeLabel, shortDate } from "@/client/dates";
 import { useQuery } from "@/client/store";
 import type { UpcomingView } from "@/client/types";
 import { useApp } from "@/components/app";
-import { PageHeader } from "@/components/chrome";
+import { PageHeader, PageTaskCount } from "@/components/chrome";
 import { FlatGroup } from "@/components/flat-list";
 import { CreateSlot, useStartCreate } from "@/components/task-editor";
 import { IconChevronLeft, IconChevronRight, IconPlus } from "@/components/icons";
@@ -35,7 +35,7 @@ export default function UpcomingPage() {
       <PageHeader crumb="Próximos sete dias" tools={nav} />
       <div className="content">
         <div className="col">
-          <div className="page-h"><h1 className="title">Em breve</h1><span className="sub">{monthTitle(first)}</span></div>
+          <div className="page-h"><h1 className="title">Em breve</h1>{data && <PageTaskCount count={data.days.reduce((sum, day) => sum + day.tasks.length, 0)} />}</div>
           <div className="week" role="list" aria-label="Dias da semana">
             {Array.from({ length: 7 }, (_, index) => addDays(first, index)).map((date) => {
               const { weekday, day } = dayParts(date);

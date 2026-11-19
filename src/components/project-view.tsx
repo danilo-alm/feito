@@ -4,24 +4,28 @@ import {
   useSensors, type CollisionDetection, type DragMoveEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { api, ApiFailure, errorMessage } from "@/client/api";
 import { editKey, insertKey, useEditorOpen } from "@/client/editor-store";
-import { invalidate, useQuery } from "@/client/store";
+import { getQueryData, invalidate, setQueryData, useQuery } from "@/client/store";
 import {
-  applyStep, keyboardPlan, menuActions, resolveDrop, sectionName, type DropOver, type KeyAction, type Plan, type Zone,
+  applyStep, keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, sectionName, taskMap,
+  type DropOver, type KeyAction, type Plan, type Zone,
 } from "@/client/tree";
-import type { MoveTarget, ProjectPage, TaskItem } from "@/client/types";
+import type { MoveTarget, NamedDetails, ProjectPage, Section, TaskItem } from "@/client/types";
+import { taskAncestors } from "@/domain/task-tree";
 import { useApp } from "./app";
-import { PageHeader } from "./chrome";
+import { PageHeader, PageTaskCount } from "./chrome";
 import { Collapse, flipFrom } from "./motion";
-import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconMore, IconPlus, IconDownload, IconSub, IconTrash, IconUpload } from "./icons";
+import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconMore, IconPlus, IconDownload, IconSub, IconTrash, IconUpload } from "./icons";
 import { useExportDialog } from "./export-dialog";
 import { useImportDialog } from "./import-panel";
+import { NamedDetailsForm, useProjectDetailsDialog } from "./named-details";
 import { useTaskActions } from "./task-actions";
 import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
 import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
-import { MenuButton, Spinner, useIsMobile, useToast, type MenuItem } from "./ui";
+import { Dialog, MenuButton, Spinner, useAutoGrow, useIsMobile, useToast, type MenuItem } from "./ui";
+import { ShareMenu, useProjectShare } from "./share-menu";
 import { LAYOUT_LABEL, SORT_LABEL, ViewMenu } from "./view-menu";
 
 const GROUP = (sectionId: string | null) => `group:${sectionId ?? "none"}`;
@@ -69,10 +73,12 @@ const collision: CollisionDetection = (args) => {
   return hits.length ? hits : rectIntersection(args);
 };
 
-type DragState = { activeId: string; over: DropOver | null; plan: Plan | null };
+type DragState = { activeId: string; byMouse: boolean; over: DropOver | null; plan: Plan | null };
 
 export function ProjectView({ projectId }: { projectId: string }) {
   const app = useApp();
+  const projectDetails = useProjectDetailsDialog();
+  const [sectionToEdit, setSectionToEdit] = useState<Section | null>(null);
   const toast = useToast();
   const router = useRouter();
   const mobile = useIsMobile();
@@ -92,11 +98,16 @@ export function ProjectView({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     const id = focusAfter.current;
-    if (!id) return;
-    const node = document.querySelector<HTMLElement>(`[data-task-id="${id}"] .t-click`);
-    if (node) {
-      node.focus();
+    if (!id || !page) return;
+    const tasks = taskMap(page);
+    const moved = tasks.get(id);
+    if (!moved) return;
+    for (const task of [moved, ...taskAncestors(moved, tasks)]) {
+      const target = document.querySelector<HTMLElement>(`[data-task-id="${task.id}"] .t-click`);
+      if (!target) continue;
+      target.focus();
       focusAfter.current = null;
+      break;
     }
   }, [page]);
 
@@ -176,14 +187,14 @@ export function ProjectView({ projectId }: { projectId: string }) {
   const board = view.layout === "board" && !project.isInbox;
   const manual = view.sortMode === "manual";
   const canDrag = manual || board;
-  const tasks = new Map(page.tasks.map((task) => [task.id, task]));
+  const tasks = taskMap(page);
   const activeTasks = page.tasks.filter((task) => task.status === "active").length;
   const archived = project.status === "archived";
   const dragActive = drag ? tasks.get(drag.activeId) : undefined;
 
   const onDragStart = (event: DragStartEvent) => {
     listenPointer(true);
-    setDrag({ activeId: String(event.active.id), over: null, plan: null });
+    setDrag({ activeId: String(event.active.id), byMouse: event.activatorEvent.type === "mousedown", over: null, plan: null });
   };
   const onDragMove = (event: DragMoveEvent) => {
     const overId = event.over ? String(event.over.id) : null;
@@ -206,9 +217,8 @@ export function ProjectView({ projectId }: { projectId: string }) {
       return { ...current, over, plan };
     });
   };
-  // A prévia some ao soltar; o item real desliza de onde ela estava até o lugar final (motion.tsx).
   const settleFromOverlay = () => {
-    if (drag) flipFrom(drag.activeId, document.querySelector(".drag-overlay")?.getBoundingClientRect());
+    if (drag) flipFrom(drag.activeId, document.querySelector<HTMLElement>(".drag-overlay"));
   };
   const onDragEnd = () => {
     listenPointer(false);
@@ -241,10 +251,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
     const move = (anchor: { afterSectionId?: string; beforeSectionId?: string }) =>
       app.run(() => api.sections.move(section.id, section.revision, anchor), { success: "Seção reordenada" });
     return [
-      { label: "Renomear", icon: <IconEdit />, onSelect: async () => {
-        const name = await app.prompt({ title: "Renomear seção", label: "Nome da seção", initial: section.name, confirmLabel: "Salvar" });
-        if (name && name !== section.name) await app.run(() => api.sections.rename(section.id, section.revision, name), { success: "Seção renomeada" });
-      } },
+      { label: "Editar seção", icon: <IconEdit />, onSelect: () => setSectionToEdit(section) },
       { label: board ? "Mover para a esquerda" : "Mover para cima", icon: <IconArrowUp />, disabled: index === 0,
         onSelect: () => void move({ beforeSectionId: page.sections[index - 1]?.id }) },
       { label: board ? "Mover para a direita" : "Mover para baixo", icon: <IconArrowDown />, disabled: index === page.sections.length - 1,
@@ -264,10 +271,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
   };
 
   const projectMenu = (): MenuItem[] => [
-    { label: "Renomear projeto", icon: <IconEdit />, onSelect: async () => {
-      const name = await app.prompt({ title: "Renomear projeto", label: "Nome do projeto", initial: project.name, confirmLabel: "Salvar" });
-      if (name && name !== project.name) await app.run(() => api.projects.rename(project.id, project.revision, name), { success: "Projeto renomeado" });
-    } },
+    ...(archived ? [] : [{ label: "Editar projeto", icon: <IconEdit />, onSelect: () => projectDetails.edit(project) }]),
     ...(archived ? [] : [{ label: "Importar…", icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) }]),
     { label: "Exportar…", icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) },
     archived
@@ -300,17 +304,18 @@ export function ProjectView({ projectId }: { projectId: string }) {
     } },
   ];
 
-  const renderTask = (task: TaskItem, variant: "row" | "card") => (
+  const renderTask = (task: TaskItem, variant: "row" | "card", depth: number) => (
     <DraggableTask
       key={task.id}
       task={task}
       variant={variant}
-      disabled={!canDrag || archived || task.status !== "active" || (!manual && (!board || !!task.parentId))}
+      depth={depth}
+      disabled={!canDrag || archived || task.status !== "active"}
       dragging={drag?.activeId === task.id}
       indicator={indicator}
       draggedTitle={dragActive?.title}
       actions={actions}
-      arrange={archived ? [] : menuActions(page, task.id)}
+      arrange={archived ? [] : menuActions(page, task.id, tasks)}
       onArrange={(action) => arrange(task.id, action)}
       onKeyArrange={onKeyArrange(task)}
       insert={manual && !archived ? (side) => startCreate(insertKey(side, task.id), insertDefaults(task, side)) : undefined}
@@ -321,6 +326,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
   const crumb = project.isInbox ? "Captura e triagem" : <>Meus projetos <span aria-hidden="true">/</span></>;
   const tools = (
     <>
+      {!project.isInbox && <ShareMenu projectId={project.id} archived={archived} />}
       {!archived && <ViewMenu page={page} onChange={(patch) => void changeView(patch)} />}
       {!project.isInbox && (
         <MenuButton label="Ações do projeto" title={project.name} items={projectMenu}><IconMore /></MenuButton>
@@ -333,14 +339,26 @@ export function ProjectView({ projectId }: { projectId: string }) {
       <PageHeader crumb={crumb} tools={tools} mobileTitle={project.name} back={project.isInbox ? undefined : "/navegar"} />
       {importDialog}
       {exportDialog}
+      {projectDetails.dialog}
+      <Dialog open={sectionToEdit !== null} onClose={() => setSectionToEdit(null)} title="Editar seção">
+        {sectionToEdit && <div className="dialog-b">
+          <NamedDetailsForm key={sectionToEdit.id} kind="seção" initial={sectionToEdit} inDialog submitLabel="Salvar"
+            onCancel={() => setSectionToEdit(null)} onSave={async (details) => {
+              if (details.name === sectionToEdit.name && details.description === sectionToEdit.description
+                || await app.run(() => api.sections.edit(sectionToEdit.id, sectionToEdit.revision, details), { success: "Seção atualizada" })) {
+                setSectionToEdit(null);
+              }
+            }} />
+        </div>}
+      </Dialog>
       <div style={{ padding: "4px 32px 0" }} className="project-head">
         <div className={board ? "" : "col"}>
           <div className="page-h">
-            <h1 className="title">{project.name}</h1>
-            <span className="sub">
-              {activeTasks} {activeTasks === 1 ? "tarefa" : "tarefas"}
-              {!project.isInbox && ` · ${LAYOUT_LABEL[board ? "board" : "list"]}`} · {SORT_LABEL[view.sortMode]}
-            </span>
+            <ProjectHeading key={project.id} project={project} />
+            <div className="page-meta">
+              <PageTaskCount count={activeTasks} />
+              {!project.isInbox && <PublicBadge projectId={project.id} />}
+            </div>
           </div>
           <Collapse open={archived} appear={false}>
             <div className="banner warn">
@@ -374,7 +392,8 @@ export function ProjectView({ projectId }: { projectId: string }) {
             sectionMenu={sectionMenu} archived={archived} />}
         <DragOverlay dropAnimation={null}>
           {dragActive && (
-            <div className="drag-overlay" style={{ width: board ? 280 : undefined }}>
+            <div className="drag-overlay" data-nesting={drag?.byMouse && indicator?.type === "nest" ? true : undefined}
+              style={{ width: board ? 280 : undefined }}>
               <TaskRow task={dragActive} actions={actions} variant={board ? "card" : "row"} noMenu extraClass="is-dragging" style={{ paddingLeft: 10 }} />
             </div>
           )}
@@ -383,6 +402,13 @@ export function ProjectView({ projectId }: { projectId: string }) {
       {actions.moveDialog}
     </>
   );
+}
+
+/** Selo "Público" ao lado da contagem enquanto o link de compartilhamento está ativo. */
+function PublicBadge({ projectId }: { projectId: string }) {
+  const share = useProjectShare(projectId);
+  if (!share.data?.enabled) return null;
+  return <span className="pub-badge"><IconGlobe />Público</span>;
 }
 
 /** Onde a tarefa criada por "Adicionar tarefa acima/abaixo" entra: mesmo grupo, ao lado da tarefa. */
@@ -394,15 +420,16 @@ function insertDefaults(task: TaskItem, side: InsertSide) {
 }
 
 /** Editor de "Adicionar tarefa abaixo"; numa tarefa com subtarefas na lista, aparece depois delas. */
-function BelowSlot({ task }: { task: TaskItem }) {
-  return <CreateSlot slot={insertKey("below", task.id)} defaults={insertDefaults(task, "below")} />;
+function BelowSlot({ task, depth }: { task: TaskItem; depth: number }) {
+  return <CreateSlot slot={insertKey("below", task.id)} defaults={insertDefaults(task, "below")} depth={depth} />;
 }
 
 function DraggableTask({
-  task, variant, disabled, dragging, indicator, draggedTitle, actions, arrange, onArrange, onKeyArrange, insert, grip,
+  task, variant, depth, disabled, dragging, indicator, draggedTitle, actions, arrange, onArrange, onKeyArrange, insert, grip,
 }: {
   task: TaskItem;
   variant: "row" | "card";
+  depth: number;
   disabled: boolean;
   dragging: boolean;
   indicator: Plan["indicator"] | undefined;
@@ -425,20 +452,22 @@ function DraggableTask({
   const nest = indicator?.type === "nest" && indicator.id === task.id;
   const bad = indicator?.type === "invalid" && indicator.id === task.id;
   const line = indicator?.type === "line" && indicator.id === task.id ? indicator : null;
-  const preview = indicator?.type === "nest" && indicator.previewAfterId === task.id;
+  const preview = indicator?.type === "nest" && indicator.depth <= maxOverviewDepth && indicator.previewAfterId === task.id ? indicator : null;
   const classes = [dragging ? "drag-src" : "", nest ? "nest-target" : "", bad ? "invalid" : ""].filter(Boolean).join(" ");
   const tag = nest ? <span className="nest-tag"><IconSub />Tornar subtarefa</span>
     : bad ? <span className="bad-tag"><IconBan />{indicator.message}</span> : null;
-  const insStyle = variant === "card" ? { margin: "-5px 2px 7px" } : { marginLeft: line?.indent ? 34 : 0 };
+  const insStyle = { "--task-depth": line?.depth } as CSSProperties;
   return (
     <Fragment>
-      <CreateSlot slot={insertKey("above", task.id)} defaults={insertDefaults(task, "above")} />
-      {line?.side === "before" && <div className="ins" style={insStyle} aria-hidden="true" />}
+      <CreateSlot slot={insertKey("above", task.id)} defaults={insertDefaults(task, "above")} depth={depth} />
+      {line?.side === "before" && <div className="ins task-tree-inset" style={insStyle} aria-hidden="true" />}
       <TaskRow
         ref={setRef}
         task={task}
         actions={actions}
         variant={variant}
+        depth={depth}
+        showMoreSubtasks={depth === maxOverviewDepth && task.childIds.length > 0}
         tag={variant === "row" ? tag : undefined}
         extraClass={classes}
         arrange={arrange}
@@ -458,12 +487,11 @@ function DraggableTask({
       />
       {variant === "card" && tag && <div style={{ margin: "-4px 0 8px" }}>{tag}</div>}
       {preview && draggedTitle && (
-        <div className="nest-preview" style={{ margin: variant === "card" ? "-2px 0 8px 22px" : "4px 0 4px 34px" }} aria-hidden="true">
+        <div className="nest-preview task-tree-inset" style={{ "--task-depth": preview.depth } as CSSProperties} aria-hidden="true">
           <span className="ring p4" />{draggedTitle}
         </div>
       )}
-      {line?.side === "after" && <div className="ins" style={insStyle} aria-hidden="true" />}
-      {!(variant === "row" && task.childIds.length) && <BelowSlot task={task} />}
+      {line?.side === "after" && <div className="ins task-tree-inset" style={insStyle} aria-hidden="true" />}
     </Fragment>
   );
 }
@@ -479,7 +507,7 @@ function GroupDrop({ sectionId, className, children, label, as = "section", id }
 type LayoutProps = {
   page: ProjectPage;
   tasks: Map<string, TaskItem>;
-  renderTask: (task: TaskItem, variant: "row" | "card") => ReactNode;
+  renderTask: (task: TaskItem, variant: "row" | "card", depth: number) => ReactNode;
   indicator: Plan["indicator"] | undefined;
   dragging: boolean;
   sectionMenu: (sectionId: string) => MenuItem[];
@@ -492,20 +520,134 @@ function rowsOf(page: ProjectPage, tasks: Map<string, TaskItem>, sectionId: stri
   return { active: roots.filter((task) => task.status === "active"), done: roots.filter((task) => task.status === "completed") };
 }
 
+function renderTaskBlock(
+  task: TaskItem, variant: "row" | "card", tasks: LayoutProps["tasks"], renderTask: LayoutProps["renderTask"], depth = 0,
+): ReactNode[] {
+  return [
+    renderTask(task, variant, depth),
+    ...(depth < maxOverviewDepth ? task.childIds.flatMap((id) => {
+      const child = tasks.get(id);
+      return child ? renderTaskBlock(child, variant, tasks, renderTask, depth + 1) : [];
+    }) : []),
+    <BelowSlot key={`below:${task.id}`} task={task} depth={depth} />,
+  ];
+}
+
+type ProjectHeadingField = keyof NamedDetails;
+
+function ProjectHeading({ project }: { project: ProjectPage["project"] }) {
+  const app = useApp();
+  const [editing, setEditing] = useState<{ field: ProjectHeadingField; initial: string; value: string } | null>(null);
+  const descriptionInput = useAutoGrow(editing?.field === "description" ? editing.value : "");
+  const [pending, setPending] = useState<Partial<Record<ProjectHeadingField, { value: string }>>>({});
+  const queue = useRef(Promise.resolve(project.revision));
+  const titleButton = useRef<HTMLButtonElement>(null);
+  const descriptionButton = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef<ProjectHeadingField | null>(null);
+  useEffect(() => {
+    if (editing || !returnFocus.current) return;
+    (returnFocus.current === "name" ? titleButton : descriptionButton).current?.focus();
+    returnFocus.current = null;
+  }, [editing]);
+
+  if (project.isInbox || project.status === "archived") {
+    return <>
+      <h1 className="title">{project.name}</h1>
+      {!project.isInbox && project.description && <p className="project-description">{project.description}</p>}
+    </>;
+  }
+
+  const displayValue = (field: ProjectHeadingField) => pending[field]?.value ?? project[field];
+  const openEditor = (field: ProjectHeadingField) => {
+    const value = displayValue(field);
+    setEditing({ field, initial: value, value });
+  };
+  const commit = () => {
+    if (!editing) return;
+    setEditing(null);
+    const { field, initial } = editing;
+    const value = field === "name" ? editing.value.trim() : editing.value;
+    if (value === initial || (field === "name" && !value)) return;
+
+    const change = { value };
+    setPending((current) => ({ ...current, [field]: change }));
+    const key = `project:${project.id}`;
+    // Usar a revisão mais recente se o outro campo acabou de ser salvo.
+    queue.current = queue.current.then(async (lastRevision) => {
+      const revision = Math.max(lastRevision, getQueryData<ProjectPage>(key)?.project.revision ?? project.revision);
+      const saved = await app.run(async () => {
+        const saved = await api.projects.edit(project.id, revision, { [field]: value });
+        setQueryData<ProjectPage>(key, (current) => current && current.project.revision <= saved.revision
+          ? { ...current, project: { ...current.project, ...saved } }
+          : current);
+        return saved;
+      });
+      setPending((current) => current[field] === change ? { ...current, [field]: undefined } : current);
+      return saved?.revision ?? revision;
+    });
+  };
+  const editorProps = editing && {
+    value: editing.value,
+    autoFocus: true,
+    onBlur: commit,
+    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setEditing({ ...editing, value: event.target.value });
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (event.nativeEvent.isComposing) return;
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        returnFocus.current = editing.field;
+        setEditing(null);
+      } else if (event.key === "Enter" && editing.field === "name") {
+        event.preventDefault();
+        returnFocus.current = editing.field;
+        event.currentTarget.blur();
+      }
+    },
+  };
+  const name = displayValue("name");
+  const description = displayValue("description");
+  return (
+    <div className="project-heading-fields">
+      <h1 className={editing?.field === "name" ? "sr-only" : "title"}>
+        {editing?.field === "name" ? name : (
+          <button type="button" className="project-heading-field" ref={titleButton} onClick={() => openEditor("name")}
+            aria-description="Editar título do projeto">
+            {name}
+          </button>
+        )}
+      </h1>
+      {editing?.field === "name" && <input {...editorProps} className="project-heading-field project-heading-input title"
+        aria-label="Nome do projeto" maxLength={120} />}
+      {editing?.field === "description" ? (
+        <textarea {...editorProps} ref={descriptionInput} className="project-heading-field project-heading-input project-description"
+          aria-label="Descrição do projeto" placeholder="Adicionar uma descrição" rows={1} maxLength={10_000} />
+      ) : (
+        <button type="button" className="project-heading-field project-description" ref={descriptionButton}
+          onClick={() => openEditor("description")} aria-label={description ? "Editar descrição do projeto" : undefined}>
+          {description || "Adicionar uma descrição"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu, archived }: LayoutProps) {
   const app = useApp();
   const [adding, setAdding] = useState<string | null | undefined>(undefined);
   const { project } = page;
-  const block = (task: TaskItem) => [
-    renderTask(task, "row"),
-    ...task.childIds.map((id) => tasks.get(id)).filter((child): child is TaskItem => !!child).map((child) => renderTask(child, "row")),
-    ...(task.childIds.length ? [<BelowSlot key={`below:${task.id}`} task={task} />] : []),
-  ];
+  const block = (task: TaskItem) => renderTaskBlock(task, "row", tasks, renderTask);
+  const activeCounts = new Map<string | null, number>();
+  for (const task of tasks.values()) {
+    if (task.status === "active") activeCounts.set(task.sectionId, (activeCounts.get(task.sectionId) ?? 0) + 1);
+  }
 
-  const createSection = async (afterSectionId: string | null, name: string) => {
+  const createSection = async (afterSectionId: string | null, details: NamedDetails) => {
     const anchor = afterSectionId ? { afterSectionId } : page.sections[0] ? { beforeSectionId: page.sections[0].id } : {};
-    await app.run(() => api.sections.create(project.id, name, anchor), { success: `Seção “${name}” criada` });
-    setAdding(undefined);
+    if (await app.run(() => api.sections.create(project.id, details, anchor), { success: `Seção “${details.name}” criada` })) {
+      setAdding(undefined);
+    }
   };
 
   return (
@@ -516,22 +658,23 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
           const isNone = group.sectionId === null;
           const showHeader = !project.isInbox && (!isNone || active.length + done.length > 0);
           const over = indicator?.type === "group" && indicator.sectionId === group.sectionId;
-          const badGroup = indicator?.type === "invalid" && indicator.sectionId === group.sectionId && indicator.id === undefined;
           const title = sectionName(page, group.sectionId);
+          const description = page.sections.find((section) => section.id === group.sectionId)?.description;
           if (isNone && !showHeader && !project.isInbox && !dragging && page.sections.length) {
             return <GroupDrop key="none" sectionId={null} className="list-group" label="Sem seção"><span /></GroupDrop>;
           }
           return (
             <GroupDrop key={group.sectionId ?? "none"} sectionId={group.sectionId} label={title}
-              className={`list-group${over ? " over" : ""}${badGroup ? " invalid" : ""}`}>
+              className={`list-group${over ? " over" : ""}`}>
               {showHeader || (isNone && dragging && !project.isInbox) ? (
                 <div className="sec-h" data-flip={`sec:${group.sectionId ?? "none"}`} style={{ color: isNone ? "var(--muted)" : undefined }}>
-                  {title}<span className="count">{active.length + active.reduce((sum, task) => sum + task.childIds.filter((id) => tasks.get(id)?.status === "active").length, 0)}</span>
+                  {title}<span className="count">{activeCounts.get(group.sectionId) ?? 0}</span>
                   {!isNone && !archived && (
                     <MenuButton label={`Ações da seção ${title}`} title={title} items={() => sectionMenu(group.sectionId!)}><IconMore /></MenuButton>
                   )}
                 </div>
               ) : <div style={{ height: 10, borderBottom: "1px solid var(--border)" }} />}
+              {description && <p className="section-description">{description}</p>}
               {active.flatMap(block)}
               {!archived && (
                 <AddTaskSlot slot={`add:${project.id}:${group.sectionId ?? "none"}`} defaults={{ projectId: project.id, sectionId: group.sectionId }}>
@@ -550,7 +693,8 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
               )}
               {!project.isInbox && !archived && (
                 adding === group.sectionId
-                  ? <NewSection onCancel={() => setAdding(undefined)} onCreate={(name) => createSection(group.sectionId, name)} />
+                  ? <NamedDetailsForm kind="seção" submitLabel="Adicionar seção" onCancel={() => setAdding(undefined)}
+                    onSave={(details) => createSection(group.sectionId, details)} />
                   : (
                     <div className="add-sec-zone desktop-only" data-flip={`add-sec:${group.sectionId ?? "none"}`}>
                       <button type="button" className="add-sec" onClick={() => setAdding(group.sectionId)}>Adicionar seção</button>
@@ -563,7 +707,8 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
         {!project.isInbox && !archived && (
           <div className="mobile-only" style={{ paddingTop: 12 }}>
             {adding === "end"
-              ? <NewSection onCancel={() => setAdding(undefined)} onCreate={(name) => createSection(page.sections.at(-1)?.id ?? null, name)} />
+              ? <NamedDetailsForm kind="seção" submitLabel="Adicionar seção" onCancel={() => setAdding(undefined)}
+                onSave={(details) => createSection(page.sections.at(-1)?.id ?? null, details)} />
               : <button type="button" className="add-sec-m" onClick={() => setAdding("end")}><IconPlus className="plus" />Adicionar seção</button>}
           </div>
         )}
@@ -578,30 +723,20 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
   );
 }
 
-function NewSection({ onCreate, onCancel }: { onCreate: (name: string) => void; onCancel: () => void }) {
-  const [name, setName] = useState("");
-  return (
-    <form className="sec-edit" onSubmit={(event) => { event.preventDefault(); if (name.trim()) onCreate(name.trim()); }}>
-      <label htmlFor="new-section" className="sr-only">Nome da nova seção</label>
-      <input id="new-section" className="inline-input" placeholder="Nome da seção" value={name} autoFocus maxLength={120}
-        onChange={(event) => setName(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") onCancel(); }} />
-      <button type="submit" className="btn primary" disabled={!name.trim()}>Adicionar</button>
-      <button type="button" className="btn ghost" onClick={onCancel}>Cancelar</button>
-    </form>
-  );
-}
-
 function BoardLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu, archived, mobile }: LayoutProps & { mobile: boolean }) {
   const app = useApp();
+  const [adding, setAdding] = useState(false);
   const { project } = page;
+  const block = (task: TaskItem) => renderTaskBlock(task, "card", tasks, renderTask);
   const columns = page.groups.filter((group) => group.sectionId !== null || dragging
     || (group.rootIds.length > 0) || page.sections.length === 0);
   const scrollTo = (sectionId: string | null) => {
     document.getElementById(`col-${sectionId ?? "none"}`)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
   };
-  const newSection = async () => {
-    const name = await app.prompt({ title: "Nova seção", label: "Nome da seção", confirmLabel: "Adicionar seção" });
-    if (name) await app.run(() => api.sections.create(project.id, name), { success: `Seção “${name}” criada` });
+  const createSection = async (details: NamedDetails) => {
+    if (await app.run(() => api.sections.create(project.id, details), { success: `Seção “${details.name}” criada` })) {
+      setAdding(false);
+    }
   };
   return (
     <>
@@ -621,19 +756,20 @@ function BoardLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu
         {columns.map((group) => {
           const { active, done } = rowsOf(page, tasks, group.sectionId);
           const title = sectionName(page, group.sectionId);
+          const description = page.sections.find((section) => section.id === group.sectionId)?.description;
           const target = indicator?.type === "group" && indicator.sectionId === group.sectionId;
-          const bad = indicator?.type === "invalid" && indicator.sectionId === group.sectionId && indicator.id === undefined;
           return (
             <Fragment key={group.sectionId ?? "none"}>
               <GroupDrop sectionId={group.sectionId} as="section" label={`Coluna ${title}`} id={`col-${group.sectionId ?? "none"}`}
-                className={`column${target ? " target" : ""}${bad ? " invalid" : ""}`}>
+                className={`column${target ? " target" : ""}`}>
                 <div className="col-h" style={{ color: group.sectionId === null ? "var(--muted)" : undefined }}>
                   {title}<span className="count">{active.length}</span>
                   {group.sectionId !== null && !archived && (
                     <MenuButton label={`Ações da seção ${title}`} title={title} items={() => sectionMenu(group.sectionId!)}><IconMore /></MenuButton>
                   )}
                 </div>
-                {active.map((task) => renderTask(task, "card"))}
+                {description && <p className="section-description">{description}</p>}
+                {active.flatMap(block)}
                 {target && <div className="slot column-drop">Soltar aqui muda para {title}</div>}
                 {!archived && (
                   <AddTaskSlot slot={`add:${project.id}:${group.sectionId ?? "none"}`} defaults={{ projectId: project.id, sectionId: group.sectionId }}>
@@ -647,18 +783,22 @@ function BoardLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu
                 {done.length > 0 && (
                   <>
                     <div className="sub" data-flip={`col-done:${group.sectionId ?? "none"}`} style={{ padding: "10px 6px 6px", fontWeight: 600 }}>Concluídas · {done.length}</div>
-                    {done.map((task) => renderTask(task, "card"))}
+                    {done.flatMap(block)}
                   </>
                 )}
               </GroupDrop>
             </Fragment>
           );
         })}
-        {!archived && (
-          <button type="button" className="col-new" onClick={() => void newSection()}>
+        {!archived && (adding ? (
+          <div className="col-new-editor">
+            <NamedDetailsForm kind="seção" submitLabel="Adicionar seção" onCancel={() => setAdding(false)} onSave={createSection} />
+          </div>
+        ) : (
+          <button type="button" className="col-new" onClick={() => setAdding(true)}>
             <IconPlus style={{ color: "var(--brand-text)" }} />Adicionar seção
           </button>
-        )}
+        ))}
       </div>
     </>
   );

@@ -1,6 +1,7 @@
 import "server-only";
 import { Temporal } from "@js-temporal/polyfill";
 import { byPosition, childrenByParent, isActive, orderedSections, type Product, type Project, type Task } from "@/domain/product";
+import { walkTaskTree } from "@/domain/task-tree";
 import type { Exporter } from "./types";
 
 // Gera o CSV de modelo do Todoist, no mesmo formato da exportação oficial e lido de volta por
@@ -76,9 +77,9 @@ export const exportTodoist: Exporter = (product, project, options) => {
     TIMEZONE: product.timezone,
   });
   const group = (sectionId: string | null) => {
-    for (const root of tasks.filter((task) => !task.parentId && task.sectionId === sectionId).sort(byPosition)) {
-      lines.push(taskRow(root, 1));
-      for (const child of children.get(root.id) ?? []) lines.push(taskRow(child, 2));
+    const roots = tasks.filter((task) => !task.parentId && task.sectionId === sectionId).sort(byPosition);
+    for (const { task, depth } of walkTaskTree(roots, (task) => children.get(task.id) ?? [])) {
+      lines.push(taskRow(task, depth + 1));
     }
   };
 

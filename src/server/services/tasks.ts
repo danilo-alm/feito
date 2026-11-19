@@ -1,10 +1,14 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { childrenOf, groupTasks, isActive, sameGroup, type Product, type Task, type TaskGroup } from "@/domain/product";
+import { childrenOf, groupTasks, isActive, sameGroup, taskDescendants, type Product, type Task, type TaskGroup } from "@/domain/product";
 import { nextOccurrenceDate } from "@/domain/recurrence";
+import { taskAncestors } from "@/domain/task-tree";
 import { mutateProduct, readProduct, type ProductAccess } from "@/server/db/product";
 import { ApiError } from "@/server/errors";
-import { civilDate, type CompleteTaskInput, type CreateTaskInput, type EditTaskInput, type SetRecurrenceInput, type TaskMoveInput } from "@/validation/product";
+import {
+  civilDate, type CompleteTaskInput, type CreateTaskInput, type EditTaskInput, type SetRecurrenceInput,
+  type TaskMoveInput, type UndoTaskCompletionInput,
+} from "@/validation/product";
 import { inboxProject, taskDetail, taskItem } from "./product-dto";
 import {
   labelSelection, nextRevision, requireRevision, validateSection, validation, visibleRecord, writableProject, writableTask,
@@ -16,8 +20,14 @@ function projectFor(product: Product, id: string) {
 
 function parentFor(product: Product, id: string, projectId: string, taskId?: string) {
   const parent = visibleRecord(product.tasks, id);
-  if (parent.id === taskId || parent.parentId || !isActive(parent) || parent.occurrenceId || parent.projectId !== projectId) {
-    throw new ApiError(422, "INVALID_PARENT", "Escolha uma tarefa raiz ativa e sem recorrência no projeto de destino.");
+  if (!isActive(parent) || parent.occurrenceId || parent.projectId !== projectId) {
+    throw new ApiError(422, "INVALID_PARENT", "Escolha uma tarefa ativa e sem recorrência no projeto de destino.");
+  }
+  if (taskId) {
+    if (parent.id === taskId) throw new ApiError(422, "INVALID_PARENT", "Uma tarefa não pode ser seu próprio pai.");
+    for (const ancestor of taskAncestors(parent, product.tasks)) {
+      if (ancestor.id === taskId) throw new ApiError(422, "INVALID_PARENT", "Uma tarefa não pode ficar abaixo de uma de suas subtarefas.");
+    }
   }
   return parent;
 }
@@ -44,6 +54,16 @@ function saveTask(product: Product, original: Product, task: Task) {
   const updated = nextRevision(original.tasks, task);
   product.tasks.set(updated.id, updated);
   return updated;
+}
+
+function reopenAncestors(product: Product, original: Product, task: Task) {
+  let reopenedParentId: string | null = null;
+  for (const parent of taskAncestors(task, product.tasks)) {
+    if (isActive(parent)) break;
+    saveTask(product, original, { ...parent, data: { ...parent.data, completedAt: null } });
+    reopenedParentId ??= parent.id;
+  }
+  return reopenedParentId;
 }
 
 export function createTask(access: ProductAccess, input: CreateTaskInput) {
@@ -172,7 +192,7 @@ export function completeTask(access: ProductAccess, id: string, input: CompleteT
       const date = nextOccurrenceDate(recurrenceRule, dueDate, product.referenceDate);
       if (!civilDate.safeParse(date).success) throw validation("dueDate", "A próxima data excede o intervalo disponível.");
       history.completion = { ...occurrence, data: {
-        nominalDate: recurrenceRule.nominalDate, dueDate, dueTime, completedAt,
+        nominalDate: recurrenceRule.nominalDate, dueDate, dueTime, completedAt, nextOccurrenceId: nextId,
       } };
       const updated = saveTask(product, original, {
         ...task,
@@ -185,7 +205,7 @@ export function completeTask(access: ProductAccess, id: string, input: CompleteT
       return { task: taskItem(product, updated), completedChildIds: [], alreadyProcessed: false };
     }
 
-    const activeChildren = childrenOf(product, id).filter(isActive);
+    const activeChildren = Array.from(taskDescendants(product, id), ({ task }) => task).filter(isActive);
     if (activeChildren.length && !input.includeChildren) {
       throw new ApiError(409, "HAS_ACTIVE_CHILDREN", "Confirme a conclusão das subtarefas ativas.", {
         activeChildCount: activeChildren.length,
@@ -208,24 +228,66 @@ export function reopenTask(access: ProductAccess, id: string, revision: number) 
     const task = loadedTask(product, id);
     taskRevision(product, task, revision);
     if (task.occurrenceId || isActive(task)) throw validation("revision", "Só tarefas avulsas concluídas podem ser reabertas.");
-    let reopenedParentId: string | null = null;
-    if (task.parentId) {
-      const parent = visibleRecord(product.tasks, task.parentId);
-      if (!isActive(parent)) {
-        saveTask(product, original, { ...parent, data: { ...parent.data, completedAt: null } });
-        reopenedParentId = parent.id;
-      }
-    }
+    const reopenedParentId = reopenAncestors(product, original, task);
     const updated = saveTask(product, original, { ...task, data: { ...task.data, completedAt: null } });
     return { task: taskItem(product, updated), reopenedParentId };
   });
+}
+
+export function undoTaskCompletion(access: ProductAccess, id: string, input: UndoTaskCompletionInput) {
+  const occurrence = input.occurrenceId ? { taskId: id, occurrenceId: input.occurrenceId } : undefined;
+  return mutateProduct(access, (product, original, history) => {
+    const task = loadedTask(product, id);
+    taskRevision(product, task, input.revision);
+
+    if (occurrence) {
+      const previous = history.previousCompletion;
+      if (!history.recorded || !previous || !task.occurrenceId || !task.data.recurrenceRule
+        || previous.data.nextOccurrenceId !== task.occurrenceId || task.data.dueDate === null) {
+        throw new ApiError(409, "UNDO_UNAVAILABLE", "Esta conclusão recorrente não pode mais ser desfeita.");
+      }
+      const restored = saveTask(product, original, {
+        ...task,
+        occurrenceId: previous.occurrenceId,
+        data: {
+          ...task.data,
+          dueDate: previous.data.dueDate,
+          dueTime: previous.data.dueTime,
+          recurrenceRule: { ...task.data.recurrenceRule, nominalDate: previous.data.nominalDate },
+        },
+      });
+      return { task: taskItem(product, restored), reopenedChildIds: [], reopenedParentId: null };
+    }
+
+    if (task.occurrenceId || isActive(task)) {
+      throw new ApiError(409, "UNDO_UNAVAILABLE", "Esta conclusão não pode mais ser desfeita.");
+    }
+
+    const selected = new Set(input.completedChildIds);
+    const toReopen = input.completedChildIds.map((childId) => visibleRecord(product.tasks, childId));
+    for (const child of toReopen) {
+      if (child.id === task.id || !child.parentId || child.data.completedAt !== task.data.completedAt
+        || (child.parentId !== task.id && !selected.has(child.parentId))) {
+        throw new ApiError(409, "UNDO_UNAVAILABLE", "Uma subtarefa mudou desde a conclusão.");
+      }
+    }
+    for (const child of toReopen) {
+      saveTask(product, original, { ...child, data: { ...child.data, completedAt: null } });
+    }
+
+    const reopenedParentId = reopenAncestors(product, original, task);
+    const reopened = saveTask(product, original, { ...task, data: { ...task.data, completedAt: null } });
+    return {
+      task: taskItem(product, reopened), reopenedChildIds: input.completedChildIds, reopenedParentId,
+    };
+  }, occurrence, occurrence ? { removeOccurrence: occurrence } : {});
 }
 
 export function deleteTask(access: ProductAccess, id: string, revision: number, withChildren?: boolean) {
   return mutateProduct(access, (product) => {
     const task = loadedTask(product, id);
     taskRevision(product, task, revision);
-    const children = childrenOf(product, id);
+    const children = Array.from(taskDescendants(product, id), ({ task }) => task);
     if (children.length && !withChildren) {
       throw new ApiError(409, "HAS_CHILDREN", "Confirme a exclusão das subtarefas.", { childCount: children.length });
     }
@@ -248,7 +310,7 @@ function moveDestination(product: Product, task: Task, target: TaskMoveInput["ta
   if (target.type === "promote") {
     if (!task.parentId) throw validation("target", "Escolha uma subtarefa para promover.");
     const parent = visibleRecord(product.tasks, task.parentId);
-    const group: TaskGroup = { projectId: parent.projectId, sectionId: parent.sectionId, parentId: null };
+    const group: TaskGroup = { projectId: parent.projectId, sectionId: parent.sectionId, parentId: parent.parentId };
     return { group, anchor: parent, after: true };
   }
 
@@ -269,12 +331,9 @@ function moveDestination(product: Product, task: Task, target: TaskMoveInput["ta
   if (anchor && (anchor.id === task.id || !sameGroup(anchor, group))) {
     throw new ApiError(422, "INVALID_ANCHOR", "Escolha outra tarefa do grupo de destino.");
   }
-  if (parent && childrenOf(product, task.id).length) {
-    throw new ApiError(422, "DEPTH_EXCEEDED", "Subtarefas aceitam apenas um nível.");
-  }
   if (parent && task.occurrenceId) throw notAllowedRecurrence();
-  if (task.parentId && (!parent || task.projectId !== group.projectId || task.sectionId !== group.sectionId)) {
-    throw new ApiError(422, "MUST_PROMOTE_FIRST", "Promova a subtarefa antes de mover para outro grupo de raízes.");
+  if (task.parentId && (task.projectId !== group.projectId || (parent && task.sectionId !== group.sectionId))) {
+    throw new ApiError(422, "MUST_PROMOTE_FIRST", "Transforme a subtarefa em tarefa principal antes de movê-la para esse destino.");
   }
   return { group, anchor, after: !!target.afterId };
 }
@@ -298,7 +357,7 @@ export function moveTask(access: ProductAccess, id: string, input: TaskMoveInput
     }
     orderTasks(product, original, destination);
     if (task.projectId !== group.projectId || task.sectionId !== group.sectionId) {
-      for (const child of childrenOf(product, task.id)) {
+      for (const { task: child } of taskDescendants(product, task.id)) {
         saveTask(product, original, { ...child, projectId: group.projectId, sectionId: group.sectionId });
       }
     }

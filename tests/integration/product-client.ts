@@ -13,12 +13,15 @@ import * as archive from "@/app/api/v1/projects/[id]/archive/route";
 import * as unarchive from "@/app/api/v1/projects/[id]/unarchive/route";
 import * as projectView from "@/app/api/v1/projects/[id]/view/route";
 import * as projectExport from "@/app/api/v1/projects/[id]/export/route";
+import * as projectShare from "@/app/api/v1/projects/[id]/share/route";
+import * as publicProject from "@/app/api/v1/public/projects/[token]/route";
 import * as createSectionRoute from "@/app/api/v1/projects/[id]/sections/route";
 import * as section from "@/app/api/v1/sections/[id]/route";
 import * as moveSectionRoute from "@/app/api/v1/sections/[id]/move/route";
 import * as tasks from "@/app/api/v1/tasks/route";
 import * as task from "@/app/api/v1/tasks/[id]/route";
 import * as complete from "@/app/api/v1/tasks/[id]/complete/route";
+import * as undoCompletion from "@/app/api/v1/tasks/[id]/undo-completion/route";
 import * as reopen from "@/app/api/v1/tasks/[id]/reopen/route";
 import * as move from "@/app/api/v1/tasks/[id]/move/route";
 import * as recurrence from "@/app/api/v1/tasks/[id]/recurrence/route";
@@ -57,12 +60,14 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "/projects/:id/unarchive": unarchive,
   "/projects/:id/view": projectView,
   "/projects/:id/export": projectExport,
+  "/projects/:id/share": projectShare,
   "/projects/:id/sections": createSectionRoute,
   "/sections/:id": section,
   "/sections/:id/move": moveSectionRoute,
   "/tasks": tasks,
   "/tasks/:id": task,
   "/tasks/:id/complete": complete,
+  "/tasks/:id/undo-completion": undoCompletion,
   "/tasks/:id/reopen": reopen,
   "/tasks/:id/move": move,
   "/labels": labels,
@@ -111,6 +116,8 @@ export function send(
     method, headers, body: options.raw ?? (body === undefined ? undefined : JSON.stringify(body)),
   });
   const [pathname] = path.split("?");
+  const shared = /^\/public\/projects\/([^/]+)$/.exec(pathname);
+  if (shared && method === "GET") return publicProject.GET(request, { params: Promise.resolve({ token: shared[1] }) });
   const id = pathname.startsWith("/import/operations/") ? pathname.split("/").at(-1)! : pathname.split("/")[2] ?? "";
   const pattern = ["/projects/", "/sections/", "/tasks/", "/labels/", "/import/operations/"].some((prefix) => pathname.startsWith(prefix))
     ? pathname.replace(`/${id}`, "/:id") : pathname;

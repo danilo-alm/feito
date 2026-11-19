@@ -1,16 +1,17 @@
 "use client";
-import { forwardRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
-import { addDays, completedLabel, dayOfMonth, dueLabel, FREQUENCY_LABEL, nextWeek, shortDate, weekend } from "@/client/dates";
+import { forwardRef, useState, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
+import { addDays, dayOfMonth, nextWeek, shortDate, weekend } from "@/client/dates";
 import { editKey, openEditor, useEditorOpen } from "@/client/editor-store";
 import type { Priority, TaskItem } from "@/client/types";
 import { useApp } from "./app";
 import {
-  IconArrowDown, IconArrowUp, IconBan, IconCalendar, IconCalendarDay, IconCheck, IconCopy, IconEdit, IconFlag, IconGrip, IconHash,
-  IconInsertAbove, IconInsertBelow, IconMore, IconMove, IconNextWeek, IconPromote, IconRepeat, IconSofa, IconSub, IconSun, IconTag,
+  IconArrowDown, IconArrowUp, IconBan, IconCalendar, IconCalendarDay, IconCheck, IconCopy, IconEdit, IconFlag, IconGrip,
+  IconInsertAbove, IconInsertBelow, IconMore, IconMove, IconNextWeek, IconPromote, IconSofa, IconSub, IconSun,
   IconTrash,
 } from "./icons";
 import { DatePicker, PRIORITY_NAMES } from "./pickers";
 import type { useTaskActions } from "./task-actions";
+import { TaskContent } from "./task-content";
 import { InlineEdit } from "./task-editor";
 import { MenuButton, Popover, useIsMobile, type MenuItem } from "./ui";
 
@@ -19,34 +20,6 @@ export type TaskActions = ReturnType<typeof useTaskActions>;
 export function priorityAria(task: Pick<TaskItem, "priority" | "title" | "status">) {
   const level = task.priority < 4 ? `prioridade ${task.priority}` : "sem prioridade";
   return `${task.status === "completed" ? "Reabrir" : "Concluir"} “${task.title}”, ${level}`;
-}
-
-export function TaskMeta({ task, reference, showOrigin, timezone, timeOnly }: {
-  task: TaskItem; reference: string; showOrigin?: boolean; timezone?: string; timeOnly?: boolean;
-}) {
-  const due = timeOnly ? task.dueTime : dueLabel(task.dueDate, task.dueTime, reference);
-  const dateClass = task.overdue ? "late" : task.dueDate === reference ? "today" : "";
-  const items: ReactNode[] = [];
-  if (task.status === "completed" && task.completedAt) {
-    items.push(<span key="done">{completedLabel(task.completedAt, reference, timezone)}</span>);
-  } else if (due) {
-    items.push(<span key="d" className={`m-date ${dateClass}`}><IconCalendar />{due}{task.overdue ? <span className="sr-only"> (atrasada)</span> : null}</span>);
-  }
-  if (task.recurrence) items.push(<span key="r"><IconRepeat />{FREQUENCY_LABEL[task.recurrence.frequency]}</span>);
-  if (task.origin?.parentTitle) items.push(<span key="p"><IconSub />em {task.origin.parentTitle}</span>);
-  if (task.subtasks.total > 0) {
-    items.push(<span key="s" aria-label={`${task.subtasks.completed} de ${task.subtasks.total} subtarefas concluídas`}>
-      <IconSub />{task.subtasks.completed}/{task.subtasks.total}</span>);
-  }
-  if (task.priority < 4) items.push(<span key="f" className="m-prio"><IconFlag />P{task.priority}</span>);
-  for (const label of task.labels) items.push(<span key={`l${label.id}`}><IconTag />{label.name}</span>);
-  if (showOrigin && task.origin) {
-    const where = task.origin.isInbox ? "Caixa de entrada"
-      : task.origin.sectionName ? `${task.origin.projectName} / ${task.origin.sectionName}` : task.origin.projectName;
-    items.push(<span key="o" className="m-origin"><IconHash />{where}</span>);
-  }
-  if (!items.length) return null;
-  return <div className={`t-meta p${task.priority}`}>{items}</div>;
 }
 
 export function Checkbox({ task, onToggle, disabled }: { task: TaskItem; onToggle: () => void; disabled?: boolean }) {
@@ -162,13 +135,16 @@ type RowProps = HTMLAttributes<HTMLDivElement> & {
   /** Inserir uma tarefa acima ou abaixo (só com ordenação manual). */
   insert?: (side: InsertSide) => void;
   variant?: "row" | "card";
+  depth?: number;
+  showMoreSubtasks?: boolean;
   extraClass?: string;
   noMenu?: boolean;
   timeOnly?: boolean;
 };
 
 export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
-  task, actions, showOrigin, grip, tag, arrange, onArrange, onKeyArrange, insert, variant = "row", extraClass = "", noMenu, timeOnly, ...rest
+  task, actions, showOrigin, grip, tag, arrange, onArrange, onKeyArrange, insert, variant = "row",
+  depth = task.parentId && !showOrigin ? 1 : 0, showMoreSubtasks, extraClass = "", noMenu, timeOnly, style, ...rest
 }, ref) {
   const app = useApp();
   const mobile = useIsMobile();
@@ -176,30 +152,28 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
   const [dateOpen, setDateOpen] = useState(false);
   const [acts, setActs] = useState<HTMLDivElement | null>(null);
   // Em edição, o editor rápido ocupa o lugar da tarefa (sem os atributos de arraste da linha).
-  if (editing) return <InlineEdit task={task} />;
+  const indent = { "--task-depth": depth } as CSSProperties;
+  if (editing) return depth
+    ? <div className="task-tree-inset" style={indent}><InlineEdit task={task} /></div>
+    : <InlineEdit task={task} />;
 
   const open = () => app.openTask(task.id);
   const edit = () => (mobile ? open() : openEditor({ kind: "edit", key: editKey(task), taskId: task.id }));
   const active = task.status === "active";
-  const sub = variant === "row" && !!task.parentId && !showOrigin;
+  const showShortcuts = active && variant === "row";
+  const sub = depth > 0;
   const classes = [variant === "card" ? "card" : "task", sub ? "sub" : "", task.status === "completed" ? "done-t" : "", extraClass]
     .filter(Boolean).join(" ");
   const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
   return (
-    <div ref={ref} className={classes} data-task-id={noMenu ? undefined : task.id} onKeyDown={onKeyArrange} {...rest}>
+    <div ref={ref} className={classes} data-task-id={noMenu ? undefined : task.id} onKeyDown={onKeyArrange} style={{ ...indent, ...style }} {...rest}>
       {grip && variant === "row" && <span className="grip" aria-hidden="true"><IconGrip /></span>}
       <Checkbox task={task} onToggle={() => actions.toggle(task)} />
-      <button type="button" className="t-click" onClick={open} aria-describedby={undefined}>
-        <div className="t-body">
-          <div className="t-title">{task.title}</div>
-          {task.descriptionExcerpt && <div className="t-desc">{task.descriptionExcerpt}</div>}
-          <TaskMeta task={task} reference={app.reference} showOrigin={showOrigin} timezone={app.timezone} timeOnly={timeOnly && !task.overdue} />
-        </div>
-      </button>
+      <TaskContent task={task} actions={actions} showOrigin={showOrigin} timeOnly={timeOnly} preview={noMenu} showMoreSubtasks={showMoreSubtasks} />
       {tag}
       {!noMenu && (
         <div ref={setActs} className="t-acts" style={variant === "card" ? { margin: "-4px -6px 0 0" } : undefined}>
-          {active && (
+          {showShortcuts && (
             <>
               <button type="button" className="icon-btn desktop-only" aria-label={`Editar “${task.title}”`} title="Editar"
                 onPointerDown={stop} onClick={(event) => { stop(event); edit(); }}>
@@ -222,10 +196,12 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
             })}>
             <IconMore />
           </MenuButton>
-          <Popover anchor={acts} open={dateOpen} onClose={() => setDateOpen(false)} label="Agendar" align="end">
-            <DatePicker value={task.dueDate} reference={app.reference} onClose={() => setDateOpen(false)}
-              allowClear={!task.recurrence} onPick={(date) => void actions.reschedule(task, date)} />
-          </Popover>
+          {showShortcuts && (
+            <Popover anchor={acts} open={dateOpen} onClose={() => setDateOpen(false)} label="Agendar" align="end">
+              <DatePicker value={task.dueDate} reference={app.reference} onClose={() => setDateOpen(false)}
+                allowClear={!task.recurrence} onPick={(date) => void actions.reschedule(task, date)} />
+            </Popover>
+          )}
         </div>
       )}
     </div>

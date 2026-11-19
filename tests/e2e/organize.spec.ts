@@ -18,32 +18,39 @@ test.describe("organizar um projeto", () => {
     await expect.poll(async () => (await projectState(api, seed.id)).order(seed.sections.Planejar))
       .toEqual(["Listar móveis para doação", "Definir orçamento da reforma", "Escolher a cor da pintura do quarto"]);
 
-    // Subtarefa: soltar no centro de uma raiz mostra destaque e prévia recuada.
+    // As notificações podem cobrir o ponto de partida perto do rodapé.
+    const toasts = page.getByRole("status").locator(".toast");
+    await expect(toasts).toHaveCount(0);
+    // Soltar sobre uma subtarefa cria um nível mais profundo e mostra a prévia recuada.
     await row(page, "Kit de ferramentas").scrollIntoViewIfNeeded();
     const kit = await row(page, "Kit de ferramentas").boundingBox();
-    const parent = await row(page, "Definir orçamento da reforma").boundingBox();
+    const targetSubtask = row(page, "Pedir amostras na loja");
+    const parent = await targetSubtask.boundingBox();
     await mouseDrag(page, { x: kit!.x + 200, y: kit!.y + kit!.height / 2 }, { x: parent!.x + 200, y: parent!.y + parent!.height / 2 },
-      { locator: row(page, "Definir orçamento da reforma"), zone: "center" });
-    await expect(row(page, "Definir orçamento da reforma")).toHaveClass(/nest-target/);
+      { locator: targetSubtask, zone: "center" });
+    await expect(targetSubtask).toHaveClass(/nest-target/);
     await expect(page.locator(".nest-preview")).toContainText("Kit de ferramentas");
     await page.mouse.up();
     await expect.poll(async () => (await projectState(api, seed.id)).byTitle["Kit de ferramentas"].parentId)
-      .toBe(seed.tasks["Definir orçamento da reforma"].id);
+      .toBe(seed.tasks["Pedir amostras na loja"].id);
     await expect(row(page, "Kit de ferramentas")).toHaveClass(/sub/);
+    await expect(toasts).toHaveCount(0);
 
-    // Inválido: soltar sobre uma subtarefa criaria um terceiro nível.
-    await row(page, "Lâmpadas para o corredor").scrollIntoViewIfNeeded();
-    const lamp = await row(page, "Lâmpadas para o corredor").boundingBox();
+    // Inválido: soltar a tarefa em sua própria subtarefa criaria um ciclo.
+    const branch = row(page, "Escolher a cor da pintura do quarto");
+    await branch.scrollIntoViewIfNeeded();
+    const color = await branch.boundingBox();
     const child = await row(page, "Pedir amostras na loja").boundingBox();
-    await mouseDrag(page, { x: lamp!.x + 200, y: lamp!.y + lamp!.height / 2 }, { x: child!.x + 200, y: child!.y + child!.height / 2 },
+    await mouseDrag(page, { x: color!.x + 200, y: color!.y + color!.height / 2 }, { x: child!.x + 200, y: child!.y + child!.height / 2 },
       { locator: row(page, "Pedir amostras na loja"), zone: "center" });
     await expect(row(page, "Pedir amostras na loja")).toHaveClass(/invalid/);
-    await expect(page.locator(".bad-tag")).toHaveText("Só um nível de subtarefa");
+    await expect(page.locator(".bad-tag")).toHaveText("Uma tarefa não pode ficar abaixo de suas subtarefas");
     await page.mouse.up();
     await expect(page.getByText(/Destino inválido/)).toBeVisible();
-    expect((await projectState(api, seed.id)).byTitle["Lâmpadas para o corredor"].sectionId).toBe(seed.sections.Comprar);
+    expect((await projectState(api, seed.id)).byTitle["Escolher a cor da pintura do quarto"].parentId).toBeNull();
 
     // Esc cancela e devolve a tarefa ao lugar.
+    await expect(toasts).toHaveCount(0);
     await row(page, "Lâmpadas para o corredor").scrollIntoViewIfNeeded();
     const again = await row(page, "Lâmpadas para o corredor").boundingBox();
     await mouseDrag(page, { x: again!.x + 200, y: again!.y + again!.height / 2 }, { x: again!.x + 200, y: again!.y - 140 });
@@ -57,7 +64,7 @@ test.describe("organizar um projeto", () => {
   test("alterna Lista e Painel e muda a seção arrastando entre colunas", async ({ page, api }) => {
     const seed = await seedProject(api, `Painel ${Date.now()}`);
     await page.goto(`/projetos/${seed.id}`);
-    await page.getByRole("button", { name: "Visualização" }).click();
+    await page.getByRole("button", { name: /^Mostrar/ }).click();
     const menu = page.getByRole("dialog", { name: "Visualização" });
     await expect(menu.getByRole("radio", { name: "Calendário" })).toBeDisabled();
     await menu.getByRole("radio", { name: "Painel" }).click();
@@ -76,11 +83,40 @@ test.describe("organizar um projeto", () => {
     // O layout escolhido persiste e a Lista mostra a mesma organização.
     await page.reload();
     await expect(page.getByRole("region", { name: "Coluna Resolver" }).getByText("Lâmpadas para o corredor")).toBeVisible();
-    await page.getByRole("button", { name: "Visualização" }).click();
+    await page.getByRole("button", { name: /^Mostrar/ }).click();
     await page.getByRole("radio", { name: "Lista" }).click();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("region", { name: "Resolver" }).getByText("Lâmpadas para o corredor")).toBeVisible();
   });
+
+  for (const layout of ["list", "board"]) {
+    test(`arrasta só a subtarefa para outra seção em ${layout}`, async ({ page, api }) => {
+      const seed = await seedProject(api, `Subtarefa ${layout} ${Date.now()}`);
+      await api("PATCH", `/projects/${seed.id}/view`, { layout });
+      await page.goto(`/projetos/${seed.id}`);
+      const childTitle = "Pedir amostras na loja";
+      const parentTitle = "Escolher a cor da pintura do quarto";
+      const child = row(page, childTitle);
+      await child.scrollIntoViewIfNeeded();
+
+      const source = (await child.boundingBox())!;
+      const target = row(page, "Lâmpadas para o corredor");
+      const destination = (await target.boundingBox())!;
+      await mouseDrag(page, { x: source.x + 100, y: source.y + 15 },
+        { x: destination.x + 100, y: destination.y + destination.height / 2 }, { locator: target, zone: "center" });
+      await expect(page.locator(".drag-overlay")).toContainText(childTitle);
+      await expect(page.getByRole("region", { name: layout === "board" ? "Coluna Comprar" : "Comprar" }))
+        .toHaveClass(layout === "board" ? /\btarget\b/ : /\bover\b/);
+      await page.mouse.up();
+
+      await expect.poll(async () => (await projectState(api, seed.id)).byTitle[childTitle])
+        .toMatchObject({ parentId: null, sectionId: seed.sections.Comprar });
+      const saved = await projectState(api, seed.id);
+      expect(saved.byTitle[parentTitle]).toMatchObject({ sectionId: seed.sections.Planejar, childIds: [] });
+      expect(saved.order(seed.sections.Comprar)).toContain(childTitle);
+      await expect(child).not.toHaveClass(/\bsub\b/);
+    });
+  }
 
   test("teclado, menu e ordenação automática oferecem as mesmas operações", async ({ page, api }) => {
     const seed = await seedProject(api, `Teclado ${Date.now()}`);
@@ -105,7 +141,7 @@ test.describe("organizar um projeto", () => {
     await expect.poll(async () => (await projectState(api, seed.id)).byTitle["Kit de ferramentas"].sectionId).toBe(seed.sections.Resolver);
 
     // Ordenação automática: sem arraste por posição; voltar a Manual recupera a ordem.
-    await page.getByRole("button", { name: "Visualização" }).click();
+    await page.getByRole("button", { name: /^Mostrar/ }).click();
     await page.getByLabel("Ordenar").selectOption("priority");
     await page.keyboard.press("Escape");
     await expect(page.getByText(/reordenar por posição está desativado/)).toBeVisible();

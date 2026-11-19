@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, row, seedProject, test } from "./fixtures";
+import { expect, mouseDrag, row, seedProject, test } from "./fixtures";
 
 // Movimento ligado: valida o mecanismo de presença (docs/04-motion-and-interaction.md).
 test.use({ reducedMotion: "no-preference" });
@@ -10,6 +10,27 @@ async function openQuickAdd(page: Page, isMobile: boolean) {
 }
 
 test.describe("movimento", () => {
+  test("ao soltar como subtarefa, a linha recupera a opacidade da prévia gradualmente", async ({ page, api, isMobile }) => {
+    test.skip(isMobile, "A prévia transparente é usada no arraste com mouse.");
+    const seed = await seedProject(api, `Transparência ${Date.now()}`);
+    await page.goto(`/projetos/${seed.id}`);
+    const task = row(page, "Listar móveis para doação");
+    const parent = row(page, "Definir orçamento da reforma");
+    await task.scrollIntoViewIfNeeded();
+    const from = (await task.boundingBox())!;
+    const to = (await parent.boundingBox())!;
+    await mouseDrag(page, { x: from.x + 200, y: from.y + from.height / 2 },
+      { x: to.x + 200, y: to.y + to.height / 2 }, { locator: parent, zone: "center" });
+    await expect(page.locator(".drag-overlay")).toHaveCSS("opacity", "0.2");
+    await page.mouse.up();
+
+    await expect.poll(() => task.evaluate((element) => element.getAnimations()
+      .flatMap((animation) => (animation.effect as KeyframeEffect).getKeyframes().map(({ opacity }) => opacity))
+      .filter((opacity) => opacity !== undefined)),
+    { intervals: [16, 32, 50] }).toEqual(["0.2", "1"]);
+    await expect(task).toHaveCSS("opacity", "1");
+  });
+
   test("o diálogo sai animado e só então desmonta; reabrir durante a saída reaproveita o nó", async ({ page, isMobile }) => {
     await page.goto("/hoje");
     await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
@@ -41,7 +62,7 @@ test.describe("movimento", () => {
 
   test("abrir e fechar um menu rapidamente não deixa nó preso nem duplicado", async ({ page, isMobile }) => {
     await page.goto("/entrada");
-    const trigger = page.getByRole("button", { name: /Visualização/ });
+    const trigger = page.getByRole("button", { name: /Mostrar/ });
     await expect(trigger).toBeVisible();
     for (let index = 0; index < 5; index++) await trigger.click({ delay: 0, force: true });
     // Número ímpar de cliques: termina aberto, com um único nó.

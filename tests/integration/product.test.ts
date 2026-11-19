@@ -80,6 +80,31 @@ describe("projects and navigation", () => {
 });
 
 describe("sections and task movement", () => {
+  it("stores and edits optional project and section descriptions independently of their names", async () => {
+    const call = await accountFixture();
+    const project = await payload<ProjectPage["project"]>(await call("POST", "/projects", {
+      name: "Reforma", description: "Planejamento\nMateriais",
+    }), 201);
+    const section = await payload<ProjectPage["sections"][number]>(await call("POST", `/projects/${project.id}/sections`, {
+      name: "Compras", description: "Pesquisar preços.",
+    }), 201);
+    expect(await page(call, project.id)).toMatchObject({
+      project: { name: "Reforma", description: "Planejamento\nMateriais" },
+      sections: [{ name: "Compras", description: "Pesquisar preços." }],
+    });
+    expect(await payload(await call("PATCH", `/projects/${project.id}`, { revision: project.revision, description: "" })))
+      .toMatchObject({ name: "Reforma", description: "" });
+    const renamed = await payload<ProjectPage["sections"][number]>(await call("PATCH", `/sections/${section.id}`, {
+      revision: section.revision, name: "Cotações",
+    }));
+    expect(renamed).toMatchObject({ description: "Pesquisar preços." });
+    expect(await payload(await call("PATCH", `/sections/${section.id}`, { revision: renamed.revision, description: "Comparar lojas." })))
+      .toMatchObject({ name: "Cotações", description: "Comparar lojas." });
+    await failure(await call("POST", `/projects/${project.id}/sections`, {
+      name: "Muito longa", description: "a".repeat(10_001),
+    }), 422, "VALIDATION_FAILED");
+  });
+
   it("orders sections and moves entire trees to the end of the unsectioned group on deletion", async () => {
     const call = await accountFixture();
     const project = await newProject(call);
@@ -99,15 +124,17 @@ describe("sections and task movement", () => {
     const existing = await newTask(call, "Sem seção", { projectId: project.id });
     const first = await newTask(call, "Raiz", { projectId: project.id, sectionId: one.id });
     const kid = await newTask(call, "Filha", { parentId: first.id, projectId: randomUUID(), sectionId: randomUUID() });
+    const grandchild = await newTask(call, "Neta", { parentId: kid.id });
     const second = await newTask(call, "Segunda", { projectId: project.id, sectionId: one.id });
-    const done = await completeTaskById(call, kid);
+    const done = await completeTaskById(call, kid, true);
     expect(done.task).toMatchObject({ status: "completed", parentId: first.id, sectionId: one.id });
-    expect((await page(call, project.id)).sections[1]).toMatchObject({ id: one.id, taskCount: 3 });
+    expect((await page(call, project.id)).sections[1]).toMatchObject({ id: one.id, taskCount: 4 });
     expect(await payload(await call("DELETE", `/sections/${one.id}?revision=${renamed.revision}`)))
-      .toEqual({ movedTaskCount: 3 });
+      .toEqual({ movedTaskCount: 4 });
     expect((await page(call, project.id, "?includeCompleted=true")).groups[0].rootIds)
       .toEqual([existing.id, first.id, second.id]);
     expect(await getTaskById(call, kid.id)).toMatchObject({ sectionId: null, parentId: first.id, status: "completed" });
+    expect(await getTaskById(call, grandchild.id)).toMatchObject({ sectionId: null, parentId: kid.id, status: "completed" });
   });
 
   it("reorders, changes columns, nests, promotes and moves a root with its children between projects", async () => {
@@ -128,13 +155,19 @@ describe("sections and task movement", () => {
     const root = await newTask(call, "Pai", positionFields(first.id, b.id));
     const nested = await moveResult(await moveRequest(call, column.task, position(first.id, b.id, root.id)));
     expect(nested.task).toMatchObject({ id: secondTask.id, parentId: root.id, sectionId: b.id });
+    const grandchild = await newTask(call, "Neta", { parentId: nested.task.id });
     const rootHere = await getTaskById(call, root.id);
     expect(rootHere.childIds).toEqual([secondTask.id]);
     const changedProject = await moveResult(await moveRequest(call, rootHere, position(second.id, other.id)));
     expect(changedProject.task).toMatchObject({ id: root.id, projectId: second.id, sectionId: other.id });
     const childHere = await getTaskById(call, secondTask.id);
     expect(childHere).toMatchObject({ parentId: root.id, projectId: second.id, sectionId: other.id });
-    const promoted = await moveResult(await moveRequest(call, childHere, { type: "promote" }));
+    const grandchildHere = await getTaskById(call, grandchild.id);
+    expect(grandchildHere).toMatchObject({ parentId: secondTask.id, projectId: second.id, sectionId: other.id });
+    const promotedOneLevel = await moveResult(await moveRequest(call, grandchildHere, { type: "promote" }));
+    expect(promotedOneLevel.task.parentId).toBe(root.id);
+    expect(promotedOneLevel.groups.at(-1)?.orderedIds).toEqual([secondTask.id, grandchild.id]);
+    const promoted = await moveResult(await moveRequest(call, await getTaskById(call, secondTask.id), { type: "promote" }));
     expect(promoted.task.parentId).toBeNull();
     expect(promoted.groups.at(-1)?.orderedIds).toEqual([root.id, secondTask.id]);
   });
@@ -150,19 +183,21 @@ describe("sections and task movement", () => {
     const other = await newTask(call, "Outra seção", positionFields(p.id, b.id));
     const outside = await newTask(call, "Outro projeto", { projectId: otherProject.id });
     const kid = await newTask(call, "Filha", { parentId: first.id });
+    const grandchild = await newTask(call, "Neta", { parentId: kid.id });
     const daily = await newTask(call, "Recorrente", {
       ...positionFields(p.id, b.id), dueDate: "2026-11-17", recurrence: { frequency: "daily" },
     });
     const done = await completeTaskById(call, await newTask(call, "Concluída", positionFields(p.id, b.id)));
 
     await failure(await moveRequest(call, done.task, position(p.id, a.id)), 409, "TASK_COMPLETED");
-    for (const invalid of [second.id, kid.id, done.task.id, daily.id, outside.id]) {
+    for (const invalid of [second.id, done.task.id, daily.id, outside.id]) {
       await failure(await moveRequest(call, second, position(p.id, a.id, invalid)), 422, "INVALID_PARENT");
     }
-    await failure(await moveRequest(call, first, position(p.id, b.id, other.id)), 422, "DEPTH_EXCEEDED");
+    await failure(await moveRequest(call, first, position(p.id, a.id, grandchild.id)), 422, "INVALID_PARENT");
     await failure(await moveRequest(call, daily, position(p.id, b.id, other.id)), 422, "RECURRENCE_NOT_ALLOWED");
     await failure(await moveRequest(call, kid, position(p.id, b.id, other.id)), 422, "MUST_PROMOTE_FIRST");
     await failure(await moveRequest(call, kid, position(otherProject.id, null, outside.id)), 422, "MUST_PROMOTE_FIRST");
+    await failure(await moveRequest(call, kid, position(otherProject.id)), 422, "MUST_PROMOTE_FIRST");
     await failure(await moveRequest(call, second, { ...position(p.id, a.id), afterId: other.id }), 422, "INVALID_ANCHOR");
     await failure(await moveRequest(call, second, { ...position(p.id, a.id), afterId: second.id }), 422, "INVALID_ANCHOR");
     await failure(await moveRequest(call, second, { ...position(p.id, a.id), afterId: randomUUID() }), 404, "NOT_FOUND");
@@ -180,6 +215,25 @@ describe("sections and task movement", () => {
     const unanchored = await moveResult(await moveRequest(call, other, position(p.id)));
     expect(unanchored.task.sectionId).toBeNull();
   });
+
+  it("moves a subtask directly into the roots of another section", async () => {
+    const call = await accountFixture();
+    const project = await newProject(call);
+    const origin = await newSection(call, project.id, "Origem");
+    const destination = await newSection(call, project.id, "Destino");
+    const parent = await newTask(call, "Pai", positionFields(project.id, origin.id));
+    const child = await newTask(call, "Subtarefa a mover", { parentId: parent.id });
+    const sibling = await newTask(call, "Subtarefa que fica", { parentId: parent.id });
+    const anchor = await newTask(call, "Tarefa de destino", positionFields(project.id, destination.id));
+
+    const moved = await moveResult(await moveRequest(call, child, { ...position(project.id, destination.id), beforeId: anchor.id }));
+    expect(moved.task).toMatchObject({ id: child.id, parentId: null, sectionId: destination.id });
+    expect(moved.groups).toEqual([
+      { ...positionFields(project.id, origin.id), parentId: parent.id, orderedIds: [sibling.id] },
+      { ...positionFields(project.id, destination.id), parentId: null, orderedIds: [child.id, anchor.id] },
+    ]);
+    expect(await getTaskById(call, parent.id)).toMatchObject({ sectionId: origin.id, childIds: [sibling.id] });
+  });
 });
 
 function positionFields(projectId: string, sectionId: string) {
@@ -187,6 +241,47 @@ function positionFields(projectId: string, sectionId: string) {
 }
 
 describe("tasks, labels and cross-account isolation", () => {
+  it("completes, undoes, reopens and deletes a branch beyond the overview depth", async () => {
+    const call = await accountFixture();
+    const project = await newProject(call);
+    const root = await newTask(call, "Raiz", { projectId: project.id });
+    const branch = [root];
+    for (let depth = 1; depth <= 7; depth++) {
+      branch.push(await newTask(call, `Nível ${depth}`, { parentId: branch.at(-1)!.id }));
+    }
+    const leaf = branch.at(-1)!;
+    const alreadyCompleted = await completeTaskById(call, await newTask(call, "Já concluída", { parentId: root.id }));
+    const ids = branch.map(({ id }) => id);
+    expect((await page(call, project.id)).tasks.map(({ id }) => id)).toEqual(ids);
+    expect(await getTaskById(call, branch[5].id)).toMatchObject({
+      origin: { parentTitle: branch[4].title },
+      children: [{ id: branch[6].id, childIds: [leaf.id] }],
+    });
+
+    const blocked = await failure(await call("POST", `/tasks/${root.id}/complete`, { revision: root.revision }), 409, "HAS_ACTIVE_CHILDREN");
+    expect(blocked.details).toEqual({ activeChildCount: 7 });
+    const completed = await completeTaskById(call, root, true);
+    expect(completed.completedChildIds).toEqual(ids.slice(1));
+    const undo = (completedChildIds: string[]) => call("POST", `/tasks/${root.id}/undo-completion`, {
+      revision: completed.task.revision, completedChildIds,
+    });
+    await failure(await undo([leaf.id]), 409, "UNDO_UNAVAILABLE");
+    expect(await payload(await undo(completed.completedChildIds)))
+      .toMatchObject({ reopenedChildIds: ids.slice(1), task: { status: "active" } });
+    expect((await page(call, project.id)).tasks.map(({ id }) => id)).toEqual(ids);
+    expect(await getTaskById(call, alreadyCompleted.task.id)).toMatchObject({ status: "completed" });
+
+    await completeTaskById(call, await getTaskById(call, root.id), true);
+    const closedLeaf = await getTaskById(call, leaf.id);
+    await payload(await call("POST", `/tasks/${leaf.id}/reopen`, { revision: closedLeaf.revision }));
+    expect((await page(call, project.id)).tasks.map(({ id }) => id)).toEqual(ids);
+    const reopened = await getTaskById(call, root.id);
+    const url = `/tasks/${root.id}?revision=${reopened.revision}`;
+    expect((await failure(await call("DELETE", url), 409, "HAS_CHILDREN")).details).toEqual({ childCount: 8 });
+    expect((await call("DELETE", `${url}&withChildren=true`)).status).toBe(204);
+    expect((await page(call, project.id, "?includeCompleted=true")).tasks).toEqual([]);
+  });
+
   it("validates scheduling, preserves placement on complete/reopen and requires subtree confirmation", async () => {
     const call = await accountFixture();
     const project = await newProject(call);

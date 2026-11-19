@@ -9,10 +9,10 @@ Contrato HTTP proposto em 17 de novembro de 2026 para o MVP descrito em [Arquite
 | Tema | Regra |
 | --- | --- |
 | Base e formato | Prefixo `/api/v1`. Corpo e resposta em JSON UTF-8 com chaves em `camelCase`. Exceções: download da exportação e corpo bruto da importação. |
-| Autenticação | Cookie de sessão opaco emitido pelo login (`HttpOnly`, `Secure`, `SameSite=Lax`). Toda rota, exceto `POST /auth/login` e `GET /api/health`, exige sessão válida e conta ativa. Sem sessão: `401 UNAUTHENTICATED`. |
+| Autenticação | Cookie de sessão opaco emitido pelo login (`HttpOnly`, `Secure`, `SameSite=Lax`). Exigem sessão válida e conta ativa as rotas privadas. `POST /auth/login`, `GET /api/health` e `GET /api/v1/public/projects/{token}` aceitam acesso sem sessão. Rotas privadas sem sessão devolvem `401 UNAUTHENTICATED`. |
 | Senha provisória | Enquanto a conta tiver `mustChangePassword`, só respondem `GET /auth/session`, `GET /me`, `POST /auth/password` e `POST /auth/logout`. As demais devolvem `403 PASSWORD_CHANGE_REQUIRED`. |
 | Origem | Métodos que alteram estado (`POST`, `PATCH`, `PUT`, `DELETE`) exigem `Origin` igual à origem configurada da instalação. Caso contrário: `403 FORBIDDEN_ORIGIN`. |
-| Tenant | O tenant vem sempre da sessão, nunca do corpo ou da URL. IDs de outra conta, inexistentes ou de entidades excluídas respondem `404 NOT_FOUND`, sem distinguir os casos. |
+| Tenant | As rotas privadas obtêm o tenant da sessão. A leitura pública resolve o tenant e o projeto pelo token do compartilhamento. IDs de outra conta, inexistentes ou de entidades excluídas respondem `404 NOT_FOUND`, sem distinguir os casos. |
 | Cache | Todas as respostas usam `Cache-Control: private, no-store`. Nenhum conteúdo pessoal vai para query string: busca e filtros usam corpo `POST`. |
 | IDs | UUIDs opacos gerados pelo servidor. O cliente só gera `operationId` da importação. |
 | Concorrência | Cada entidade editável tem `revision` inteiro. Mutações recebem a `revision` observada. Divergência: `409 REVISION_CONFLICT` com o estado atual em `error.details.current`. |
@@ -27,8 +27,8 @@ Contrato HTTP proposto em 17 de novembro de 2026 para o MVP descrito em [Arquite
 ```json
 {
   "error": {
-    "code": "DEPTH_EXCEEDED",
-    "message": "Subtarefas aceitam apenas um nível.",
+    "code": "INVALID_PARENT",
+    "message": "Uma tarefa não pode ficar abaixo de uma de suas subtarefas.",
     "details": {}
   }
 }
@@ -48,7 +48,7 @@ Contrato HTTP proposto em 17 de novembro de 2026 para o MVP descrito em [Arquite
 | 409 | `TASK_COMPLETED` | Edição ou movimento de tarefa concluída sem reabrir. |
 | 409 | `PROJECT_ARCHIVED` | Mutação em projeto arquivado ou em suas seções e tarefas. |
 | 409 | `PROJECT_NOT_EMPTY` | Exclusão de projeto com tarefas ativas ou concluídas. |
-| 409 | `HAS_ACTIVE_CHILDREN` | Conclusão de pai com filhos ativos sem `includeChildren`. |
+| 409 | `HAS_ACTIVE_CHILDREN` | Conclusão de uma tarefa com descendentes ativos sem `includeChildren`. |
 | 409 | `HAS_CHILDREN` | Exclusão de pai sem `withChildren=true`. |
 | 409 | `SORT_NOT_MANUAL` | Reordenação por posição com o projeto em ordenação automática. |
 | 409 | `OCCURRENCE_STALE` | Conclusão recorrente com `occurrenceId` que não é o aberto e não foi registrado. |
@@ -57,9 +57,8 @@ Contrato HTTP proposto em 17 de novembro de 2026 para o MVP descrito em [Arquite
 | 410 | `PREVIEW_EXPIRED` | Token de prévia da importação vencido. |
 | 413 | `PAYLOAD_TOO_LARGE` | Arquivo ou corpo acima do limite configurado. |
 | 422 | `VALIDATION_FAILED` | Campos inválidos. `details.fieldErrors` traz `{ campo: mensagem }`. |
-| 422 | `DEPTH_EXCEEDED` | Movimento ou criação que geraria mais de um nível de subtarefas. |
-| 422 | `INVALID_PARENT` | Pai inválido: é subtarefa, é a própria tarefa, está concluído, é recorrente ou está em outro projeto. |
-| 422 | `MUST_PROMOTE_FIRST` | Subtarefa enviada para outro projeto ou seção sem antes virar tarefa raiz. |
+| 422 | `INVALID_PARENT` | O pai está concluído, é recorrente, pertence a outro projeto ou criaria um ciclo. |
+| 422 | `MUST_PROMOTE_FIRST` | Subtarefa enviada para outro projeto ou para um novo pai em outra seção sem antes virar tarefa raiz. |
 | 422 | `INVALID_ANCHOR` | `beforeId` ou `afterId` fora do grupo de destino. |
 | 422 | `RECURRENCE_NOT_ALLOWED` | Recorrência em subtarefa ou em tarefa com filhos. |
 | 422 | `INBOX_PROTECTED` | Renomear, arquivar ou excluir a Caixa de entrada, ou criar seção nela. |
@@ -92,10 +91,10 @@ type TaskItem = {
   projectId: string;
   sectionId: string | null;
   parentId: string | null;
-  childIds: string[];                // ordem manual dos filhos; vazio em subtarefas
-  subtasks: { total: number; completed: number };
+  childIds: string[];                // filhos diretos visíveis, em ordem manual
+  subtasks: { total: number; completed: number }; // conta filhos diretos
   labels: { id: string; name: string }[];
-  origin?: {                         // só em vistas transversais (Hoje, Em breve, busca, etiqueta)
+  origin?: {                         // detalhe e vistas transversais (Hoje, Em breve, busca, etiqueta)
     projectName: string;
     isInbox: boolean;
     sectionName: string | null;
@@ -112,7 +111,7 @@ type TaskDetail = TaskItem & {
     time: string | null;
     nominalDate: string;             // data da regra para a ocorrência aberta
   } | null;
-  children: TaskItem[];
+  children: TaskItem[];              // filhos diretos, incluindo os concluídos
 };
 
 type Section = { id: string; revision: number; name: string; taskCount: number };
@@ -127,6 +126,9 @@ type ProjectSummary = {
   id: string;
   revision: number;
   name: string;
+  description: string;
+  color: ProjectColor | null;        // null: cor automática pela posição na lista
+  icon: ProjectIcon;                 // padrão "hash"
   isInbox: boolean;
   status: "active" | "archived";
   activeCount: number;               // tarefas e subtarefas ativas
@@ -169,9 +171,9 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
 | `GET /api/v1/projects?status=active\|archived` | 2 | Padrão `active`. | `200 { projects: ProjectSummary[] }`. |
-| `POST /api/v1/projects` | 2 | `{ name }` | `201 ProjectSummary`. View inicial: `list`, `manual`, `showCompleted: false`. |
+| `POST /api/v1/projects` | 2 | `{ name, description?, color?, icon? }`. `color` é uma das cores de `src/validation/project-style.ts` ou `null` (automática, padrão); `icon` é um dos ícones de lá, padrão `hash`. | `201 ProjectSummary`. View inicial: `list`, `manual`, `showCompleted: false`. |
 | `GET /api/v1/projects/{id}` | 2 | `?includeCompleted=true\|false`. Padrão: o `showCompleted` salvo. | `200 ProjectPage` (abaixo). Funciona também para a Caixa de entrada e para projetos arquivados, em modo leitura. |
-| `PATCH /api/v1/projects/{id}` | 2 | `{ revision, name }` | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
+| `PATCH /api/v1/projects/{id}` | 2 | `{ revision, name?, description?, color?, icon? }`, com pelo menos um campo editável. | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
 | `PATCH /api/v1/projects/{id}/view` | 2 | `{ layout?, sortMode?, showCompleted? }` | `200 ProjectView`. Sem `revision`: vale a última escrita. Caixa de entrada com `board`: `422 VALIDATION_FAILED`. |
 | `POST /api/v1/projects/{id}/archive` | 2 | `{ revision }` | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
 | `POST /api/v1/projects/{id}/unarchive` | 2 | `{ revision }` | `200 ProjectSummary`. Tarefas voltam com os mesmos estados, datas e posições. |
@@ -186,22 +188,76 @@ type ProjectPage = {
     sectionId: string | null;          // null = grupo "Sem seção", sempre primeiro
     rootIds: string[];                 // raízes já na ordem do sortMode
   }[];
-  tasks: TaskItem[];                   // raízes e filhos referenciados por rootIds e childIds
+  tasks: TaskItem[];                   // raízes e descendentes referenciados por rootIds e childIds
 };
 ```
 
 - A coleção `GET /projects` lista projetos comuns. A Caixa de entrada é identificada por `/me` ou `/navigation` e consultada pelo mesmo endpoint individual.
+- `ProjectSummary` e `Section` incluem `description: string`. A descrição aceita até 10 000 caracteres. Ao criar, omitir o campo equivale a `""`. Ao editar, omitir preserva o valor e enviar `""` remove a descrição.
 - Lista e Painel usam a mesma resposta: cada grupo é uma seção na Lista e uma coluna no Painel. O layout não altera dados.
+- A visão geral mostra até cinco níveis de subtarefas abaixo da raiz. O detalhe mostra os filhos diretos e permite navegar para o próximo nível ou voltar ao pai.
 - `sortMode` `date` ordena as raízes de cada grupo por data e hora, sem data por último. `priority` ordena de P1 a P4. Empate: posição manual e depois `id`. Filhos ficam sempre na ordem manual. A ordem manual persistida não muda; voltar a `manual` a recupera.
 - Com `includeCompleted`, as concluídas aparecem na seção e posição originais, com `status: "completed"`.
 - Projetos arquivados ficam fora de agendas, busca, contagens e destinos de movimento até a reativação.
+
+#### Compartilhamento público de projetos
+
+| Método e rota | Entrada | Resposta |
+| --- | --- | --- |
+| `GET /api/v1/projects/{id}/share` | ID do projeto e sessão do dono. | `200 { enabled: false, token: null }` ou `200 { enabled: true, token: string }`. |
+| `PUT /api/v1/projects/{id}/share` | ID do projeto, sessão do dono e `Origin` da instalação. Sem corpo ou `revision`. | `200 { enabled: true, token: string }`. Repetir enquanto o compartilhamento estiver ativo devolve o mesmo token. Projeto arquivado devolve `409 PROJECT_ARCHIVED`. |
+| `DELETE /api/v1/projects/{id}/share` | ID do projeto, sessão do dono e `Origin` da instalação. Sem corpo ou `revision`. | `204`, inclusive se o compartilhamento já estiver desativado. |
+| `GET /api/v1/public/projects/{token}` | Token do compartilhamento. Sessão opcional. `?includeCompleted=true\|false` é opcional. | `200 PublicProjectPage`. Token inválido, desconhecido ou revogado, inclusive por arquivamento, devolve `404 NOT_FOUND`. |
+
+1. No menu do projeto, consulte `GET /projects/{id}/share`. Use `PUT` para ativar e `DELETE` para revogar. A Caixa de entrada, projetos de outro dono e projetos excluídos devolvem `404 NOT_FOUND` nessas rotas. As mutações autenticadas seguem as regras de sessão e origem da seção 1.
+2. Monte o link a partir do token e da rota pública do front, sugerida como `/compartilhado/{token}` na mesma origem. Use o token de `GET` ou `PUT` para copiar o link enquanto o compartilhamento estiver ativo.
+3. Na página pública, chame `GET /api/v1/public/projects/{token}` sem exigir login. Use `groups` e `childIds` para montar Lista ou Painel e leia `description` no próprio payload ao abrir uma tarefa. Use texto simples na renderização. O DTO público tem tipos próprios e a interface deve apresentar somente controles de leitura. Para `404`, mostre que o link do projeto está indisponível.
+
+Quem tem o link pode consultar o estado atual do projeto, incluindo descrições, subtarefas, datas e etiquetas vinculadas. Omitir `includeCompleted` usa `project.view.showCompleted` como valor inicial. O visitante pode escolher `true` ou `false` no GET sem salvar uma preferência. As rotas privadas de tarefas, seções, projetos e exportação seguem exigindo a sessão do dono.
+
+Arquivar ou excluir o projeto revoga o link. Para projetos arquivados, o `GET /projects/{id}/share` retorna `{ enabled: false, token: null }` e o menu deve desabilitar a ação de publicar. Após reativar o projeto, o dono pode publicá-lo novamente via `PUT` e receber um novo token. Publicar após revogação manual também gera outro token. As respostas usam `Cache-Control: private, no-store`. A leitura pública também retorna `X-Robots-Tag: noindex` no `200`.
+
+```ts
+type PublicProjectPage = {
+  referenceDate: string; // YYYY-MM-DD no calendário do projeto
+  project: {
+    id: string;
+    name: string;
+    status: "active";
+    view: ProjectView;
+    activeCount: number;
+  };
+  sections: { id: string; name: string; taskCount: number }[];
+  groups: { sectionId: string | null; rootIds: string[] }[];
+  tasks: PublicTask[];
+};
+
+type PublicTask = {
+  id: string;
+  sectionId: string | null;
+  parentId: string | null;
+  title: string;
+  description: string;
+  descriptionExcerpt: string | null;
+  status: "active" | "completed";
+  completedAt: string | null;
+  priority: 1 | 2 | 3 | 4;
+  dueDate: string | null;
+  dueTime: string | null;
+  overdue: boolean;
+  recurrence: TaskItem["recurrence"];
+  childIds: string[];
+  subtasks: { total: number; completed: number };
+  labels: { id: string; name: string }[];
+};
+```
 
 ### 3.4 Seções
 
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
-| `POST /api/v1/projects/{id}/sections` | 2 | `{ name, afterSectionId? \| beforeSectionId? }`. Sem âncora: fim. | `201 Section`. Caixa de entrada: `422 INBOX_PROTECTED`. |
-| `PATCH /api/v1/sections/{id}` | 2 | `{ revision, name }` | `200 Section`. |
+| `POST /api/v1/projects/{id}/sections` | 2 | `{ name, description?, afterSectionId? \| beforeSectionId? }`. Sem âncora: fim. | `201 Section`. Caixa de entrada: `422 INBOX_PROTECTED`. |
+| `PATCH /api/v1/sections/{id}` | 2 | `{ revision, name?, description? }`, com pelo menos um campo editável. | `200 Section`. |
 | `POST /api/v1/sections/{id}/move` | 2 | `{ revision, afterSectionId? \| beforeSectionId? }` | `200 { sectionIds }` com a nova ordem do projeto. |
 | `DELETE /api/v1/sections/{id}?revision=N` | 2 | Vazio. | `200 { movedTaskCount }`. As árvores da seção vão para o fim do grupo Sem seção, mantendo ordem relativa, filhos, etiquetas e estados. |
 
@@ -216,6 +272,7 @@ type ProjectPage = {
 | `PATCH /api/v1/tasks/{id}` | 2 e 3 | `{ revision, title?, description?, priority?, dueDate?, dueTime?, labelIds? }` | `200 TaskDetail`. |
 | `POST /api/v1/tasks/{id}/complete` | 2 e 3 | `{ revision, occurrenceId?, includeChildren? }` | `200 { task: TaskItem, completedChildIds: string[], alreadyProcessed: boolean }`. |
 | `POST /api/v1/tasks/{id}/reopen` | 2 | `{ revision }` | `200 { task: TaskItem, reopenedParentId: string \| null }`. |
+| `POST /api/v1/tasks/{id}/undo-completion` | 2 e 3 | `{ revision, occurrenceId?, completedChildIds? }`. Envie a revisão retornada por `complete`; para recorrências, envie também o `occurrenceId` concluído. | `200 { task: TaskItem, reopenedChildIds: string[], reopenedParentId: string \| null }`. Reverte a conclusão e remove o registro da ocorrência recorrente quando aplicável. |
 | `DELETE /api/v1/tasks/{id}?revision=N&withChildren=true` | 2 | Vazio. | `204`. Com filhos e sem `withChildren=true`: `409 HAS_CHILDREN` com `{ childCount }`. |
 
 ```ts
@@ -233,7 +290,7 @@ type CreateTask = {
 };
 ```
 
-**Regras de criação.** A nova tarefa vai para o fim do seu grupo (seção do projeto ou lista de irmãos). Com `parentId`, o pai precisa ser raiz ativa, não recorrente e de projeto ativo; `projectId` e `sectionId` enviados são ignorados em favor dos do pai. `dueTime` exige `dueDate`. `recurrence` só vale sem `parentId`; `anchorDate` padrão é `dueDate` e, sem nenhum dos dois, `422`. Projeto arquivado: `409 PROJECT_ARCHIVED`.
+**Regras de criação.** A nova tarefa vai para o fim do seu grupo (seção do projeto ou lista de irmãos). Com `parentId`, o pai precisa estar ativo, sem recorrência e em um projeto ativo. A subtarefa herda o projeto e a seção do pai. A hierarquia aceita qualquer profundidade. `dueTime` exige `dueDate`. `recurrence` só vale sem `parentId`. A data padrão de `anchorDate` é `dueDate`. Sem nenhuma das duas, a API retorna `422`. Para um projeto arquivado, retorna `409 PROJECT_ARCHIVED`.
 
 **Regras de edição.**
 
@@ -246,13 +303,13 @@ type CreateTask = {
 **Regras de conclusão.**
 
 - Tarefa avulsa: registra `completedAt` e sai das listas ativas, mantendo seção e posição para reabertura.
-- Pai com filhos ativos: sem `includeChildren: true`, `409 HAS_ACTIVE_CHILDREN` com `{ activeChildCount }`. Com ele, conclui pai e filhos na mesma transação. Concluir todos os filhos isoladamente não conclui o pai.
+- Com descendentes ativos, `includeChildren: true` conclui toda a hierarquia na mesma transação e retorna os IDs recém-concluídos em `completedChildIds`. Sem confirmação, a API retorna `409 HAS_ACTIVE_CHILDREN` com `{ activeChildCount }`. Concluir subtarefas isoladamente preserva o estado do pai.
 - Recorrente: `occurrenceId` obrigatório. Na mesma transação, gravar a ocorrência concluída única por `(tenant, tarefa, occurrenceId)` e avançar a tarefa para a primeira data da regra estritamente posterior a `max(data nominal, data efetiva, dia local da conclusão)`, com novo `occurrenceId` e o horário da regra. A resposta traz a tarefa já avançada, ainda `active`. Repetir uma conclusão registrada devolve `200` com `alreadyProcessed: true` e o estado atual, inclusive após alterar ou encerrar a regra. `occurrenceId` diferente do aberto e sem registro: `409 OCCURRENCE_STALE`.
 - Exemplos que precisam passar: diária de ontem concluída hoje vai para amanhã; semanal de segunda antecipada para o domingo anterior e concluída nesse domingo vai para a segunda da semana seguinte à nominal; mensal de 31 de janeiro vai para o último dia de fevereiro e depois volta a 31 de março.
 
-**Regras de reabertura.** Só tarefas avulsas concluídas. A tarefa volta à mesma seção e posição; com data passada, aparece como atrasada. Reabrir um filho reabre o pai concluído e informa `reopenedParentId`. Desfazer conclusão de recorrente fica fora do MVP: `422 VALIDATION_FAILED`.
+**Regras de reabertura.** Aplicam-se a tarefas avulsas concluídas. A tarefa volta à mesma seção e posição. Com data passada, aparece como atrasada. Reabrir uma subtarefa reabre seus ancestrais concluídos e informa o ID do pai direto reaberto em `reopenedParentId`. Para desfazer uma conclusão em cascata, envie `completedChildIds` retornado pela conclusão para reabrir só as subtarefas afetadas.
 
-**Regras de exclusão.** Exclusão permanente, inclusive de concluídas, apagando filhos, vínculos de etiqueta e histórico de ocorrências. Não existe lixeira no MVP.
+**Regras de exclusão.** Com `withChildren=true`, a exclusão permanente apaga todos os descendentes, vínculos de etiqueta e histórico de ocorrências. `childCount` conta todos os descendentes.
 
 ### 3.6 Mover, reordenar e criar subtarefa
 
@@ -272,7 +329,7 @@ type MoveRequest = {
         beforeId?: string;         // no máximo um dos dois;
         afterId?: string;          // sem nenhum = fim do grupo
       }
-    | { type: "promote" };         // subtarefa vira raiz logo depois do pai
+    | { type: "promote" };         // sobe um nível e fica depois do antigo pai
 };
 
 type MoveResponse = {
@@ -290,10 +347,11 @@ type MoveResponse = {
 | --- | --- |
 | Reordenar na mesma seção (linha de inserção) | `position` com o mesmo projeto, seção e pai, e `beforeId` ou `afterId` do vizinho. |
 | Arrastar cartão para outra coluna do Painel | `position` com o `sectionId` da coluna; com âncora se soltou entre cartões, sem âncora se soltou no fundo da coluna. |
-| Soltar sobre o centro de uma tarefa raiz | `position` com `parentId` dessa raiz e sem âncora. |
+| Arrastar subtarefa para outra seção na Lista ou no Painel | `position` com o `sectionId` de destino e `parentId: null`. Uma soltura entre tarefas mantém a posição indicada. |
+| Soltar sobre o centro de uma tarefa | `position` com `parentId` dessa tarefa e sem âncora. |
 | “Mover para…” outro projeto ou seção | `position` com o destino e sem âncora. Projeto sem seção escolhida: `sectionId: null`. |
 | Alt+↑ e Alt+↓ | `position` com `beforeId` do irmão anterior ou `afterId` do seguinte. |
-| Alt+→ (tornar subtarefa da anterior) | `position` com `parentId` da raiz anterior. |
+| Alt+→ (tornar subtarefa da anterior) | `position` com `parentId` do irmão anterior. |
 | Alt+← (promover) | `promote`. |
 
 **Validação no servidor, em transação com bloqueio do tenant:**
@@ -301,9 +359,9 @@ type MoveResponse = {
 1. Tarefa concluída: `409 TASK_COMPLETED`. Projeto de origem ou destino arquivado: `409 PROJECT_ARCHIVED`.
 2. `beforeId` ou `afterId` com o projeto de destino fora de `manual`: `409 SORT_NOT_MANUAL`. Sem âncora, a mudança de seção, de projeto e a criação de subtarefa continuam permitidas em ordenação automática.
 3. Uma âncora que não resolve no tenant responde `404 NOT_FOUND`. Uma âncora visível precisa estar no grupo de destino (mesmo projeto, seção e pai) e ser outra tarefa: senão `422 INVALID_ANCHOR`. A mesma regra vale para âncoras de seção.
-4. Com `parentId`: o pai precisa ser raiz ativa, não recorrente, do mesmo projeto e diferente da própria tarefa (`422 INVALID_PARENT`). A tarefa movida não pode ter filhos nem recorrência (`422 DEPTH_EXCEEDED` ou `422 RECURRENCE_NOT_ALLOWED`). A nova subtarefa assume a seção do pai.
-5. Subtarefa enviada a outro projeto ou seção sem passar por `promote`: `422 MUST_PROMOTE_FIRST`. Trocar de pai dentro da mesma seção é permitido.
-6. Raiz movida leva os filhos, atualizando projeto e seção de todos.
+4. Com `parentId`, o pai precisa ser ativo, não recorrente e do mesmo projeto. Se for a própria tarefa ou um descendente, a API retorna `422 INVALID_PARENT`. Mover uma tarefa recorrente para baixo de outra retorna `422 RECURRENCE_NOT_ALLOWED`. A subtarefa assume a seção do pai.
+5. No mesmo projeto, `position` com `parentId: null` torna a subtarefa uma raiz na seção de destino em uma transação. Trocar de pai dentro da mesma seção é permitido. Mover uma subtarefa para outro projeto ou para um novo pai em outra seção exige torná-la raiz primeiro (`422 MUST_PROMOTE_FIRST`).
+6. Qualquer tarefa movida leva todos os descendentes e atualiza o projeto e a seção de cada um.
 7. Reescrever as posições do grupo de origem e do de destino e devolver `groups` com a ordem final. A interface aplica a mudança de forma otimista e substitui pelo resultado; em erro, restaura a posição original.
 
 ### 3.7 Recorrência
@@ -434,7 +492,7 @@ type SourceImportPreview = {
 | CSV do Todoist | No Feito |
 | --- | --- |
 | `TYPE=section` | Seção; as tarefas seguintes ficam nela. |
-| `TYPE=task`, `INDENT` | Tarefa raiz (`1`) ou subtarefa (`2`). Níveis `3+` sobem para subtarefa da raiz. |
+| `TYPE=task`, `INDENT` | `1` indica tarefa raiz. Cada nível maior indica um nível de subtarefa. |
 | `@etiqueta` no `CONTENT` | Etiqueta, removida do título. |
 | `PRIORITY` | Igual: `1` é a mais alta; vazio vira `4`. |
 | `DATE`, `DATE_LANG` | Texto em linguagem natural, em inglês ou português: `today`, `tomorrow`, `in 3 days`, `nov 20`, `20 de novembro 2027 14:30`, `monday`. Sem ano, vale o ano corrente. Datas relativas contam a partir do dia da importação. |
@@ -452,7 +510,7 @@ type SourceImportPreview = {
 
 Os modelos ficam em [`src/domain/export-formats.ts`](../src/domain/export-formats.ts) (nome, descrição e opções para a interface) e [`src/server/exporters`](../src/server/exporters) (um gerador por modelo). Na interface, “Exportar…” nos menus do projeto pergunta o modelo; hoje só existe `todoist`.
 
-**Todoist** (`text/csv`, UTF-8 com BOM): o mesmo cabeçalho de 20 colunas da exportação oficial, com `meta view_style`, seções, tarefas (`INDENT` 1) e subtarefas (`INDENT` 2) na ordem manual. Como no Todoist, tarefas concluídas ficam de fora. Datas em inglês (`Nov 20 2026 at 09:30`, `DATE_LANG=en`); recorrências como `every day`, `every monday at 07:00` e `every 30th`. Etiquetas viram `@nome` no conteúdo, com espaços trocados por `_`. A opção `relativeDates=true` escreve `today`, `tomorrow` e `in N days` para datas de hoje em diante. O arquivo é aceito pela importação do Todoist e pela do Feito.
+**Todoist** (`text/csv`, UTF-8 com BOM). O arquivo usa o mesmo cabeçalho de 20 colunas da exportação oficial, com `meta view_style`, seções e tarefas ativas na ordem manual. `INDENT` preserva a profundidade de cada tarefa a partir de `1` para a raiz. Datas e recorrências são escritas em inglês, como `Nov 20 2026 at 09:30` e `every monday at 07:00`. Etiquetas viram `@nome` no conteúdo, com espaços trocados por `_`. A opção `relativeDates=true` escreve `today`, `tomorrow` e `in N days` para datas de hoje em diante.
 
 ## 4. Comandos administrativos
 

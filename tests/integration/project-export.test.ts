@@ -50,7 +50,8 @@ describe("project export", () => {
       projectId: project.id, priority: 1, dueDate: "2026-11-20", dueTime: "09:30",
       description: "Linha 1\nLinha 2", labelIds: [label.id, plain.id],
     });
-    await newTask(call, "Comprar tinta", { parentId: parent.id, dueDate: "2027-01-05" });
+    const child = await newTask(call, "Comprar tinta", { parentId: parent.id, dueDate: "2027-01-05" });
+    await newTask(call, "Conferir estoque", { parentId: child.id });
     const done = await newTask(call, "Já feita", { projectId: project.id });
     await completeTaskById(call, done);
     const section = await newSection(call, project.id, "Jardim");
@@ -65,6 +66,7 @@ describe("project export", () => {
     expect(lines[1]).toBe("meta,view_style=board,,,,,,,,,,,,,,,,,,");
     expect(text).toContain('task,"Pintar, ""lixar"" antes @Fim_de_semana @casa","Linha 1\nLinha 2",,,1,1,,,Nov 20 2026 at 09:30,en,America/Sao_Paulo');
     expect(text).toContain("task,Comprar tinta,,,,4,2,,,Jan 5 2027,en,");
+    expect(text).toContain("task,Conferir estoque,,,,4,3,");
     expect(text).toContain("section,Jardim,,,False,");
     expect(text).toContain("task,Regar,,,,4,1,,,every monday at 07:00,en,");
     expect(text).toContain("task,Adubar,,,,4,1,,,every 30th,en,");
@@ -83,6 +85,7 @@ describe("project export", () => {
     expect(shape(copy.tasks)).toEqual(shape(original.tasks).map((task) =>
       task.labels.includes("Fim de semana") ? { ...task, labels: ["Fim_de_semana", "casa"] } : task));
     expect(copy.tasks[0].descriptionExcerpt).toBe("Linha 1");
+    expect(copy.tasks[2].parentId).toBe(copy.tasks[1].id);
   });
 
   it("rejects unknown formats, options and projects", async () => {

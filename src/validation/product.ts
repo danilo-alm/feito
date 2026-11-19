@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Temporal } from "@js-temporal/polyfill";
+import { PROJECT_COLORS, PROJECT_ICONS } from "./project-style";
 
 export const entityId = z.uuid().transform((value) => value.toLowerCase());
 export const revision = z.number().int().min(1).max(2147483647);
@@ -47,6 +48,7 @@ export const completedOccurrencePayload = z.strictObject({
   dueDate: civilDate,
   dueTime: localTime.nullable(),
   completedAt: instant,
+  nextOccurrenceId: entityId.optional(),
 });
 
 export const projectView = z.strictObject({
@@ -57,13 +59,18 @@ export const projectView = z.strictObject({
 export const defaultsForView: z.infer<typeof projectView> = {
   layout: "list", sortMode: "manual", showCompleted: false,
 };
+export const projectColor = z.enum(PROJECT_COLORS);
+export const projectIcon = z.enum(PROJECT_ICONS);
 export const projectPayload = z.strictObject({
   name,
+  description: description.default(""),
+  color: projectColor.nullable().default(null),
+  icon: projectIcon.default("hash"),
   archived: z.boolean(),
   view: projectView,
   createdAt: instant.default("1970-01-01T00:00:00Z"),
 });
-export const sectionPayload = z.strictObject({ name, position });
+export const sectionPayload = z.strictObject({ name, description: description.default(""), position });
 export const labelPayload = z.strictObject({ name });
 export const taskPayload = z.strictObject({
   title,
@@ -79,6 +86,17 @@ export const taskPayload = z.strictObject({
 
 export const nameInput = z.strictObject({ name });
 export const editNameInput = z.strictObject({ name, revision });
+export const createNamedDetailsInput = z.strictObject({ name, description: description.default("") });
+export const editNamedDetailsInput = z.strictObject({ revision, name: name.optional(), description: description.optional() })
+  .refine((input) => input.name !== undefined || input.description !== undefined);
+export const createProjectInput = createNamedDetailsInput.extend({
+  color: projectColor.nullable().default(null),
+  icon: projectIcon.default("hash"),
+});
+export const editProjectInput = z.strictObject({
+  revision, name: name.optional(), description: description.optional(),
+  color: projectColor.nullable().optional(), icon: projectIcon.optional(),
+}).refine((input) => Object.keys(input).length > 1);
 export const revisionInput = z.strictObject({ revision });
 export const projectViewPatch = projectView.partial();
 const queryBool = z.enum(["true", "false"]).transform((value) => value === "true");
@@ -91,7 +109,7 @@ export const taskDeleteQuery = deleteQuery.extend({ withChildren: queryBool.opti
 const sectionAnchor = { afterSectionId: entityId.optional(), beforeSectionId: entityId.optional() };
 const atMostOneSectionAnchor = (input: { afterSectionId?: string; beforeSectionId?: string }) =>
   !(input.afterSectionId && input.beforeSectionId);
-export const createSectionInput = z.strictObject({ name, ...sectionAnchor })
+export const createSectionInput = createNamedDetailsInput.extend(sectionAnchor)
   .refine(atMostOneSectionAnchor, { path: ["beforeSectionId"] });
 export const sectionMoveInput = z.strictObject({ revision, ...sectionAnchor })
   .refine(atMostOneSectionAnchor, { path: ["beforeSectionId"] });
@@ -117,6 +135,17 @@ export const completeTaskInput = z.strictObject({
   revision,
   occurrenceId: entityId.optional(),
   includeChildren: z.boolean().optional(),
+});
+export const undoTaskCompletionInput = z.strictObject({
+  revision,
+  occurrenceId: entityId.optional(),
+  completedChildIds: z.array(entityId).optional().default([]),
+}).refine((input) => !input.occurrenceId || input.completedChildIds.length === 0, {
+  path: ["completedChildIds"],
+  message: "Uma conclusão recorrente não pode incluir subtarefas.",
+}).refine((input) => new Set(input.completedChildIds).size === input.completedChildIds.length, {
+  path: ["completedChildIds"],
+  message: "Não repita subtarefas.",
 });
 const positionTarget = z.strictObject({
   type: z.literal("position"),
@@ -162,6 +191,7 @@ export type CreateTaskInput = z.infer<typeof createTaskInput>;
 export type EditTaskInput = z.infer<typeof editTaskInput>;
 export type TaskMoveInput = z.infer<typeof taskMoveInput>;
 export type CompleteTaskInput = z.infer<typeof completeTaskInput>;
+export type UndoTaskCompletionInput = z.infer<typeof undoTaskCompletionInput>;
 export type ProjectView = z.infer<typeof projectView>;
 export type RecurrenceRule = z.infer<typeof recurrenceRule>;
 export type SetRecurrenceInput = z.infer<typeof setRecurrenceInput>;

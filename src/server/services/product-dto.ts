@@ -3,6 +3,7 @@ import {
   childrenByParent, childrenOf, isActive, isOverdue, orderedRoots, orderedSections,
   type Label, type Product, type Project, type Section, type Task,
 } from "@/domain/product";
+import { walkTaskTree } from "@/domain/task-tree";
 
 export function inboxProject(product: Product) {
   const inbox = [...product.projects.values()].find((project) => project.isInbox);
@@ -30,6 +31,9 @@ export function projectSummary(product: Product, project: Project) {
     id: project.id,
     revision: project.revision,
     name: project.data.name,
+    description: project.data.description,
+    color: project.data.color,
+    icon: project.data.icon,
     isInbox: project.isInbox,
     status: project.data.archived ? "archived" as const : "active" as const,
     activeCount: project.data.archived ? 0 : projectCounts(product, project.id).activeCount,
@@ -38,7 +42,7 @@ export function projectSummary(product: Product, project: Project) {
 
 export function sectionDto(product: Product, section: Section) {
   const taskCount = [...product.tasks.values()].filter((task) => task.sectionId === section.id).length;
-  return { id: section.id, revision: section.revision, name: section.data.name, taskCount };
+  return { id: section.id, revision: section.revision, name: section.data.name, description: section.data.description, taskCount };
 }
 
 export function labelDto(product: Product, label: Label) {
@@ -100,13 +104,14 @@ export function taskItemsWithOrigin(product: Product) {
 }
 
 export function taskDetail(product: Product, task: Task) {
-  const children = childrenOf(product, task.id);
+  const byParent = childrenByParent(product.tasks.values());
+  const children = byParent.get(task.id) ?? [];
   return {
-    ...taskItem(product, task, { children }),
+    ...taskItem(product, task, { children, origin: true }),
     description: task.data.description,
     createdAt: task.data.createdAt,
     recurrenceRule: task.data.recurrenceRule,
-    children: children.map((child) => taskItem(product, child, { children: [] })),
+    children: children.map((child) => taskItem(product, child, { children: byParent.get(child.id) ?? [] })),
   };
 }
 
@@ -125,14 +130,14 @@ export function projectPage(product: Product, project: Project, includeCompleted
   }
 
   const items: ReturnType<typeof taskItem>[] = [];
+  const visibleChildren = (task: Task) => {
+    const direct = children.get(task.id) ?? [];
+    return include ? direct : direct.filter(isActive);
+  };
   const groups = [null, ...sections.map((section) => section.id)].map((sectionId) => {
     const sorted = orderedRoots(rootsBySection.get(sectionId) ?? [], view.sortMode);
-    for (const root of sorted) {
-      const childTasks = children.get(root.id) ?? [];
-      items.push(taskItem(product, root, { includeCompletedChildren: include, children: childTasks }));
-      for (const child of childTasks) {
-        if (include || isActive(child)) items.push(taskItem(product, child, { children: [] }));
-      }
+    for (const { task } of walkTaskTree(sorted, visibleChildren)) {
+      items.push(taskItem(product, task, { includeCompletedChildren: include, children: children.get(task.id) ?? [] }));
     }
     return { sectionId, rootIds: sorted.map((root) => root.id) };
   });

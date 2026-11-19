@@ -1,5 +1,6 @@
 import type { Temporal } from "@js-temporal/polyfill";
 import type { CompletedOccurrencePayload, LabelPayload, ProjectPayload, SectionPayload, TaskPayload } from "@/validation/product";
+import { walkTaskTree } from "./task-tree";
 
 export const inboxName = "Caixa de entrada";
 
@@ -50,6 +51,11 @@ export function childrenByParent(tasks: Iterable<Task>) {
 
 export function childrenOf(product: Product, id: string) {
   return [...product.tasks.values()].filter((task) => task.parentId === id).sort(byPosition);
+}
+
+export function taskDescendants(product: Product, id: string) {
+  const children = childrenByParent(product.tasks.values());
+  return walkTaskTree(children.get(id) ?? [], (task) => children.get(task.id) ?? []);
 }
 
 export function groupTasks(product: Product, group: TaskGroup) {

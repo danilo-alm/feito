@@ -172,3 +172,17 @@ export function monthShort(date: string, withYear = true) {
 export function weekdayShort(date: string) {
   return WEEKDAYS[weekday(date)];
 }
+
+export type DueTone = "late" | "today" | "tomorrow" | "weekend" | "later" | "past";
+
+/** Tom de cor de um vencimento: verde hoje, amarelo amanhã, azul este fim de semana, roxo adiante, vermelho atrasado. */
+export function dueTone(date: string, reference: string, overdue = false): DueTone {
+  const diff = daysBetween(reference, date);
+  if (overdue) return "late";
+  if (diff < 0) return "past";
+  if (diff === 0) return "today";
+  if (diff === 1) return "tomorrow";
+  const day = weekday(date);
+  if (diff <= 7 && (day === 0 || day === 6)) return "weekend";
+  return "later";
+}

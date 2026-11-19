@@ -1,21 +1,30 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiFailure, errorMessage } from "@/client/api";
-import { dateLabel, FREQUENCY_LABEL } from "@/client/dates";
+import { tagColor } from "@/client/colors";
+import { dateLabel, dayOfMonth, dueTone, FREQUENCY_LABEL } from "@/client/dates";
 import { useQuery } from "@/client/store";
 import type { EditTask, Frequency, Label, TaskDetail as Detail } from "@/client/types";
-import { refreshAll, useApp } from "./app";
+import { refreshAll, useApp, type TaskSelection } from "./app";
 import {
-  IconCalendar, IconClock, IconFlag, IconHash, IconInbox, IconPlus, IconRepeat, IconTag, IconTrash, IconX,
+  DueIcon, IconChevronDown, IconChevronUp, IconClock, IconCopy, IconExternal, IconFlag, IconInbox, IconLink,
+  IconMore, IconPlus, IconRepeat, IconTag, IconTrash, IconX,
 } from "./icons";
-import { DatePicker, LabelPicker, PRIORITY_NAMES, PriorityMenu, RepeatMenu } from "./pickers";
+import { ProjectGlyph } from "./project-style";
+import { DatePicker, LabelPicker, PRIORITY_NAMES, PriorityMenu, RepeatMenu, TimePicker } from "./pickers";
 import { useTaskActions } from "./task-actions";
-import { Checkbox, TaskMeta } from "./task-row";
-import { Dialog, Popover, Spinner, useAutoGrow, useToast } from "./ui";
+import { TaskContent } from "./task-content";
+import { Checkbox } from "./task-row";
+import { Dialog, MenuButton, Popover, Spinner, useAutoGrow, useToast } from "./ui";
 
 type Pop = "date" | "time" | "repeat" | "priority" | "labels" | null;
 
-export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; onClose: () => void }) {
+export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelection | null; onClose: () => void }) {
+  const taskId = selection?.id ?? null;
+  const order = selection?.order ?? [];
+  const index = taskId ? order.indexOf(taskId) : -1;
+  const previousId = index > 0 ? order[index - 1] : undefined;
+  const nextId = index >= 0 ? order[index + 1] : undefined;
   const app = useApp();
   const toast = useToast();
   const actions = useTaskActions();
@@ -25,14 +34,22 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [pop, setPop] = useState<Pop>(null);
+  const [manualLink, setManualLink] = useState<string | null>(null);
   const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
   const titleRef = useRef<HTMLInputElement>(null);
+  const focusTask = useRef<string | null>(null);
+  const currentTaskId = useRef(taskId);
+  currentTaskId.current = taskId;
   const descRef = useAutoGrow(description);
 
   useEffect(() => {
     if (task) {
       setTitle(task.title);
       setDescription(task.description);
+      if (focusTask.current === task.id) {
+        titleRef.current?.focus();
+        focusTask.current = null;
+      }
     }
   }, [task]);
 
@@ -49,27 +66,23 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
     : { name: app.nav?.projects.find((item) => item.id === task.projectId)?.name ?? "Projeto arquivado", inbox: false });
 
   // Salvamentos em fila: cada edição usa a revisão devolvida pela anterior.
-  const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const revision = useRef<number | null>(null);
+  const editSession = useMemo(() => ({ queue: Promise.resolve() as Promise<unknown>, revision: null as number | null }), [taskId]);
   useEffect(() => {
-    if (task && (revision.current === null || task.revision > revision.current)) revision.current = task.revision;
-  }, [task]);
-  useEffect(() => {
-    revision.current = null;
-  }, [taskId]);
+    if (task && task.revision > (editSession.revision ?? 0)) editSession.revision = task.revision;
+  }, [task, editSession]);
 
   const enqueue = (work: (current: number) => Promise<Detail>, success?: string) => {
     if (!task) return Promise.resolve();
     const run = async () => {
       try {
-        const updated = await work(revision.current ?? task.revision);
-        revision.current = updated.revision;
+        const updated = await work(editSession.revision ?? task.revision);
+        editSession.revision = updated.revision;
         query.mutate(() => updated);
         if (success) toast(success);
       } catch (error) {
         if (error instanceof ApiFailure && error.code === "REVISION_CONFLICT") {
           toast("A tarefa mudou em outra aba. Recarreguei a versão atual.", { bad: true });
-          revision.current = null;
+          editSession.revision = null;
           await query.reload();
         } else {
           toast(errorMessage(error), { bad: true });
@@ -78,8 +91,8 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
         void refreshAll();
       }
     };
-    queue.current = queue.current.then(run, run);
-    return queue.current;
+    editSession.queue = editSession.queue.then(run, run);
+    return editSession.queue;
   };
 
   const save = (patch: Omit<EditTask, "revision">, success?: string) =>
@@ -107,15 +120,59 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
   const closePop = () => setPop(null);
   const anchorRef = (key: string) => (node: HTMLButtonElement | null) => { anchors.current[key] = node; };
   const recurrenceBlocked = !!task && (!!task.parentId || task.subtasks.total > 0);
+  const openRelatedTask = (id: string, relatedOrder?: readonly string[]) => {
+    focusTask.current = id;
+    setPop(null);
+    app.openTask(id, relatedOrder);
+  };
+  const taskLink = (id: string) => new URL(`/entrada?tarefa=${encodeURIComponent(id)}`, window.location.origin).href;
+  const copyLink = async (id: string) => {
+    const link = taskLink(id);
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("Link da tarefa copiado");
+    } catch {
+      if (currentTaskId.current === id) setManualLink(link);
+    }
+  };
 
   return (
     <Dialog open={!!taskId} onClose={onClose} title={task?.title ?? "Detalhe da tarefa"} wide hideHeader initialFocus={titleRef}>
-      <div className="dialog-h" style={{ padding: "8px 8px 8px 22px" }}>
-        <span className="crumb" style={{ flex: 1, minWidth: 0 }}>
-          {project?.inbox ? <IconInbox className="sm" /> : <IconHash className="sm" />}
-          {project?.name}{task?.parentId && task.origin?.parentTitle ? ` / ${task.origin.parentTitle}` : ""}
-        </span>
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar (Esc)"><IconX /></button>
+      <div className="dialog-h task-detail-head">
+        <div className="crumb">
+          {project?.inbox ? <IconInbox className="sm" /> : <ProjectGlyph id={task?.projectId} className="sm" />}
+          <span>{project?.name}</span>
+          {task?.parentId && task.origin?.parentTitle && (
+            <>
+              <span aria-hidden="true">/</span>
+              <button type="button" className="task-parent-link" onClick={() => openRelatedTask(task.parentId!)}
+                aria-label={`Tarefa-pai: ${task.origin.parentTitle}`}>{task.origin.parentTitle}</button>
+            </>
+          )}
+        </div>
+        <div className="task-detail-tools">
+          <button type="button" className="icon-btn" aria-label="Mostrar tarefa anterior" title="Mostrar tarefa anterior"
+            disabled={!previousId} onClick={() => previousId && openRelatedTask(previousId, order)}><IconChevronUp /></button>
+          <button type="button" className="icon-btn" aria-label="Mostrar próxima tarefa" title="Mostrar próxima tarefa"
+            disabled={!nextId} onClick={() => nextId && openRelatedTask(nextId, order)}><IconChevronDown /></button>
+          {task && <MenuButton key={task.id} label="Ações da tarefa" items={() => [
+            { label: "Duplicar", icon: <IconCopy />, onSelect: async () => {
+              await editSession.queue;
+              await actions.duplicate(task);
+            } },
+            { label: "Copiar link para a tarefa", icon: <IconLink />, onSelect: () => void copyLink(task.id) },
+            { label: "Abrir em nova janela", icon: <IconExternal />, onSelect: () => {
+              window.open(taskLink(task.id), "_blank", "noopener,popup");
+            } },
+            "separator",
+            { label: "Excluir", icon: <IconTrash />, danger: true, onSelect: async () => {
+              await editSession.queue;
+              const removed = await actions.remove({ ...task, revision: editSession.revision ?? task.revision });
+              if (removed && currentTaskId.current === task.id) onClose();
+            } },
+          ]}><IconMore /></MenuButton>}
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar (Esc)" data-autofocus><IconX /></button>
+        </div>
       </div>
       {!task ? <Spinner /> : (
         <div style={{ display: "flex", flexWrap: "wrap" }}>
@@ -142,7 +199,7 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
                   onChange={(event) => setDescription(event.target.value)} onBlur={commitDescription} />
               </div>
             </div>
-            {!task.parentId && (
+            {(!completed || task.children.length > 0) && (
               <div style={{ marginLeft: 34, display: "flex", flexDirection: "column" }}>
                 <div className="lbl" style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 6, borderBottom: "1px solid var(--border)" }}>
                   Subtarefas {task.subtasks.total > 0 && <span className="sub">{task.subtasks.completed}/{task.subtasks.total}</span>}
@@ -150,12 +207,8 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
                 {task.children.map((child) => (
                   <div key={child.id} className={`task${child.status === "completed" ? " done-t" : ""}`} style={{ background: "transparent" }}>
                     <Checkbox task={child} onToggle={async () => { await actions.toggle(child); await query.reload(); }} />
-                    <button type="button" className="t-click" onClick={() => app.openTask(child.id)}>
-                      <div className="t-body">
-                        <div className="t-title">{child.title}</div>
-                        <TaskMeta task={child} reference={app.reference} timezone={app.timezone} />
-                      </div>
-                    </button>
+                    <TaskContent task={child} actions={actions} showDescription={false}
+                      onOpen={(id) => openRelatedTask(id, task.children.map((item) => item.id))} />
                   </div>
                 ))}
                 {!completed && !task.recurrence && (
@@ -174,17 +227,17 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
             <Section title="Projeto">
               <button type="button" className="d-val" disabled={completed} onClick={() => actions.openMove(task)}
                 aria-label={`Projeto: ${project?.name ?? ""}. Mover para…`}>
-                {project?.inbox ? <IconInbox /> : <IconHash />}
+                {project?.inbox ? <IconInbox className="ic-inbox" /> : <ProjectGlyph id={task.projectId} />}
                 <span className="d-text">{project?.name}{task.parentId && task.origin?.parentTitle ? ` / ${task.origin.parentTitle}` : ""}</span>
               </button>
             </Section>
 
-            <Section title="Data" add={!task.dueDate && !completed ? { ref: anchorRef("date"), label: "Adicionar data", onClick: () => setPop(pop === "date" ? null : "date") } : undefined}>
+            <Section title="Data" add={!task.dueDate && !completed ? { ref: anchorRef("date"), label: "Adicionar data", expanded: pop === "date", onClick: () => setPop(pop === "date" ? null : "date") } : undefined}>
               {task.dueDate && (
                 <>
-                  <button type="button" ref={anchorRef("date")} className="d-val" disabled={completed} aria-haspopup="dialog"
-                    onClick={() => setPop(pop === "date" ? null : "date")} style={task.overdue ? { color: "var(--late)" } : undefined}>
-                    <IconCalendar /><span className="d-text">{dateLabel(task.dueDate, app.reference)}</span>
+                  <button type="button" ref={anchorRef("date")} className={`d-val tone-${dueTone(task.dueDate, app.reference, task.overdue)}`}
+                    disabled={completed} aria-haspopup="dialog" onClick={() => setPop(pop === "date" ? null : "date")}>
+                    <DueIcon tone={dueTone(task.dueDate, app.reference, task.overdue)} day={dayOfMonth(task.dueDate)} /><span className="d-text">{dateLabel(task.dueDate, app.reference)}</span>
                   </button>
                   <button type="button" ref={anchorRef("time")} className="d-val sub" disabled={completed} aria-haspopup="dialog"
                     aria-label={task.dueTime ? `Hora: ${task.dueTime}` : "Adicionar horário"} onClick={() => setPop(pop === "time" ? null : "time")}>
@@ -195,11 +248,11 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
             </Section>
 
             <Section title="Repetir" note={recurrenceBlocked ? "Indisponível para subtarefas e para tarefas com subtarefas." : undefined}
-              add={!task.recurrenceRule && !completed && !recurrenceBlocked ? { ref: anchorRef("repeat"), label: "Definir repetição", onClick: () => setPop(pop === "repeat" ? null : "repeat") } : undefined}>
+              add={!task.recurrenceRule && !completed && !recurrenceBlocked ? { ref: anchorRef("repeat"), label: "Repetir: definir repetição", expanded: pop === "repeat", onClick: () => setPop(pop === "repeat" ? null : "repeat") } : undefined}>
               {task.recurrenceRule && (
                 <button type="button" ref={anchorRef("repeat")} className="d-val" disabled={completed} aria-haspopup="listbox"
                   onClick={() => setPop(pop === "repeat" ? null : "repeat")}>
-                  <IconRepeat /><span className="d-text">{FREQUENCY_LABEL[task.recurrenceRule.frequency]}</span>
+                  <IconRepeat className="ic-repeat" /><span className="d-text">{FREQUENCY_LABEL[task.recurrenceRule.frequency]}</span>
                 </button>
               )}
             </Section>
@@ -213,12 +266,12 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
             </Section>
 
             <Section title="Etiquetas" last
-              add={!completed ? { ref: anchorRef("labels"), label: "Adicionar etiqueta", onClick: () => setPop(pop === "labels" ? null : "labels") } : undefined}>
+              add={!completed ? { ref: anchorRef("labels"), label: "Etiquetas: adicionar etiqueta", expanded: pop === "labels", onClick: () => setPop(pop === "labels" ? null : "labels") } : undefined}>
               {task.labels.length > 0 && (
                 <div className="d-chips">
                   {task.labels.map((label) => (
                     <span key={label.id} className="pill">
-                      <IconTag className="sm" />{label.name}
+                      <IconTag className="sm" style={{ color: tagColor(label.id) }} />{label.name}
                       {!completed && (
                         <button type="button" className="icon-btn" style={{ width: 20, height: 20, minHeight: 0 }} aria-label={`Remover ${label.name}`}
                           onClick={() => void save({ labelIds: task.labels.filter((item) => item.id !== label.id).map((item) => item.id) })}>
@@ -230,11 +283,6 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
                 </div>
               )}
             </Section>
-
-            <div className="d-foot">
-              <button type="button" className="btn ghost danger"
-                onClick={async () => { if (await actions.remove(task)) onClose(); }}><IconTrash />Excluir tarefa</button>
-            </div>
           </aside>
         </div>
       )}
@@ -245,19 +293,7 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
               onPick={(date) => void save({ dueDate: date }, date ? `Agendada para ${dateLabel(date, app.reference).toLowerCase()}` : "Data removida")} />
           </Popover>
           <Popover anchor={anchors.current.time ?? null} open={pop === "time"} onClose={closePop} label="Hora">
-            <form className="date-pop" onSubmit={(event) => {
-              event.preventDefault();
-              const value = new FormData(event.currentTarget).get("time") as string;
-              void save({ dueTime: value || null });
-              closePop();
-            }}>
-              <label className="lbl" htmlFor="detail-time">Horário</label>
-              <input id="detail-time" name="time" type="time" defaultValue={task.dueTime ?? ""} data-autofocus />
-              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                {task.dueTime && <button type="button" className="btn ghost" onClick={() => { void save({ dueTime: null }); closePop(); }}>Sem horário</button>}
-                <button type="submit" className="btn primary" style={{ marginLeft: "auto" }}>Salvar</button>
-              </div>
-            </form>
+            <TimePicker value={task.dueTime} onPick={(time) => { void save({ dueTime: time }); closePop(); }} />
           </Popover>
           <Popover anchor={anchors.current.repeat ?? null} open={pop === "repeat"} onClose={closePop} label="Repetir">
             <RepeatMenu value={task.recurrenceRule?.frequency ?? null} onPick={(value) => void setRepeat(value)} />
@@ -270,25 +306,37 @@ export function TaskDetailDialog({ taskId, onClose }: { taskId: string | null; o
           </Popover>
         </>
       )}
+      <Dialog open={!!task && !!manualLink} onClose={() => setManualLink(null)} title="Copiar link para a tarefa">
+        <div className="dialog-b">
+          <input className="input" aria-label="Link da tarefa" value={manualLink ?? ""} readOnly data-autofocus
+            onFocus={(event) => event.currentTarget.select()} />
+        </div>
+      </Dialog>
       {actions.moveDialog}
     </Dialog>
   );
 }
 
-type SectionAdd = { ref: (node: HTMLButtonElement | null) => void; label: string; onClick: () => void };
+type SectionAdd = {
+  ref: (node: HTMLButtonElement | null) => void;
+  label: string;
+  expanded: boolean;
+  onClick: () => void;
+};
 
 /** Bloco do painel lateral: título em cima, valor embaixo, + quando ainda não há valor. */
 function Section({ title, add, note, last, children }: { title: string; add?: SectionAdd; note?: string; last?: boolean; children?: React.ReactNode }) {
   return (
     <section className={`d-sec${last ? " last" : ""}`} aria-label={title}>
-      <div className="d-sec-h">
-        <h3>{title}</h3>
-        {add && (
-          <button type="button" ref={add.ref} className="icon-btn" aria-label={add.label} aria-haspopup="dialog" onClick={add.onClick}>
+      <h3 className="d-sec-h">
+        {add ? (
+          <button type="button" ref={add.ref} className="d-val" aria-label={add.label} aria-haspopup="dialog"
+            aria-expanded={add.expanded} onClick={add.onClick}>
+            {title}
             <IconPlus />
           </button>
-        )}
-      </div>
+        ) : title}
+      </h3>
       {children}
       {note && <p className="hint">{note}</p>}
     </section>

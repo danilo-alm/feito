@@ -1,4 +1,5 @@
 // Tipos de resposta da API /api/v1 (docs/02-backend-endpoints.md, seção 2).
+import type { ProjectColor, ProjectIcon } from "@/validation/project-style";
 
 export type Priority = 1 | 2 | 3 | 4;
 export type Frequency = "daily" | "weekly" | "monthly";
@@ -49,13 +50,16 @@ export type TaskDetail = TaskItem & {
   children: TaskItem[];
 };
 
-export type Section = { id: string; revision: number; name: string; taskCount: number };
+export type NamedDetails = { name: string; description: string };
+export type Section = NamedDetails & { id: string; revision: number; taskCount: number };
 export type ProjectView = { layout: Layout; sortMode: SortMode; showCompleted: boolean };
 
-export type ProjectSummary = {
+export type ProjectStyle = { color: ProjectColor | null; icon: ProjectIcon };
+export type ProjectDetails = NamedDetails & ProjectStyle;
+
+export type ProjectSummary = ProjectDetails & {
   id: string;
   revision: number;
-  name: string;
   isInbox: boolean;
   status: "active" | "archived";
   activeCount: number;
@@ -135,6 +139,8 @@ export type MoveResponse = {
 
 export type CompleteResponse = { task: TaskItem; completedChildIds: string[]; alreadyProcessed: boolean };
 export type ReopenResponse = { task: TaskItem; reopenedParentId: string | null };
+export type UndoCompletionInput = { revision: number; occurrenceId?: string; completedChildIds: string[] };
+export type UndoCompletionResponse = { task: TaskItem; reopenedChildIds: string[]; reopenedParentId: string | null };
 
 export type CreateTask = {
   title: string;
@@ -199,3 +205,19 @@ export type SourceImportPreview = {
 
 /** `projectIds` só vem na primeira confirmação; repetições devolvem apenas o resumo. */
 export type SourceImportResult = ImportResult & { projectIds?: string[] };
+
+// ---------- Compartilhamento público ----------
+
+export type ProjectShare = { enabled: false; token: null } | { enabled: true; token: string };
+
+export type PublicTask = Pick<TaskItem,
+  "id" | "sectionId" | "parentId" | "title" | "descriptionExcerpt" | "status" | "completedAt" | "priority"
+  | "dueDate" | "dueTime" | "overdue" | "recurrence" | "childIds" | "subtasks" | "labels"> & { description: string };
+
+export type PublicProjectPage = {
+  referenceDate: string;
+  project: { id: string; name: string; status: "active"; view: ProjectView; activeCount: number };
+  sections: { id: string; name: string; taskCount: number }[];
+  groups: { sectionId: string | null; rootIds: string[] }[];
+  tasks: PublicTask[];
+};

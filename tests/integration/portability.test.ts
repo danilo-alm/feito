@@ -57,6 +57,24 @@ function documentWithoutInstant(file: string) {
 }
 
 describe("portable export and restoration", () => {
+  it("round-trips an entire nested branch, including completed descendants", async () => {
+    const source = await accountFixture();
+    const target = await accountFixture();
+    const project = await newProject(source);
+    const root = await newTask(source, "Raiz", { projectId: project.id });
+    const child = await newTask(source, "Filha", { parentId: root.id });
+    const grandchild = await newTask(source, "Neta", { parentId: child.id });
+    const leaf = await newTask(source, "Último nível", { parentId: grandchild.id });
+    await completeTaskById(source, leaf);
+
+    const file = await download(source);
+    const preview = await inspect(target, file);
+    expect(preview.errors).toEqual([]);
+    expect(preview.counts).toMatchObject({ tasks: 4, completedTasks: 1 });
+    await payload(await confirm(target, file, preview));
+    expect(documentWithoutInstant(await download(target))).toEqual(documentWithoutInstant(file));
+  });
+
   it("round-trips product data between tenants with distinct DEKs and records one repeatable receipt", async () => {
     const clock = vi.spyOn(Temporal.Now, "instant").mockReturnValue(Temporal.Instant.from("2027-01-31T14:00:00Z"));
     const [source, target] = await Promise.all([accountFixture(), accountFixture()]);

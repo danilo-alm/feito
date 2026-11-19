@@ -1,13 +1,15 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/client/api";
+import { tagColor } from "@/client/colors";
 import { dateLabel } from "@/client/dates";
 import { useQuery } from "@/client/store";
 import type { Priority, SearchDate, SearchInput, SearchResult, TaskItem } from "@/client/types";
 import { useApp } from "@/components/app";
 import { PageHeader } from "@/components/chrome";
 import { FlatGroup } from "@/components/flat-list";
-import { IconCalendar, IconChevronDown, IconFlag, IconHash, IconInbox, IconSearch, IconTag, IconX } from "@/components/icons";
+import { IconCalendar, IconChevronDown, IconFlag, IconInbox, IconSearch, IconTag, IconX } from "@/components/icons";
+import { ProjectGlyph } from "@/components/project-style";
 import { PriorityMenu } from "@/components/pickers";
 import { useTaskActions } from "@/components/task-actions";
 import { Popover, Spinner } from "@/components/ui";
@@ -93,8 +95,8 @@ export default function SearchPage() {
               onKeyDown={(event) => { if (event.key === "Escape") setText(""); }} />
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            {pill("project", projectId === inboxId ? <IconInbox /> : <IconHash />, "Projeto", projectName, () => setProjectId(undefined))}
-            {pill("label", <IconTag />, "Etiqueta", labelName, () => setLabelId(undefined))}
+            {pill("project", projectId === inboxId ? <IconInbox /> : <ProjectGlyph id={projectId} />, "Projeto", projectName, () => setProjectId(undefined))}
+            {pill("label", <IconTag style={{ color: tagColor(labelId) }} />, "Etiqueta", labelName, () => setLabelId(undefined))}
             {pill("priority", <IconFlag />, "Prioridade", priority ? `P${priority}` : null, () => setPriority(undefined))}
             {pill("date", <IconCalendar />, "Data", dateName, () => setDate(undefined))}
             {(projectId || labelId || priority || date) && <button type="button" className="btn ghost" style={{ height: 30, color: "var(--muted)" }} onClick={clear}>Limpar filtros</button>}
@@ -126,7 +128,7 @@ export default function SearchPage() {
         <div className="menu" style={{ maxHeight: 320, overflow: "auto" }}>
           <button type="button" className="mi" onClick={() => { setProjectId(inboxId); close(); }}><IconInbox />Caixa de entrada</button>
           {app.nav?.projects.map((project) => (
-            <button key={project.id} type="button" className="mi" onClick={() => { setProjectId(project.id); close(); }}><IconHash />{project.name}</button>
+            <button key={project.id} type="button" className="mi" onClick={() => { setProjectId(project.id); close(); }}><ProjectGlyph id={project.id} />{project.name}</button>
           ))}
         </div>
       </Popover>
@@ -134,7 +136,7 @@ export default function SearchPage() {
         <div className="menu" style={{ maxHeight: 320, overflow: "auto" }}>
           {!app.nav?.labels.length && <p className="hint" style={{ padding: 8 }}>Nenhuma etiqueta criada.</p>}
           {app.nav?.labels.map((label) => (
-            <button key={label.id} type="button" className="mi" onClick={() => { setLabelId(label.id); close(); }}><IconTag />{label.name}</button>
+            <button key={label.id} type="button" className="mi" onClick={() => { setLabelId(label.id); close(); }}><IconTag style={{ color: tagColor(label.id) }} />{label.name}</button>
           ))}
         </div>
       </Popover>

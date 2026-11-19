@@ -7,6 +7,6 @@ import { createSectionInput } from "@/validation/product";
 export const runtime = "nodejs";
 
 export const POST = productIdRoute("/api/v1/projects/{id}/sections", "create_section", async (request, access, id) => {
-  const { name, ...anchor } = await readProductJson(request, createSectionInput);
-  return json(await createSection(access, id, name, anchor), 201);
+  const { name, description, ...anchor } = await readProductJson(request, createSectionInput);
+  return json(await createSection(access, id, { name, description }, anchor), 201);
 });

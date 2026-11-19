@@ -134,14 +134,22 @@ function insertTasks(
   product: Product, labelIds: Map<string, string>, planned: PlannedTask[],
   group: { projectId: string; sectionId: string | null; parentId: string | null }, start = 0,
 ) {
-  for (const [index, item] of planned.entries()) {
-    const position = start + index;
+  const pending = [{ siblings: planned.entries(), group, start }];
+  while (pending.length) {
+    const frame = pending.at(-1)!;
+    const next = frame.siblings.next();
+    if (next.done) {
+      pending.pop();
+      continue;
+    }
+    const [index, item] = next.value;
+    const position = frame.start + index;
     const id = randomUUID();
     const recurrenceRule = item.recurrence
       ? { ...item.recurrence, nominalDate: item.recurrence.anchorDate, time: item.dueTime }
       : null;
     const task: Task = {
-      ...group, id, revision: 1, occurrenceId: recurrenceRule ? randomUUID() : null,
+      ...frame.group, id, revision: 1, occurrenceId: recurrenceRule ? randomUUID() : null,
       data: {
         title: item.title, description: item.description, priority: item.priority,
         createdAt: product.now.toString(), completedAt: null, position,
@@ -153,7 +161,9 @@ function insertTasks(
     product.tasks.set(id, task);
     const links = [...new Set(item.labels.map((name) => labelIds.get(normalizeLabelName(name))!))];
     if (links.length) product.taskLabels.set(id, links);
-    insertTasks(product, labelIds, item.children, { ...group, parentId: id });
+    if (item.children.length) {
+      pending.push({ siblings: item.children.entries(), group: { ...frame.group, parentId: id }, start: 0 });
+    }
   }
 }
 
@@ -171,7 +181,7 @@ function applyPlan(product: Product, plan: ImportPlan, target: Project | null) {
     const first = (orderedSections(product, target.id).at(-1)?.data.position ?? -1) + 1;
     for (const [index, section] of project.sections.entries()) {
       const sectionId = randomUUID();
-      product.sections.set(sectionId, { id: sectionId, projectId: target.id, revision: 1, data: { name: section.name, position: first + index } });
+      product.sections.set(sectionId, { id: sectionId, projectId: target.id, revision: 1, data: { name: section.name, description: "", position: first + index } });
       insertTasks(product, labelIds, section.tasks, { ...roots, sectionId });
     }
     return [target.id];
@@ -183,13 +193,13 @@ function applyPlan(product: Product, plan: ImportPlan, target: Project | null) {
     const createdAt = product.now.add({ milliseconds: index }).toString();
     product.projects.set(id, {
       id, revision: 1, isInbox: false,
-      data: { name: project.name, archived: false, createdAt, view: { ...defaultsForView, layout: project.layout } },
+      data: { name: project.name, description: "", color: null, icon: "hash", archived: false, createdAt, view: { ...defaultsForView, layout: project.layout } },
     });
     projectIds.push(id);
     insertTasks(product, labelIds, project.tasks, { projectId: id, sectionId: null, parentId: null });
     for (const [position, section] of project.sections.entries()) {
       const sectionId = randomUUID();
-      product.sections.set(sectionId, { id: sectionId, projectId: id, revision: 1, data: { name: section.name, position } });
+      product.sections.set(sectionId, { id: sectionId, projectId: id, revision: 1, data: { name: section.name, description: "", position } });
       insertTasks(product, labelIds, section.tasks, { projectId: id, sectionId, parentId: null });
     }
   }

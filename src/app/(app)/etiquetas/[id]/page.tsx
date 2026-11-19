@@ -5,7 +5,7 @@ import { api } from "@/client/api";
 import { useQuery } from "@/client/store";
 import type { LabelTasks, TaskItem } from "@/client/types";
 import { useApp } from "@/components/app";
-import { PageHeader } from "@/components/chrome";
+import { PageHeader, PageTaskCount } from "@/components/chrome";
 import { FlatGroup } from "@/components/flat-list";
 import { IconEdit, IconMore, IconTrash } from "@/components/icons";
 import { useTaskActions } from "@/components/task-actions";
@@ -51,7 +51,7 @@ export default function LabelPage({ params }: { params: Promise<{ id: string }> 
       <div className="content">
         <div className="col">
           <div className="page-h"><h1 className="title">{label?.name ?? "Etiqueta"}</h1>
-            {query.data && <span className="sub">{tasks.length}{next ? "+" : ""} tarefas ativas</span>}</div>
+            {query.data && <PageTaskCount count={tasks.length} more={Boolean(next)} />}</div>
           {!query.data ? <Spinner /> : (
             <FlatGroup tasks={tasks} actions={actions}
               empty={<div className="empty"><strong>Nenhuma tarefa ativa</strong>Associe esta etiqueta a tarefas pelo detalhe.</div>} />

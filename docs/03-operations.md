@@ -8,7 +8,7 @@ As telas ficam em `src/app` (Entrar, troca de senha, Hoje, Em breve, Caixa de en
 
 - Os estilos derivam dos tokens do design (`src/app/globals.css`), com tema claro, escuro e do sistema. O tema salvo nas preferências é aplicado antes da primeira pintura.
 - Acima de 900 px a navegação é a barra lateral. Abaixo disso, a barra inferior (Entrada, Hoje, Em breve e Navegar, que reúne busca, ajustes, projetos e etiquetas), o botão de criar e as folhas substituem popovers e modais.
-- Arrastar e soltar usa `@dnd-kit/core`: mouse no desktop e toque prolongado (400 ms) no celular, com rolagem automática nas bordas. `src/client/tree.ts` espelha as validações de `POST /tasks/{id}/move` (um nível de subtarefa, promoção antes de mudar de seção, reordenação só em Manual) e aplica o movimento de forma otimista até a confirmação do servidor.
+- Arrastar e soltar usa `@dnd-kit/core` com mouse no desktop e toque prolongado (400 ms) no celular, com rolagem automática nas bordas. `src/client/tree.ts` acompanha as regras de `POST /tasks/{id}/move` para validar o destino, evitar ciclos e respeitar a ordenação manual. O movimento aparece na interface enquanto o servidor confirma.
 - Tudo que aparece ou some tem transição, com tokens de duração e curva e um mecanismo de presença comum. As regras estão em [Movimento e interação](04-motion-and-interaction.md).
 - Menus ⋯, “Mover para…” e os atalhos Alt+↑/↓/←/→ (Alt+Shift+←/→ entre colunas do Painel) fazem as mesmas operações sem arrastar. `Q` abre a criação rápida e `/` a busca.
 

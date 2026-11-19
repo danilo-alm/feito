@@ -45,18 +45,21 @@ function priorityOf(value: string): PlannedTask["priority"] {
   return number === 1 || number === 2 || number === 3 ? number : 4;
 }
 
-type Draft = PlannedTask & { notes: string[]; extras: string[]; line: number };
+type Draft = { task: PlannedTask; notes: string[]; extras: string[]; nested: boolean };
 
-function finish(task: Draft, warnings: WarningCollector): PlannedTask {
-  const blocks = [task.description.trim(), ...task.extras];
-  if (task.notes.length) blocks.push(`Comentários do Todoist:\n${task.notes.map((note) => `- ${note}`).join("\n")}`);
+function finish({ task, notes, extras, nested }: Draft, warnings: WarningCollector) {
+  const blocks = [task.description.trim(), ...extras];
+  if (notes.length) blocks.push(`Comentários do Todoist:\n${notes.map((note) => `- ${note}`).join("\n")}`);
   let description = blocks.filter(Boolean).join("\n\n");
   if (chars(description).length > LIMITS.description) {
     description = clip(description, LIMITS.description);
     warnings.add("long-description", (count) => `${plural(count, "descrição foi cortada", "descrições foram cortadas")} no limite de 10 000 caracteres.`);
   }
-  const { notes: _notes, extras: _extras, line: _line, ...rest } = task;
-  return { ...rest, description, children: task.children.map((child) => finish(child as Draft, warnings)) };
+  task.description = description;
+  if (task.recurrence && (nested || task.children.length > 0)) {
+    warnings.add("recurrence-dropped", (count) => `${plural(count, "recorrência foi removida", "recorrências foram removidas")} de subtarefas ou tarefas com subtarefas; a próxima data foi mantida.`);
+    task.recurrence = null;
+  }
 }
 
 function parseFile(file: SourceFile, context: ImporterContext, warnings: WarningCollector, errors: ImportIssue[]) {
@@ -72,7 +75,8 @@ function parseFile(file: SourceFile, context: ImporterContext, warnings: Warning
 
   const project: PlannedProject = { name: projectNameFromFile(file.name), layout: "list", tasks: [], sections: [] };
   let section: PlannedSection | null = null;
-  let lastRoot: Draft | null = null;
+  const drafts: Draft[] = [];
+  const ancestors: { indent: number; task: PlannedTask }[] = [];
   let lastTask: Draft | null = null;
 
   for (const record of body) {
@@ -90,7 +94,7 @@ function parseFile(file: SourceFile, context: ImporterContext, warnings: Warning
       if (chars(name).length > LIMITS.name) warnings.add("long-name", (count) => `${plural(count, "nome de seção foi cortado", "nomes de seção foram cortados")} em 120 caracteres.`);
       section = { name: clip(name, LIMITS.name), tasks: [] };
       project.sections.push(section);
-      lastRoot = null;
+      ancestors.length = 0;
       lastTask = null;
       continue;
     }
@@ -137,37 +141,28 @@ function parseFile(file: SourceFile, context: ImporterContext, warnings: Warning
     if (row.get("DURATION")) warnings.add("duration", (count) => `${plural(count, "duração foi ignorada", "durações foram ignoradas")}.`);
     if (row.get("REMINDER_TYPE") || row.get("REMINDER_DATE")) warnings.add("reminder", (count) => `${plural(count, "lembrete foi ignorado", "lembretes foram ignorados")}.`);
 
-    const task: Draft = {
+    const task: PlannedTask = {
       title, description: row.get("DESCRIPTION").normalize("NFC"), priority: priorityOf(row.get("PRIORITY")),
       dueDate: due?.dueDate ?? null, dueTime: due?.dueTime ?? null, recurrence: due?.recurrence ?? null,
-      labels, children: [], notes: [], extras, line: row.line,
+      labels, children: [],
     };
 
-    const indent = Number(row.get("INDENT")) || 1;
-    if (indent <= 1 || !lastRoot) {
+    const rawIndent = Number(row.get("INDENT"));
+    const indent = Number.isSafeInteger(rawIndent) && rawIndent > 0 ? rawIndent : 1;
+    while (ancestors.length && ancestors.at(-1)!.indent >= indent) ancestors.pop();
+    const parent = ancestors.at(-1)?.task;
+    if (parent) {
+      parent.children.push(task);
+    } else {
       if (indent > 1) warnings.add("orphan-subtask", (count) => `${plural(count, "subtarefa sem tarefa principal virou tarefa", "subtarefas sem tarefa principal viraram tarefas")}.`);
       (section ? section.tasks : project.tasks).push(task);
-      lastRoot = task;
-    } else {
-      // O Feito aceita um nível de subtarefas: níveis mais profundos ficam sob a tarefa raiz.
-      if (indent > 2) warnings.add("depth", (count) => `${plural(count, "subtarefa de nível profundo foi movida", "subtarefas de nível profundo foram movidas")} para o primeiro nível, pois o Feito aceita um nível de subtarefas.`);
-      lastRoot.children.push(task);
     }
-    lastTask = task;
+    ancestors.push({ task, indent: parent ? indent : 1 });
+    lastTask = { task, notes: [], extras, nested: !!parent };
+    drafts.push(lastTask);
   }
 
-  const finished = (tasks: PlannedTask[]) => tasks.map((task) => {
-    const done = finish(task as Draft, warnings);
-    // Recorrência só em tarefa raiz sem filhos; nos outros casos, mantém só a próxima data.
-    const strip = (item: PlannedTask, reason: boolean) => {
-      if (!reason || !item.recurrence) return item;
-      warnings.add("recurrence-dropped", (count) => `${plural(count, "recorrência foi removida", "recorrências foram removidas")} de subtarefas ou tarefas com subtarefas; a próxima data foi mantida.`);
-      return { ...item, recurrence: null };
-    };
-    return { ...strip(done, done.children.length > 0), children: done.children.map((child) => strip(child, true)) };
-  });
-  project.tasks = finished(project.tasks);
-  project.sections = project.sections.map((item) => ({ ...item, tasks: finished(item.tasks) }));
+  for (const draft of drafts) finish(draft, warnings);
   return project;
 }
 

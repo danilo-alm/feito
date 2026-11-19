@@ -1,9 +1,10 @@
 // Cliente HTTP da API /api/v1. Usado pela interface no navegador e pelos testes de integração.
 import type {
   CompleteResponse, CreateTask, EditTask, Frequency, ImportPreview, ImportResult, Label, LabelTasks, Layout,
-  Me, MoveResponse, MoveTarget, Navigation, Preferences, ProjectPage, ProjectSummary, ProjectView, ReopenResponse,
+  Me, MoveResponse, MoveTarget, NamedDetails, Navigation, ProjectDetails, Preferences, ProjectPage, ProjectShare, ProjectSummary, ProjectView,
+  PublicProjectPage, ReopenResponse,
   SearchInput, SearchResult, Section, Session, SortMode, SourceImportPreview, SourceImportResult, TaskDetail,
-  TodayView, UpcomingView,
+  TodayView, UndoCompletionInput, UndoCompletionResponse, UpcomingView,
 } from "./types";
 
 export class ApiFailure extends Error {
@@ -94,30 +95,36 @@ export const api = {
       request<void>("POST", "/auth/password", { currentPassword, newPassword }),
   },
   me: () => request<Me>("GET", "/me"),
+  /** Leitura sem sessão de um projeto compartilhado por link. */
+  publicProject: (token: string, includeCompleted?: boolean) =>
+    request<PublicProjectPage>("GET", `/public/projects/${enc(token)}${query({ includeCompleted })}`),
   navigation: () => request<Navigation>("GET", "/navigation"),
   preferences: (patch: Partial<Preferences>) => request<Preferences>("PATCH", "/preferences", patch),
 
   projects: {
     list: (status: "active" | "archived" = "active") =>
       request<{ projects: ProjectSummary[] }>("GET", `/projects${query({ status })}`),
-    create: (name: string) => request<ProjectSummary>("POST", "/projects", { name }),
+    create: (details: ProjectDetails) => request<ProjectSummary>("POST", "/projects", details),
     get: (id: string, includeCompleted?: boolean) =>
       request<ProjectPage>("GET", `/projects/${enc(id)}${query({ includeCompleted })}`),
-    rename: (id: string, revision: number, name: string) =>
-      request<ProjectSummary>("PATCH", `/projects/${enc(id)}`, { revision, name }),
+    edit: (id: string, revision: number, patch: Partial<ProjectDetails>) =>
+      request<ProjectSummary>("PATCH", `/projects/${enc(id)}`, { revision, ...patch }),
     setView: (id: string, view: Partial<{ layout: Layout; sortMode: SortMode; showCompleted: boolean }>) =>
       request<ProjectView>("PATCH", `/projects/${enc(id)}/view`, view),
     archive: (id: string, revision: number) => request<ProjectSummary>("POST", `/projects/${enc(id)}/archive`, { revision }),
     unarchive: (id: string, revision: number) =>
       request<ProjectSummary>("POST", `/projects/${enc(id)}/unarchive`, { revision }),
     remove: (id: string, revision: number) => request<void>("DELETE", `/projects/${enc(id)}${query({ revision })}`),
+    share: (id: string) => request<ProjectShare>("GET", `/projects/${enc(id)}/share`),
+    enableShare: (id: string) => request<ProjectShare>("PUT", `/projects/${enc(id)}/share`),
+    disableShare: (id: string) => request<void>("DELETE", `/projects/${enc(id)}/share`),
   },
 
   sections: {
-    create: (projectId: string, name: string, anchor: { afterSectionId?: string; beforeSectionId?: string } = {}) =>
-      request<Section>("POST", `/projects/${enc(projectId)}/sections`, { name, ...anchor }),
-    rename: (id: string, revision: number, name: string) =>
-      request<Section>("PATCH", `/sections/${enc(id)}`, { revision, name }),
+    create: (projectId: string, details: NamedDetails, anchor: { afterSectionId?: string; beforeSectionId?: string } = {}) =>
+      request<Section>("POST", `/projects/${enc(projectId)}/sections`, { ...details, ...anchor }),
+    edit: (id: string, revision: number, patch: Partial<NamedDetails>) =>
+      request<Section>("PATCH", `/sections/${enc(id)}`, { revision, ...patch }),
     move: (id: string, revision: number, anchor: { afterSectionId?: string; beforeSectionId?: string }) =>
       request<{ sectionIds: string[] }>("POST", `/sections/${enc(id)}/move`, { revision, ...anchor }),
     remove: (id: string, revision: number) =>
@@ -130,6 +137,8 @@ export const api = {
     edit: (id: string, input: EditTask) => request<TaskDetail>("PATCH", `/tasks/${enc(id)}`, input),
     complete: (id: string, input: { revision: number; occurrenceId?: string; includeChildren?: boolean }) =>
       request<CompleteResponse>("POST", `/tasks/${enc(id)}/complete`, input),
+    undoCompletion: (id: string, input: UndoCompletionInput) =>
+      request<UndoCompletionResponse>("POST", `/tasks/${enc(id)}/undo-completion`, input),
     reopen: (id: string, revision: number) => request<ReopenResponse>("POST", `/tasks/${enc(id)}/reopen`, { revision }),
     remove: (id: string, revision: number, withChildren = false) =>
       request<void>("DELETE", `/tasks/${enc(id)}${query({ revision, withChildren: withChildren || undefined })}`),

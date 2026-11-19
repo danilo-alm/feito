@@ -78,9 +78,9 @@ function validateReferences(document: PortableDocument) {
     }
     if (task.parentId !== null) {
       const parent = tasks.get(task.parentId);
-      if (!parent || parent.parentId !== null || parent.projectId !== task.projectId
+      if (!parent || parent.projectId !== task.projectId
         || parent.sectionId !== task.sectionId || parent.recurrenceRule !== null) {
-        report(`${path}.parentId`, "A tarefa pai deve ser raiz, sem recorrência, no mesmo projeto e seção.");
+        report(`${path}.parentId`, "A tarefa pai deve estar no mesmo projeto e seção e não ter recorrência.");
       } else if (parent.status === "completed" && task.status === "active") {
         report(`${path}.status`, "Uma tarefa concluída não pode ter uma subtarefa ativa.");
       }
@@ -103,6 +103,21 @@ function validateReferences(document: PortableDocument) {
     }
     unique(positions, JSON.stringify(["task", task.projectId, task.sectionId, task.parentId, task.position]),
       `${path}.position`, "Posição duplicada no grupo de tarefas.");
+  }
+  const checked = new Set<string>();
+  for (const [index, task] of document.tasks.entries()) {
+    if (checked.has(task.id)) continue;
+    const ancestors = new Set<string>();
+    let current: typeof task | undefined = task;
+    while (current && !checked.has(current.id)) {
+      if (ancestors.has(current.id)) {
+        report(`tasks.${index}.parentId`, "A hierarquia de tarefas contém um ciclo.");
+        break;
+      }
+      ancestors.add(current.id);
+      current = current.parentId ? tasks.get(current.parentId) : undefined;
+    }
+    for (const id of ancestors) checked.add(id);
   }
   const labelNames = new Set<string>();
   for (const [index, label] of document.labels.entries()) {

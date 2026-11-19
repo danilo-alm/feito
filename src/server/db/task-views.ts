@@ -84,16 +84,16 @@ async function viewContext(
     if (parent) related.set(parent.id, parent);
     else parents.push(task.parentId);
   }
-  const roots = new Set(results.filter((task) => task.parentId === null).map((task) => task.id));
-  if (roots.size && !labelFiltered) {
+  const resultIds = new Set(results.map((task) => task.id));
+  if (resultIds.size && !labelFiltered) {
     for (const task of candidates.values()) {
-      if (task.parentId && roots.has(task.parentId)) related.set(task.id, task);
+      if (task.parentId && resultIds.has(task.parentId)) related.set(task.id, task);
     }
   }
 
   const contextRows = await fetchById(parents, (ids) => tx.select().from(tasks).where(inArray(tasks.id, ids)));
   if (labelFiltered) {
-    contextRows.push(...await fetchById(roots, (ids) => tx.select().from(tasks).where(inArray(tasks.parentId, ids))));
+    contextRows.push(...await fetchById(resultIds, (ids) => tx.select().from(tasks).where(inArray(tasks.parentId, ids))));
   }
   for (const row of contextRows) {
     const task = candidates.get(row.id) ?? related.get(row.id) ?? await decrypt(row);

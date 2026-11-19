@@ -1,7 +1,7 @@
 "use client";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import {
-  addDays, dateLabel, dayOfMonth, daysBetween, daysInMonth, longDate, monthShort, monthStart, nextWeek, parseDueInput, shortDate,
+  addDays, dateLabel, dayOfMonth, daysBetween, daysInMonth, dueTone, longDate, monthShort, monthStart, nextWeek, parseDueInput, shortDate,
   weekday, weekdayShort, weekend,
 } from "@/client/dates";
 import { api } from "@/client/api";
@@ -9,9 +9,10 @@ import { useQuery } from "@/client/store";
 import type { Frequency, Label, Priority, ProjectPage } from "@/client/types";
 import { useApp } from "./app";
 import {
-  IconBan, IconCalendar, IconCalendarDay, IconCheck, IconChevronLeft, IconChevronRight, IconFlag, IconHash, IconInbox, IconNextWeek,
+  DueIcon, IconBan, IconCalendar, IconCalendarDay, IconCheck, IconChevronLeft, IconChevronRight, IconFlag, IconInbox, IconNextWeek,
   IconPlus, IconSofa, IconSun,
 } from "./icons";
+import { ProjectGlyph } from "./project-style";
 import { Collapse } from "./motion";
 
 export const PRIORITY_NAMES: Record<Priority, string> = {
@@ -54,7 +55,26 @@ export function RepeatMenu({ value, onPick }: { value: Frequency | null; onPick:
   );
 }
 
+export function TimePicker({ value, onPick }: { value: string | null; onPick: (time: string | null) => void }) {
+  const id = useId();
+  return (
+    <form className="date-pop" onSubmit={(event) => {
+      event.preventDefault();
+      const time = new FormData(event.currentTarget).get("time") as string;
+      onPick(time || null);
+    }}>
+      <label className="lbl" htmlFor={id}>Horário</label>
+      <input id={id} name="time" type="time" defaultValue={value ?? ""} data-autofocus />
+      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+        {value && <button type="button" className="btn ghost" onClick={() => onPick(null)}>Sem horário</button>}
+        <button type="submit" className="btn primary" style={{ marginLeft: "auto" }}>Salvar</button>
+      </div>
+    </form>
+  );
+}
+
 export function LabelPicker({ selected, onChange }: { selected: string[]; onChange: (ids: string[]) => void }) {
+  const id = useId();
   const app = useApp();
   const labels = useQuery<{ labels: Label[] }>("labels", api.labels.list);
   const [text, setText] = useState("");
@@ -75,8 +95,8 @@ export function LabelPicker({ selected, onChange }: { selected: string[]; onChan
   };
   return (
     <div style={{ padding: 8, width: 260, display: "flex", flexDirection: "column", gap: 6 }}>
-      <label className="sr-only" htmlFor="label-filter">Buscar ou criar etiqueta</label>
-      <input id="label-filter" className="inline-input" placeholder="Buscar ou criar etiqueta" value={text} data-autofocus
+      <label className="sr-only" htmlFor={id}>Buscar ou criar etiqueta</label>
+      <input id={id} className="inline-input" placeholder="Buscar ou criar etiqueta" value={text} data-autofocus
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); if (!exact) void create(); } }} />
       <div className="menu" style={{ padding: 0, minWidth: 0, maxHeight: 240, overflow: "auto" }} role="listbox" aria-multiselectable="true" aria-label="Etiquetas">
@@ -115,7 +135,7 @@ export function DestinationPicker({ projectId, sectionId, onPick }: {
         <div key={project.id}>
           <button type="button" className="mi" aria-expanded={expanded === project.id}
             onClick={() => setExpanded(expanded === project.id ? null : project.id)}>
-            <IconHash /><span style={{ flex: 1 }}>{project.name}</span>
+            <ProjectGlyph id={project.id} /><span style={{ flex: 1 }}>{project.name}</span>
           </button>
           <Collapse open={expanded === project.id && page.data?.project.id === project.id}>
             {page.data && [{ id: null as string | null, name: "Sem seção" }, ...page.data.sections].map((section) => (
@@ -169,7 +189,8 @@ export function DatePicker({ value, reference, onPick, onClose, allowClear = tru
           aria-label="Digite um vencimento" data-autofocus autoComplete="off" spellCheck={false} />
         {text.trim() && (
           typed
-            ? <button type="submit" className="due-typed" aria-label={longDate(typed)}><IconCalendar />
+            ? <button type="submit" className={`due-typed tone-${dueTone(typed, reference)}`} aria-label={longDate(typed)}>
+              <DueIcon tone={dueTone(typed, reference)} day={dayOfMonth(typed)} />
               <span>{`${shortDate(typed)} ${typed.slice(0, 4)}`}</span>
               {Math.abs(daysBetween(reference, typed)) <= 1 && <span className="sub">{dateLabel(typed, reference)}</span>}</button>
             : <p className="due-typed none">Não reconheci essa data</p>

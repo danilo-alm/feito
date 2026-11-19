@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyStep, keyboardPlan, menuActions, resolveDrop } from "@/client/tree";
+import { applyStep, keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, taskBranch, taskMap } from "@/client/tree";
 import type { ProjectPage, SortMode, TaskItem } from "@/client/types";
 
 function task(id: string, sectionId: string | null, fields: Partial<TaskItem> = {}): TaskItem {
@@ -16,10 +16,13 @@ function fixture(sortMode: SortMode = "manual"): ProjectPage {
   return {
     referenceDate: "2026-11-17",
     project: {
-      id: "p", revision: 1, name: "Casa nova", isInbox: false, status: "active", activeCount: 7,
+      id: "p", revision: 1, name: "Casa nova", description: "", color: null, icon: "hash", isInbox: false, status: "active", activeCount: 7,
       view: { layout: "list", sortMode, showCompleted: false },
     },
-    sections: [{ id: "plan", revision: 1, name: "Planejar", taskCount: 4 }, { id: "buy", revision: 1, name: "Comprar", taskCount: 2 }],
+    sections: [
+      { id: "plan", revision: 1, name: "Planejar", description: "", taskCount: 4 },
+      { id: "buy", revision: 1, name: "Comprar", description: "", taskCount: 2 },
+    ],
     groups: [
       { sectionId: null, rootIds: ["s"] },
       { sectionId: "plan", rootIds: ["a", "c", "e"] },
@@ -43,13 +46,13 @@ describe("resolveDrop", () => {
     expect(plan).toMatchObject({
       valid: true,
       steps: [{ type: "position", projectId: "p", sectionId: "plan", parentId: null, afterId: "a" }],
-      indicator: { type: "line", id: "a", side: "after", indent: false },
+      indicator: { type: "line", id: "a", side: "after", depth: 0 },
     });
   });
 
   it("draws the line after the last child when dropping after a parent", () => {
     const plan = resolveDrop(fixture(), "a", { kind: "task", id: "c", zone: "after" }, "list");
-    expect(plan?.indicator).toEqual({ type: "line", id: "d", side: "after", indent: false });
+    expect(plan?.indicator).toEqual({ type: "line", id: "d", side: "after", depth: 0 });
   });
 
   it("ignores drops that keep the same order", () => {
@@ -66,11 +69,16 @@ describe("resolveDrop", () => {
     });
   });
 
-  it("rejects a third level, parents with children and recurring tasks", () => {
+  it("nests entire branches at deeper levels and rejects cycles and recurring tasks", () => {
     expect(resolveDrop(fixture(), "e", { kind: "task", id: "d", zone: "center" }, "list"))
-      .toMatchObject({ valid: false, message: "Só um nível de subtarefa" });
+      .toMatchObject({ valid: true, steps: [{ parentId: "d" }], indicator: { depth: 2 } });
     expect(resolveDrop(fixture(), "c", { kind: "task", id: "a", zone: "center" }, "list"))
-      .toMatchObject({ valid: false, message: "Esta tarefa já tem subtarefas" });
+      .toMatchObject({ valid: true, steps: [{ parentId: "a" }] });
+    const nested = applyStep(fixture(), "e", { type: "position", projectId: "p", sectionId: "plan", parentId: "d" });
+    expect(resolveDrop(nested, "c", { kind: "task", id: "e", zone: "center" }, "list"))
+      .toMatchObject({ valid: false, message: "Uma tarefa não pode ficar abaixo de suas subtarefas" });
+    expect(resolveDrop(nested, "a", { kind: "task", id: "c", zone: "after" }, "list"))
+      .toMatchObject({ indicator: { type: "line", id: "e", depth: 0 } });
     const page = fixture();
     page.tasks.find((item) => item.id === "a")!.recurrence = { frequency: "daily" };
     expect(resolveDrop(page, "e", { kind: "task", id: "a", zone: "center" }, "list"))
@@ -88,25 +96,43 @@ describe("resolveDrop", () => {
     expect((plan as { steps: object[] }).steps[0]).not.toHaveProperty("afterId");
   });
 
-  it("promotes a subtask before placing it among roots of the same section", () => {
+  it("places a subtask among the roots of the same section in one step", () => {
     const plan = resolveDrop(fixture(), "d", { kind: "task", id: "a", zone: "before" }, "list");
     expect(plan).toMatchObject({
       valid: true,
-      steps: [{ type: "promote" }, { type: "position", sectionId: "plan", parentId: null, beforeId: "a" }],
+      steps: [{ type: "position", sectionId: "plan", parentId: null, beforeId: "a" }],
     });
   });
 
-  it("requires promotion before a subtask changes section", () => {
-    expect(resolveDrop(fixture(), "d", { kind: "task", id: "f", zone: "before" }, "list"))
-      .toMatchObject({ valid: false, message: "Promova a subtarefa antes" });
-    expect(resolveDrop(fixture(), "d", { kind: "group", sectionId: "buy" }, "board"))
-      .toMatchObject({ valid: false });
+  it.each(["list", "board"] as const)("moves a subtask as a root into another section in %s", (layout) => {
+    const page = fixture();
+    const plan = resolveDrop(page, "d", { kind: "task", id: "f", zone: "before" }, layout);
+    expect(plan).toMatchObject({
+      valid: true,
+      steps: [{ type: "position", sectionId: "buy", parentId: null, beforeId: "f" }],
+      indicator: { type: "line", id: "f", side: "before", depth: 0 },
+    });
+    if (!plan?.valid) throw new Error("Expected a valid move");
+    const moved = applyStep(page, "d", plan.steps[0]);
+    expect(moved.groups.find((group) => group.sectionId === "buy")?.rootIds).toEqual(["d", "f", "g"]);
+    expect(moved.tasks.find((item) => item.id === "d")).toMatchObject({ sectionId: "buy", parentId: null });
+    expect(moved.tasks.find((item) => item.id === "c")).toMatchObject({ sectionId: "plan", childIds: [], subtasks: { total: 0 } });
+
+    for (const over of [{ kind: "group", sectionId: "buy" }, { kind: "task", id: "f", zone: "center" }] as const) {
+      expect(resolveDrop(page, "d", over, layout)).toMatchObject({
+        valid: true,
+        steps: [{ type: "position", sectionId: "buy", parentId: null }],
+        indicator: { type: "group", sectionId: "buy" },
+      });
+    }
   });
 
   it("disables positional reordering in automatic sort but keeps column changes and nesting", () => {
     const page = fixture("date");
     expect(resolveDrop(page, "e", { kind: "task", id: "a", zone: "before" }, "list")).toBeNull();
     expect(resolveDrop(page, "a", { kind: "task", id: "f", zone: "before" }, "board"))
+      .toMatchObject({ valid: true, steps: [{ type: "position", sectionId: "buy", parentId: null }] });
+    expect(resolveDrop(page, "d", { kind: "task", id: "f", zone: "before" }, "board"))
       .toMatchObject({ valid: true, steps: [{ type: "position", sectionId: "buy", parentId: null }] });
     expect(resolveDrop(page, "e", { kind: "task", id: "a", zone: "center" }, "board")).toMatchObject({ valid: true });
   });
@@ -131,8 +157,21 @@ describe("keyboardPlan and menuActions", () => {
     expect(keyboardPlan(fixture(), "a", "nest")).toMatchObject({ valid: false });
   });
 
+  it("indents among nested siblings and promotes just one level", () => {
+    const sameParent = applyStep(fixture(), "e", { type: "position", projectId: "p", sectionId: "plan", parentId: "c" });
+    const plan = keyboardPlan(sameParent, "e", "nest");
+    expect(plan?.valid).toBe(true);
+    if (!plan?.valid) throw new Error("Expected a valid move");
+    const nested = applyStep(sameParent, "e", plan.steps[0]);
+    expect(taskMap(nested).get("e")?.parentId).toBe("d");
+    const promoted = applyStep(nested, "e", { type: "promote" });
+    expect(taskMap(promoted).get("c")?.childIds).toEqual(["d", "e"]);
+    expect(taskMap(promoted).get("e")?.parentId).toBe("c");
+  });
+
   it("moves between adjacent columns", () => {
     expect(keyboardPlan(fixture(), "a", "right")).toMatchObject({ steps: [{ sectionId: "buy" }] });
+    expect(keyboardPlan(fixture(), "d", "right")).toMatchObject({ steps: [{ sectionId: "buy", parentId: null }] });
     expect(keyboardPlan(fixture(), "a", "left")).toMatchObject({ steps: [{ sectionId: null }] });
     expect(keyboardPlan(fixture(), "f", "right")).toBeNull();
   });
@@ -165,5 +204,29 @@ describe("applyStep", () => {
     const page = applyStep(fixture(), "c", { type: "position", projectId: "other", sectionId: null, parentId: null });
     expect(page.tasks.map((item) => item.id)).not.toContain("d");
     expect(page.groups.find((group) => group.sectionId === "plan")!.rootIds).toEqual(["a", "e"]);
+  });
+
+  it("caps only the overview and moves the full branch optimistically", () => {
+    let page = fixture();
+    const chain = Array.from({ length: 9 }, (_, depth) => {
+      const id = `nested-${depth}`;
+      return task(id, "plan", {
+        parentId: depth ? `nested-${depth - 1}` : null,
+        childIds: depth < 8 ? [`nested-${depth + 1}`] : [],
+      });
+    });
+    page.tasks.push(...chain);
+    page.groups[1].rootIds.push(chain[0].id);
+    const tasks = taskMap(page);
+    expect(Array.from(taskBranch(chain[0], tasks, maxOverviewDepth), ({ task }) => task.id))
+      .toEqual(chain.slice(0, 6).map(({ id }) => id));
+    expect(resolveDrop(page, "a", { kind: "task", id: chain[0].id, zone: "after" }, "list"))
+      .toMatchObject({ indicator: { id: chain[5].id } });
+    expect(resolveDrop(page, "a", { kind: "task", id: chain[5].id, zone: "center" }, "list"))
+      .toMatchObject({ valid: true, indicator: { id: chain[5].id, depth: 6 } });
+    page = applyStep(page, chain[0].id, { type: "position", projectId: "p", sectionId: "buy", parentId: null });
+    expect(taskMap(page).get(chain[8].id)?.sectionId).toBe("buy");
+    const moved = applyStep(page, chain[0].id, { type: "position", projectId: "other", sectionId: null, parentId: null });
+    expect(taskMap(moved).has(chain[8].id)).toBe(false);
   });
 });

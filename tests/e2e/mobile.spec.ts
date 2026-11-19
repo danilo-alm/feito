@@ -58,14 +58,14 @@ test.describe("celular", () => {
     await projects.getByRole("link", { name: new RegExp(`^${name}`) }).click();
     await page.waitForURL(`**/projetos/${seed.id}`);
     await expect(tabs.getByRole("link", { name: "Navegar" })).toHaveAttribute("aria-current", "page");
-    await page.getByRole("button", { name: /Visualização: Lista/ }).click();
+    await page.getByRole("button", { name: /Mostrar: Lista/ }).click();
     const sheet = page.getByRole("dialog", { name: "Visualização" });
     await expect(sheet.getByText("pressione e segure")).toBeVisible();
     await sheet.getByRole("radio", { name: "Painel" }).click();
     await sheet.getByRole("button", { name: "Fechar (Esc)" }).click();
     await expect(page.getByRole("tablist", { name: "Colunas" })).toBeVisible();
     await expect(page.locator(".add-sec-m")).toHaveCount(0);
-    await page.getByRole("button", { name: /Visualização: Painel/ }).click();
+    await page.getByRole("button", { name: /Mostrar: Painel/ }).click();
     await sheet.getByRole("radio", { name: "Lista" }).click();
     await sheet.getByRole("button", { name: "Fechar (Esc)" }).click();
     await expect(page.locator(".add-sec-m")).toBeVisible();

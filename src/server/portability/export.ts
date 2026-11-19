@@ -1,6 +1,7 @@
 import "server-only";
 import { Temporal } from "@js-temporal/polyfill";
 import { byPosition, childrenByParent, isActive } from "@/domain/product";
+import { walkTaskTree } from "@/domain/task-tree";
 import { readExportSnapshot, type ProductAccess } from "@/server/db/product";
 import { documentType, schemaVersion, type PortableDocument } from "./document";
 
@@ -27,10 +28,11 @@ export async function exportAccount(access: ProductAccess) {
   const labelIds = localIds(labels, idOf, "l");
 
   const children = childrenByParent(product.tasks.values());
-  const tasks = [...product.tasks.values()].filter((task) => task.parentId === null).sort((a, b) =>
+  const roots = [...product.tasks.values()].filter((task) => task.parentId === null).sort((a, b) =>
     projectOrder.get(a.projectId)! - projectOrder.get(b.projectId)!
     || (sectionOrder.get(a.sectionId ?? "") ?? -1) - (sectionOrder.get(b.sectionId ?? "") ?? -1)
-    || byPosition(a, b)).flatMap((task) => [task, ...(children.get(task.id) ?? [])]);
+    || byPosition(a, b));
+  const tasks = Array.from(walkTaskTree(roots, (task) => children.get(task.id) ?? []), ({ task }) => task);
   const taskIds = localIds(tasks, idOf, "t");
   const taskOrder = new Map(tasks.map((task, index) => [task.id, index]));
   const history = occurrences.sort((a, b) =>

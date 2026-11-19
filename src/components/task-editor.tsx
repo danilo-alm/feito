@@ -1,16 +1,18 @@
 "use client";
 // Editor rápido de tarefa: o mesmo formulário serve à edição em linha (no lugar da tarefa), à criação em linha
 // (no lugar de "Adicionar tarefa") e ao diálogo de adicionar (Q, botão da barra lateral e celular).
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { api } from "@/client/api";
-import { dateLabel } from "@/client/dates";
+import { tagColor } from "@/client/colors";
+import { dateLabel, dayOfMonth, dueTone } from "@/client/dates";
 import { closeEditor, editKey, insertKey, openEditor, useEditorOpen, type InsertDefaults } from "@/client/editor-store";
 import { getQueryData, useQuery } from "@/client/store";
 import type { EditTask, Frequency, Label, Priority, ProjectPage, TaskDetail, TaskItem } from "@/client/types";
 import { useApp } from "./app";
 import {
-  IconCalendar, IconCheck, IconChevronDown, IconClock, IconFlag, IconHash, IconInbox, IconPlus, IconRepeat, IconSub, IconTag, IconX,
+  DueIcon, IconCalendar, IconCheck, IconChevronDown, IconClock, IconFlag, IconInbox, IconPlus, IconRepeat, IconSub, IconTag, IconX,
 } from "./icons";
+import { ProjectGlyph } from "./project-style";
 import { DatePicker, DestinationPicker, FREQUENCIES, LabelPicker, PriorityMenu, RepeatMenu, destinationLabel } from "./pickers";
 import { MenuList, Popover, useAutoGrow, useIsMobile, type MenuItem } from "./ui";
 
@@ -182,7 +184,7 @@ export function TaskEditor({
   ];
   const destination = (
     chip("dest", <>
-      {draft.projectId === inboxId ? <IconInbox /> : <IconHash className="te-hash" />}
+      {draft.projectId === inboxId ? <IconInbox /> : <ProjectGlyph id={draft.projectId} className="te-hash" />}
       <span className="te-dest">{destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))}</span>
       <IconChevronDown className="sm" />
     </>, false, "Projeto")
@@ -191,12 +193,15 @@ export function TaskEditor({
   const chips = (
     <div className="chips">
       {chip("more", <IconPlus />, false, "Mais opções", "te-plus")}
-      {chip("date", <><IconCalendar />{draft.dueDate ? dateLabel(draft.dueDate, app.reference) : "Data"}</>, !!draft.dueDate, "Data")}
+      {chip("date", <>{draft.dueDate
+        ? <DueIcon tone={dueTone(draft.dueDate, app.reference)} day={dayOfMonth(draft.dueDate)} />
+        : <IconCalendar />}{draft.dueDate ? dateLabel(draft.dueDate, app.reference) : "Data"}</>, !!draft.dueDate, "Data",
+        draft.dueDate ? `tone-${dueTone(draft.dueDate, app.reference)}` : "")}
       {hasDate && draft.dueTime && chip("time", <><IconClock />{draft.dueTime}</>, true, "Horário")}
       {draft.frequency && chip("repeat", <><IconRepeat />{FREQUENCIES.find((option) => option.value === draft.frequency)?.label.split(",")[0]}</>, true, "Repetir")}
       {chip("priority", <><IconFlag style={{ color: "var(--pc)" }} />{draft.priority < 4 ? `P${draft.priority}` : "Prioridade"}</>,
         draft.priority < 4, "Prioridade", `p${draft.priority}`)}
-      {draft.labelIds.length > 0 && chip("labels", <><IconTag />
+      {draft.labelIds.length > 0 && chip("labels", <><IconTag style={{ color: tagColor(draft.labelIds[0]) }} />
         {draft.labelIds.map((labelId) => labels.find((label) => label.id === labelId)?.name ?? "etiqueta").join(", ")}</>, true, "Etiquetas")}
       {inline && !lockDestination && destination}
     </div>
@@ -357,9 +362,11 @@ export function useStartCreate() {
 }
 
 /** Lugar onde a criação em linha aparece quando aberta por outro controle (ex.: "+" no título do dia). */
-export function CreateSlot({ slot, defaults }: { slot: string; defaults: InsertDefaults }) {
+export function CreateSlot({ slot, defaults, depth = 0 }: { slot: string; defaults: InsertDefaults; depth?: number }) {
   const open = useEditorOpen(slot);
-  return open ? <InlineCreate slot={slot} defaults={defaults} /> : null;
+  if (!open) return null;
+  const editor = <InlineCreate slot={slot} defaults={defaults} />;
+  return depth ? <div className="task-tree-inset" style={{ "--task-depth": depth } as CSSProperties}>{editor}</div> : editor;
 }
 
 /** Botão "Adicionar tarefa" que vira o editor em linha no mesmo lugar. */

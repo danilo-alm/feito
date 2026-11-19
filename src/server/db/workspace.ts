@@ -50,6 +50,7 @@ export async function bootstrapWorkspace<T>(
           ...metadata, type: "project", id: inbox.id, links: [inbox.isInbox],
         }, {
           name: inboxName,
+          description: "",
           archived: false,
           view: { layout: "list", sortMode: "manual", showCompleted: false },
         }),

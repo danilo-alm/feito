@@ -3,11 +3,15 @@ import { eq, sql } from "drizzle-orm";
 import type { Database, Transaction } from "./client";
 import { tenants } from "./schema";
 
+export async function setTenantContext(tx: Transaction, tenantId: string) {
+  await tx.execute(sql`select set_config('feito.tenant_id', ${tenantId}, true)`);
+}
+
 export function withTenant<T>(db: Database, tenantId: string, run: (tx: Transaction) => Promise<T>,
   config?: Parameters<Database["transaction"]>[1],
 ) {
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select set_config('feito.tenant_id', ${tenantId}, true)`);
+    await setTenantContext(tx, tenantId);
     return run(tx);
   }, config);
 }

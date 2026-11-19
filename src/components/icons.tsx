@@ -21,14 +21,16 @@ function make(paths: React.ReactNode, fill = false) {
   };
 }
 
-export const IconCheck = make(<path d="M6 12.5l4 4 8-9" />);
+export const IconCheck = make(<path d="M6 12.5l4 4 8-9" pathLength="1" />);
+export const IconCheckCircle = make(<><circle cx="12" cy="12" r="9" /><path d="M7.5 12.3l3 3 6-6.5" /></>);
 export const IconPlus = make(<path d="M12 5v14M5 12h14" />);
 export const IconInbox = make(<><path d="M3 13l3-8h12l3 8v6H3z" /><path d="M3 13h5l1 3h6l1-3h5" /></>);
 export const IconToday = make(<><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M9 3v4M15 3v4" /><path d="M10 15h4" /></>);
 export const IconUpcoming = make(<><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M9 3v4M15 3v4M8 14h2M14 14h2M8 17h2" /></>);
 export const IconCalendar = make(<><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M9 3v4M15 3v4" /></>);
 export const IconSearch = make(<><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2" /></>);
-export const IconHash = make(<path d="M9 4L7 20M17 4l-2 16M4 9h16M3 15h16" />);
+export const hashIconPath = <path d="M7 20l4-16M13 20l4-16M5 9h16M3 15h16" strokeWidth={1.5} />;
+export const IconHash = make(hashIconPath);
 export const IconTag = make(<><path d="M3 12V4h8l10 10-8 8z" /><circle cx="7.5" cy="8.5" r="1" /></>);
 export const IconFlag = make(<path d="M5 21V4h11l-2 4 2 4H5" />);
 export const IconRepeat = make(<><path d="M17 2l3 3-3 3" /><path d="M4 11V9a4 4 0 0 1 4-4h12" /><path d="M7 22l-3-3 3-3" /><path d="M20 13v2a4 4 0 0 1-4 4H4" /></>);
@@ -81,6 +83,12 @@ export function IconCalendarDay({ day, className, ...rest }: SVGProps<SVGSVGElem
     </svg>
   );
 }
+export const IconShare = make(<><path d="M12 3v12" /><path d="M7.5 7.5L12 3l4.5 4.5" /><path d="M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></>);
+export const IconGlobe = make(<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>);
+export const IconDuplicate = make(<><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>);
+export const IconExternal = make(<path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />);
+export const IconEye = make(<><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>);
+export const IconLink = make(<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" />);
 export const IconLogout = make(<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />);
 
 // Símbolo Visto-F. Abaixo de 24 px usa o desenho próprio para tamanhos pequenos.
@@ -103,4 +111,15 @@ export function Logo({ size = 24 }: { size?: number }) {
       {paths.map((d) => <path key={d} d={d} />)}
     </svg>
   );
+}
+
+/** Ícone do vencimento conforme o tom (mesmos ícones do menu de datas). */
+export function DueIcon({ tone, day, className }: {
+  tone: "late" | "today" | "tomorrow" | "weekend" | "later" | "past"; day: number; className?: string;
+}) {
+  if (tone === "today") return <IconCalendarDay day={day} className={className} />;
+  if (tone === "tomorrow") return <IconSun className={className} />;
+  if (tone === "weekend") return <IconSofa className={className} />;
+  if (tone === "later") return <IconNextWeek className={className} />;
+  return <IconCalendar className={className} />;
 }

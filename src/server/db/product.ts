@@ -2,7 +2,8 @@ import "server-only";
 import { Temporal } from "@js-temporal/polyfill";
 import { and, eq } from "drizzle-orm";
 import { referenceDate } from "@/domain/preferences";
-import type { CompletedOccurrence, Label, OccurrenceReference, Product, Project, Section, Task } from "@/domain/product";
+import { childrenByParent, type CompletedOccurrence, type Label, type OccurrenceReference, type Product, type Project, type Section, type Task } from "@/domain/product";
+import { walkTaskTree } from "@/domain/task-tree";
 import type { KeyConfig } from "@/server/crypto/config";
 import { PAYLOAD_VERSION, sealPayload, type PayloadContext } from "@/server/crypto/envelope";
 import { ApiError } from "@/server/errors";
@@ -10,7 +11,7 @@ import { preferences as preferenceSchema } from "@/validation/account";
 import { completedOccurrencePayload, labelPayload, projectPayload, sectionPayload, taskPayload } from "@/validation/product";
 import type { Database, Transaction } from "./client";
 import { withDekWrite, withProductReader, type OpenDek, type ProductReader } from "./product-crypto";
-import { completedOccurrences, labels, preferences, projects, sections, taskLabels, tasks, tenants } from "./schema";
+import { completedOccurrences, labels, preferences, projects, projectShares, sections, taskLabels, tasks, tenants } from "./schema";
 import { advanceProductRevision, lockTenant, withTenant } from "./tenant";
 import { ensureWorkspace, preferenceContext } from "./workspace";
 
@@ -120,9 +121,19 @@ async function readSnapshot({ db, keys, tenantId }: ProductAccess, occurrence?: 
   return withTenant(db, tenantId, async (tx) => {
     const [tenant] = await tx.select().from(tenants).where(eq(tenants.id, tenantId));
     if (!tenant) throw new Error("Conta indisponível.");
-    const recorded = occurrence ? await occurrenceExists(tx, occurrence) : false;
-    const { product } = await withProductReader(tx, keys, tenantId, (reader) => loadProduct(tx, reader));
-    return { revision: tenant.productRevision, product, recorded };
+    const [occurrenceRow] = occurrence
+      ? await tx.select().from(completedOccurrences).where(and(
+        eq(completedOccurrences.taskId, occurrence.taskId), eq(completedOccurrences.occurrenceId, occurrence.occurrenceId),
+      ))
+      : [];
+    const snapshot = await withProductReader(tx, keys, tenantId, async (reader) => {
+      const { product } = await loadProduct(tx, reader);
+      return {
+        product,
+        previousCompletion: occurrenceRow ? await readOccurrenceRecord(reader, occurrenceRow) : undefined,
+      };
+    });
+    return { revision: tenant.productRevision, ...snapshot, recorded: !!occurrenceRow };
   }, readOnlySnapshot);
 }
 
@@ -136,13 +147,6 @@ export async function readExportSnapshot({ db, keys, tenantId }: ProductAccess) 
     }
     return { ...snapshot, occurrences };
   }), readOnlySnapshot);
-}
-
-async function occurrenceExists(tx: Transaction, { taskId, occurrenceId }: OccurrenceReference) {
-  const [match] = await tx.select({ occurrenceId: completedOccurrences.occurrenceId })
-    .from(completedOccurrences)
-    .where(and(eq(completedOccurrences.taskId, taskId), eq(completedOccurrences.occurrenceId, occurrenceId)));
-  return !!match;
 }
 
 export async function readProduct<T>(access: ProductAccess, select: (product: Product) => T) {
@@ -168,6 +172,14 @@ function changes(original: Product, current: Product, occurrence?: CompletedOccu
   const project = diff(original.projects, current.projects);
   const section = diff(original.sections, current.sections);
   const task = diff(original.tasks, current.tasks);
+  if (task.removed.length > 1) {
+    // Remove dependentes antes dos pais para evitar uma cascata profunda em uma só instrução.
+    const removed = new Set(task.removed);
+    const deleted = task.removed.map((id) => original.tasks.get(id)!);
+    const children = childrenByParent(deleted);
+    const roots = deleted.filter((item) => !item.parentId || !removed.has(item.parentId));
+    task.removed = Array.from(walkTaskTree(roots, (item) => children.get(item.id) ?? []), ({ task }) => task.id).reverse();
+  }
   const label = diff(original.labels, current.labels);
   const links = diff(original.taskLabels, current.taskLabels);
   const encryptions = project.upsert.length + section.upsert.length + task.upsert.length + label.upsert.length
@@ -219,8 +231,15 @@ async function writeEncrypted(tx: Transaction, tenantId: string, version: number
   const encode = productEncoder(tenantId, version, dek.key);
   for (const { previous, next } of plan.project.upsert) {
     const encrypted = encode.project(next);
-    if (previous) await tx.update(projects).set(encrypted).where(eq(projects.id, next.id));
-    else await tx.insert(projects).values({ tenantId, ...encrypted, id: next.id, isInbox: next.isInbox });
+    if (previous) {
+      await tx.update(projects).set(encrypted).where(eq(projects.id, next.id));
+      // Hold the project row lock while revoking. Unarchive also clears any older link.
+      if (previous.data.archived !== next.data.archived) {
+        await tx.delete(projectShares).where(and(eq(projectShares.tenantId, tenantId), eq(projectShares.projectId, next.id)));
+      }
+    } else {
+      await tx.insert(projects).values({ tenantId, ...encrypted, id: next.id, isInbox: next.isInbox });
+    }
   }
   for (const { previous, next } of plan.section.upsert) {
     const encrypted = encode.section(next);
@@ -270,23 +289,23 @@ function copyProduct(product: Product): Product {
   };
 }
 
-type MutationHistory = { recorded: boolean; completion?: CompletedOccurrence };
+type MutationHistory = { recorded: boolean; completion?: CompletedOccurrence; previousCompletion?: CompletedOccurrence };
 
 export async function mutateProduct<T>(
   access: ProductAccess,
   apply: (draft: Product, original: Product, history: MutationHistory) => T,
   occurrence?: OccurrenceReference,
-  options: { record?: (tx: Transaction) => Promise<void> } = {},
+  options: { record?: (tx: Transaction) => Promise<void>; removeOccurrence?: OccurrenceReference } = {},
 ): Promise<T> {
   const { db, keys, tenantId } = access;
   await ensureWorkspace(db, keys, tenantId);
   for (;;) {
-    const { product: original, revision, recorded } = await readSnapshot(access, occurrence);
+    const { product: original, revision, recorded, previousCompletion } = await readSnapshot(access, occurrence);
     const draft = copyProduct(original);
     let outcome: { value: T } | { error: ApiError };
     let plan: Changes | undefined;
     try {
-      const history: MutationHistory = { recorded };
+      const history: MutationHistory = { recorded, previousCompletion };
       outcome = { value: apply(draft, original, history) };
       plan = changes(original, draft, history.completion);
     } catch (error) {
@@ -303,6 +322,12 @@ export async function mutateProduct<T>(
       if (tenant.productRevision !== revision) return null;
       if ("error" in outcome) throw outcome.error;
       await options.record?.(tx);
+      if (options.removeOccurrence) {
+        await tx.delete(completedOccurrences).where(and(
+          eq(completedOccurrences.taskId, options.removeOccurrence.taskId),
+          eq(completedOccurrences.occurrenceId, options.removeOccurrence.occurrenceId),
+        ));
+      }
       if (!plan?.hasChanges) return outcome;
       if (plan.encryptions) {
         if (!dek || version === undefined) throw new Error("Reserva criptográfica indisponível.");

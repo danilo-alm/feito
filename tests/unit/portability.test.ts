@@ -12,7 +12,7 @@ function emptyDocument() {
     schemaVersion: 1,
     exportedAt: "2026-11-17T12:00:00Z",
     preferences: defaultPreferences,
-    projects: [{ id: "inbox", isInbox: true, name: "Caixa de entrada", archived: false,
+    projects: [{ id: "inbox", isInbox: true, name: "Caixa de entrada", description: "", color: null, icon: "hash", archived: false,
       view: defaultsForView, createdAt: "1970-01-01T00:00:00Z" }],
     sections: [], tasks: [], labels: [], taskLabels: [], occurrences: [],
   } satisfies PortableDocument;
@@ -45,11 +45,37 @@ describe("portable document", () => {
     ]));
   });
 
+  it("defaults missing project and section descriptions in older v1 files", () => {
+    const file = emptyDocument();
+    const { description: _description, ...inbox } = file.projects[0];
+    expect(parse({
+      ...file,
+      projects: [inbox, { ...inbox, id: "project", isInbox: false, name: "Casa" }],
+      sections: [{ id: "section", projectId: "project", name: "Compras", position: 0 }],
+    }).document).toMatchObject({
+      projects: [{ description: "" }, { description: "" }],
+      sections: [{ description: "" }],
+    });
+  });
+
   it("limits nesting and reported errors before validating relationships", () => {
     expect(parseDocument(Buffer.from("[".repeat(11) + "0" + "]".repeat(11))).errors[0].message)
       .toBe("Documento complexo demais.");
     expect(parse({ ...emptyDocument(), tasks: Array.from({ length: 1000 }, () => ({})) }).errors).toHaveLength(50);
     expect(parseDocument(Buffer.from([0xc0, 0x80]))).toMatchObject({ schemaVersion: null, document: null });
+  });
+
+  it("accepts deep task hierarchies and rejects cycles in parent references", () => {
+    const tasks = Array.from({ length: 20 }, (_, depth): PortableDocument["tasks"][number] => ({
+      id: `t${depth}`, parentId: depth ? `t${depth - 1}` : null, projectId: "inbox", sectionId: null,
+      occurrenceId: null, title: `Tarefa ${depth}`, description: "", priority: 4, position: 0,
+      createdAt: "2026-11-17T12:00:00Z", status: "active", completedAt: null, dueDate: null, dueTime: null, recurrenceRule: null,
+    })).reverse();
+    expect(parse({ ...emptyDocument(), tasks }).document?.tasks).toEqual(tasks);
+    tasks.at(-1)!.parentId = tasks[0].id;
+    expect(parse({ ...emptyDocument(), tasks }).errors).toEqual([
+      { path: "tasks.0.parentId", message: "A hierarquia de tarefas contém um ciclo." },
+    ]);
   });
 });
 

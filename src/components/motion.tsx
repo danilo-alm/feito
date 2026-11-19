@@ -80,14 +80,18 @@ const FLIP_SELECTOR = "[data-flip],[data-task-id]";
 const flipKey = (node: HTMLElement) => node.dataset.flip ?? node.dataset.taskId;
 const MAX_GHOSTS = 8;
 
-const origins = new Map<string, { rect: DOMRect; at: number }>();
+const origins = new Map<string, { rect: DOMRect; opacity: number; at: number }>();
 
 /**
- * Faz o próximo FLIP do item `key` partir de `rect` (posição na tela), e não da posição anterior no
- * layout. Usado ao soltar um arraste: o item desliza de onde a prévia foi solta até o lugar final.
+ * Ao soltar um arraste, o próximo FLIP parte da posição e da opacidade atuais da prévia.
  */
-export function flipFrom(key: string, rect: DOMRect | undefined) {
-  if (rect) origins.set(key, { rect, at: performance.now() });
+export function flipFrom(key: string, preview: HTMLElement | null) {
+  if (!preview || prefersReducedMotion()) return;
+  origins.set(key, {
+    rect: preview.getBoundingClientRect(),
+    opacity: Number(getComputedStyle(preview).opacity),
+    at: performance.now(),
+  });
 }
 
 /** Posição no layout, sem rolagem nem transform: comparável entre mudanças mesmo durante uma animação. */
@@ -183,6 +187,10 @@ export function useFlip(ref: RefObject<HTMLElement | null>, { paused }: { paused
             [{ transform: `translate(${hint.rect.left - now.rect.left}px, ${hint.rect.top - now.rect.top}px)` }, { transform: "none" }],
             { duration: motionMs("slow"), easing: easing("out") },
           ));
+          // Atualizações do layout podem interromper o deslize sem interromper a opacidade.
+          if (hint.opacity < 1) {
+            node.animate([{ opacity: hint.opacity }, { opacity: 1 }], { duration, easing: easing("in-out") });
+          }
           continue;
         }
         if (!then) {

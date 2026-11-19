@@ -5,7 +5,8 @@ import { dateLabel } from "@/client/dates";
 import { useQuery } from "@/client/store";
 import type { Priority, ProjectPage, TaskItem } from "@/client/types";
 import { useApp } from "./app";
-import { IconCheck, IconHash, IconInbox, IconSearch } from "./icons";
+import { IconCheck, IconInbox, IconSearch } from "./icons";
+import { ProjectGlyph } from "./project-style";
 import { Collapse } from "./motion";
 import { Dialog, useToast } from "./ui";
 
@@ -37,17 +38,32 @@ export function useTaskActions() {
     }, {
       success: (result) => {
         if (!result) return "";
-        if (task.recurrence && result.task.status === "active" && result.task.dueDate) {
-          return `Concluída · próxima em ${dateLabel(result.task.dueDate, app.reference).toLowerCase()}`;
-        }
-        return result.completedChildIds.length ? `Concluída com ${result.completedChildIds.length} subtarefa(s)` : "Concluída";
+        const message = task.recurrence && result.task.status === "active" && result.task.dueDate
+          ? `Concluída · próxima em ${dateLabel(result.task.dueDate, app.reference).toLowerCase()}`
+          : result.completedChildIds.length
+            ? `Concluída com ${result.completedChildIds.length} subtarefa(s)`
+            : "Concluída";
+        if (result.alreadyProcessed) return message;
+        return {
+          message,
+          action: {
+            label: "Desfazer",
+            onClick: () => {
+              void app.run(() => api.tasks.undoCompletion(task.id, {
+                revision: result.task.revision,
+                occurrenceId: task.occurrenceId ?? undefined,
+                completedChildIds: result.completedChildIds,
+              }), { success: "Conclusão desfeita" });
+            },
+          },
+        };
       },
     });
   }, [app]);
 
   const reopen = useCallback(async (task: TaskItem) => {
     await app.run(() => api.tasks.reopen(task.id, task.revision), {
-      success: (result) => (result.reopenedParentId ? "Tarefa e tarefa-pai reabertas" : "Tarefa reaberta"),
+      success: (result) => (result.reopenedParentId ? "Tarefa e tarefas-pai reabertas" : "Tarefa reaberta"),
     });
   }, [app]);
 
@@ -58,7 +74,7 @@ export function useTaskActions() {
     const ok = await app.confirm({
       title: `Excluir “${task.title}”?`,
       body: children
-        ? `Também apaga ${children} ${children === 1 ? "subtarefa" : "subtarefas"}. Não dá para desfazer.`
+        ? "Também apaga todas as subtarefas desta tarefa, em todos os níveis. Não dá para desfazer."
         : "A exclusão é permanente e não dá para desfazer.",
       confirmLabel: "Excluir",
       danger: true,
@@ -138,8 +154,10 @@ function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => vo
     setBusy(true);
     try {
       let revision = task.revision;
-      if (task.parentId) {
-        const promoted = await api.tasks.move(task.id, revision, { type: "promote" });
+      if (task.parentId && task.projectId !== projectId) {
+        const promoted = await api.tasks.move(task.id, revision, {
+          type: "position", projectId: task.projectId, sectionId: task.sectionId, parentId: null,
+        });
         revision = promoted.task.revision;
       }
       await api.tasks.move(task.id, revision, { type: "position", projectId, sectionId, parentId: null });
@@ -171,7 +189,7 @@ function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => vo
                 <button type="button" className="mi" role="option" aria-selected={current && task?.sectionId === null}
                   aria-expanded={project.isInbox ? undefined : open}
                   onClick={() => (project.isInbox ? choose(project.id, null, project.name) : setExpanded(open ? null : project.id))}>
-                  {project.isInbox ? <IconInbox /> : <IconHash />}
+                  {project.isInbox ? <IconInbox /> : <ProjectGlyph id={project.id} />}
                   <span style={{ flex: 1 }}>{project.name}</span>
                   {current && <span className="sub">atual</span>}
                 </button>

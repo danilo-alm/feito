@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
 import { api } from "@/client/api";
-import { longDate, shortDate } from "@/client/dates";
+import { shortDate } from "@/client/dates";
 import { useQuery } from "@/client/store";
 import type { TodayView } from "@/client/types";
-import { PageHeader } from "@/components/chrome";
+import { PageHeader, PageTaskCount } from "@/components/chrome";
 import { FlatGroup } from "@/components/flat-list";
 import { IconCheck, IconPlus } from "@/components/icons";
 import { useTaskActions } from "@/components/task-actions";
@@ -30,9 +30,9 @@ export default function TodayPage() {
           onClick={() => setShowDone((value) => !value)} style={showDone ? { color: "var(--brand-text)" } : undefined}><IconCheck /></button>} />
       <div className="content">
         <div className="col">
-          <div className="page-h" style={{ flexWrap: "wrap" }}>
+          <div className="page-h">
             <h1 className="title">Hoje</h1>
-            {data && <span className="sub">{longDate(data.referenceDate)} · {total} {total === 1 ? "tarefa" : "tarefas"}</span>}
+            {data && <PageTaskCount count={total} />}
           </div>
           {!data ? <Spinner /> : (
             <>

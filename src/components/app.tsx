@@ -1,12 +1,13 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { api, ApiFailure, configureApi, errorMessage } from "@/client/api";
+import { registerTagOrder } from "@/client/colors";
 import { closeEditor, type InsertDefaults } from "@/client/editor-store";
 import { clearCache, invalidate, useQuery } from "@/client/store";
 import type { Me, Navigation, Theme } from "@/client/types";
 import { motionMs, useFlip } from "./motion";
-import { Dialog, Spinner, ToastProvider, useToast } from "./ui";
+import { Dialog, Spinner, ToastProvider, useToast, type ToastAction } from "./ui";
 
 // ---------- Tema ----------
 
@@ -35,21 +36,27 @@ function useThemeSync(theme: Theme | undefined) {
 // ---------- Contexto ----------
 
 export type QuickAddDefaults = InsertDefaults;
+export const PROJECT_SHORTCUT_KEYS = "123456789";
+const PROJECT_SHORTCUT_DELAY_MS = 200;
+
 
 type ConfirmOptions = { title: string; body?: ReactNode; confirmLabel: string; danger?: boolean };
 type PromptOptions = { title: string; label: string; initial?: string; confirmLabel: string };
+type SuccessNotice = string | { message: string; action?: ToastAction };
+type RunOptions<T> = { success?: string | ((value: T) => SuccessNotice); silent?: boolean };
 
 type AppContextValue = {
   me: Me;
   nav: Navigation | undefined;
+  showProjectShortcuts: boolean;
   reference: string;
   timezone: string;
   refresh: () => Promise<unknown>;
   openQuickAdd: (defaults?: QuickAddDefaults) => void;
-  openTask: (id: string) => void;
+  openTask: (id: string, order?: readonly string[]) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   prompt: (options: PromptOptions) => Promise<string | null>;
-  run: <T>(action: () => Promise<T>, options?: { success?: string | ((value: T) => string); silent?: boolean }) => Promise<T | undefined>;
+  run: <T>(action: () => Promise<T>, options?: RunOptions<T>) => Promise<T | undefined>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -66,10 +73,20 @@ export function refreshAll() {
   return invalidate();
 }
 
+export type TaskSelection = { id: string; order: readonly string[] };
+
 type Overlay = {
   quickAdd: QuickAddDefaults | null;
-  taskId: string | null;
+  task: TaskSelection | null;
 };
+
+function visibleTaskOrder(id: string) {
+  const ids = new Set<string>();
+  for (const row of document.querySelectorAll<HTMLElement>("#conteudo [data-task-id]")) {
+    if (row.getClientRects().length && !row.closest("[inert]")) ids.add(row.dataset.taskId!);
+  }
+  return ids.has(id) ? [...ids] : [];
+}
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return <ToastProvider>{children}</ToastProvider>;
@@ -90,13 +107,15 @@ export function AppShell({
     configureApi({
       onAuthFailure: (code) => {
         clearCache();
-        router.replace(code === "PASSWORD_CHANGE_REQUIRED" ? "/trocar-senha" : `/entrar?voltar=${encodeURIComponent(pathname)}`);
+        const returnTo = pathname + window.location.search;
+        router.replace(code === "PASSWORD_CHANGE_REQUIRED" ? "/trocar-senha" : `/entrar?voltar=${encodeURIComponent(returnTo)}`);
       },
     });
   }, [router, pathname]);
 
   const me = useQuery<Me>("me", api.me);
   const nav = useQuery<Navigation>(me.data ? "nav" : null, api.navigation);
+  if (nav.data) registerTagOrder(nav.data.projects, nav.data.labels.map((label) => label.id));
   useThemeSync(me.data?.preferences.theme);
 
   useEffect(() => {
@@ -120,8 +139,17 @@ export function AppShell({
   // O editor em linha pertence à tela em que foi aberto.
   useEffect(() => closeEditor(), [pathname]);
 
-  const [overlay, setOverlay] = useState<Overlay>({ quickAdd: null, taskId: null });
+  const [overlay, setOverlay] = useState<Overlay>({ quickAdd: null, task: null });
   const close = useCallback((key: keyof Overlay) => setOverlay((current) => ({ ...current, [key]: null })), []);
+
+  const [showProjectShortcuts, setShowProjectShortcuts] = useState(false);
+  const switchProject = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key.length !== 1) return;
+    const project = nav.data?.projects[PROJECT_SHORTCUT_KEYS.indexOf(event.key)];
+    if (!project) return;
+    event.preventDefault();
+    if (!event.repeat && pathname !== `/projetos/${project.id}`) router.push(`/projetos/${project.id}`);
+  });
 
   // Atalhos globais: Q cria, / busca.
   useEffect(() => {
@@ -141,17 +169,55 @@ export function AppShell({
     return () => document.removeEventListener("keydown", onKey);
   }, [router]);
 
+  // Ctrl + número navega imediatamente. Segurar Ctrl revela os atalhos.
+  useEffect(() => {
+    let timer: number | undefined;
+    const hideShortcuts = () => {
+      window.clearTimeout(timer);
+      timer = undefined;
+      setShowProjectShortcuts(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+      if (event.key === "Control") {
+        if (!event.repeat && timer === undefined) {
+          timer = window.setTimeout(() => setShowProjectShortcuts(true), PROJECT_SHORTCUT_DELAY_MS);
+        }
+        return;
+      }
+      switchProject(event);
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (!event.ctrlKey && timer !== undefined) hideShortcuts();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keyup", onKeyUp);
+    document.addEventListener("visibilitychange", hideShortcuts);
+    window.addEventListener("blur", hideShortcuts);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keyup", onKeyUp);
+      document.removeEventListener("visibilitychange", hideShortcuts);
+      window.removeEventListener("blur", hideShortcuts);
+    };
+  }, []);
+
   // Confirmação e campo de texto em diálogo.
   const [confirmState, setConfirmState] = useState<(ConfirmOptions & { resolve: (value: boolean) => void }) | null>(null);
   const [promptState, setPromptState] = useState<(PromptOptions & { resolve: (value: string | null) => void }) | null>(null);
   const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => setConfirmState({ ...options, resolve })), []);
   const prompt = useCallback((options: PromptOptions) => new Promise<string | null>((resolve) => setPromptState({ ...options, resolve })), []);
 
-  const run = useCallback(async <T,>(action: () => Promise<T>, options: { success?: string | ((value: T) => string); silent?: boolean } = {}) => {
+  const run = useCallback(async <T,>(action: () => Promise<T>, options: RunOptions<T> = {}) => {
     try {
       const value = await action();
-      const message = typeof options.success === "function" ? options.success(value) : options.success;
-      if (message) toast(message);
+      const notice = typeof options.success === "function" ? options.success(value) : options.success;
+      if (typeof notice === "string") {
+        if (notice) toast(notice);
+      } else if (notice?.message) {
+        toast(notice.message, { action: notice.action });
+      }
       return value;
     } catch (error) {
       if (error instanceof ApiFailure && (error.code === "UNAUTHENTICATED" || error.code === "PASSWORD_CHANGE_REQUIRED")) return undefined;
@@ -169,15 +235,16 @@ export function AppShell({
   const value = useMemo<AppContextValue | null>(() => me.data ? {
     me: me.data,
     nav: nav.data,
+    showProjectShortcuts,
     reference: nav.data?.referenceDate ?? me.data.referenceDate,
     timezone: me.data.preferences.timezone,
     refresh: () => invalidate(),
     openQuickAdd: (defaults = {}) => setOverlay((current) => ({ ...current, quickAdd: defaults })),
-    openTask: (id) => setOverlay((current) => ({ ...current, taskId: id })),
+    openTask: (id, order = visibleTaskOrder(id)) => setOverlay((current) => ({ ...current, task: { id, order } })),
     confirm,
     prompt,
     run,
-  } : null, [me.data, nav.data, confirm, prompt, run]);
+  } : null, [me.data, nav.data, showProjectShortcuts, confirm, prompt, run]);
 
   if (!value) {
     if (me.error && !(me.error instanceof ApiFailure && me.error.status === 401)) {

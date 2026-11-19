@@ -1,10 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { Temporal } from "@js-temporal/polyfill";
-import { childrenOf, groupTasks, orderedSections, type Product, type Section } from "@/domain/product";
+import { groupTasks, orderedSections, type Product, type Section } from "@/domain/product";
 import { mutateProduct, readProduct, type ProductAccess } from "@/server/db/product";
 import { ApiError } from "@/server/errors";
-import { defaultsForView, type ProjectView } from "@/validation/product";
+import { defaultsForView, type ProjectPayload, type ProjectView, type SectionPayload } from "@/validation/product";
 import { inboxProject, labelDto, orderedLabels, projectCounts, projectPage, projectSummary, sectionDto, visibleTask } from "./product-dto";
 import { nextRevision, protectInbox, requireRevision, validation, visibleRecord, writableProject } from "./product-rules";
 
@@ -42,23 +42,26 @@ export function getProject(access: ProductAccess, id: string, includeCompleted?:
   return readProduct(access, (product) => projectPage(product, visibleRecord(product.projects, id), includeCompleted));
 }
 
-export function createProject(access: ProductAccess, name: string) {
+type NamedDetails = Pick<SectionPayload, "name" | "description">;
+type ProjectDetails = Pick<ProjectPayload, "name" | "description" | "color" | "icon">;
+
+export function createProject(access: ProductAccess, details: ProjectDetails) {
   const id = randomUUID();
   return mutateProduct(access, (product) => {
     const createdAt = product.now.toString();
-    const project = { id, revision: 1, isInbox: false, data: { name, createdAt, archived: false, view: defaultsForView } };
+    const project = { id, revision: 1, isInbox: false, data: { ...details, createdAt, archived: false, view: defaultsForView } };
     product.projects.set(id, project);
     return projectSummary(product, project);
   });
 }
 
-export function renameProject(access: ProductAccess, id: string, revision: number, name: string) {
+export function editProject(access: ProductAccess, id: string, revision: number, patch: Partial<ProjectDetails>) {
   return mutateProduct(access, (product, original) => {
     const current = visibleRecord(product.projects, id);
     protectInbox(current);
     writableProject(current);
     requireRevision(current, revision, () => projectSummary(product, current));
-    const project = nextRevision(original.projects, { ...current, data: { ...current.data, name } });
+    const project = nextRevision(original.projects, { ...current, data: { ...current.data, ...patch } });
     product.projects.set(id, project);
     return projectSummary(product, project);
   });
@@ -124,12 +127,12 @@ function arrangeSections(product: Product, original: Product, section: Section, 
   return siblings.map((sibling) => sibling.id);
 }
 
-export function createSection(access: ProductAccess, projectId: string, name: string, anchor: SectionAnchor) {
+export function createSection(access: ProductAccess, projectId: string, details: NamedDetails, anchor: SectionAnchor) {
   const id = randomUUID();
   return mutateProduct(access, (product, original) => {
     const project = writableProject(visibleRecord(product.projects, projectId));
     protectInbox(project);
-    arrangeSections(product, original, { id, projectId, revision: 1, data: { name, position: 0 } }, anchor);
+    arrangeSections(product, original, { id, projectId, revision: 1, data: { ...details, position: 0 } }, anchor);
     return sectionDto(product, visibleRecord(product.sections, id));
   });
 }
@@ -141,10 +144,10 @@ function editableSection(product: Product, id: string, revision: number) {
   return section;
 }
 
-export function renameSection(access: ProductAccess, id: string, revision: number, name: string) {
+export function editSection(access: ProductAccess, id: string, revision: number, patch: Partial<NamedDetails>) {
   return mutateProduct(access, (product, original) => {
     const current = editableSection(product, id, revision);
-    const section = nextRevision(original.sections, { ...current, data: { ...current.data, name } });
+    const section = nextRevision(original.sections, { ...current, data: { ...current.data, ...patch } });
     product.sections.set(id, section);
     return sectionDto(product, section);
   });
@@ -165,14 +168,15 @@ export function deleteSection(access: ProductAccess, id: string, revision: numbe
     let position = (previousRoots.at(-1)?.data.position ?? -1) + 1;
     let movedTaskCount = 0;
     for (const root of groupTasks(product, { ...rootGroup, sectionId: id })) {
-      const related = childrenOf(product, root.id);
-      for (const child of related) {
-        product.tasks.set(child.id, nextRevision(original.tasks, { ...child, sectionId: null }));
-      }
       product.tasks.set(root.id, nextRevision(original.tasks, {
         ...root, sectionId: null, data: { ...root.data, position: position++ },
       }));
-      movedTaskCount += 1 + related.length;
+      movedTaskCount++;
+    }
+    for (const task of product.tasks.values()) {
+      if (task.sectionId !== id) continue;
+      product.tasks.set(task.id, nextRevision(original.tasks, { ...task, sectionId: null }));
+      movedTaskCount++;
     }
     product.sections.delete(id);
     return { movedTaskCount };

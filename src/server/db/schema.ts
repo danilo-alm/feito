@@ -140,6 +140,21 @@ export const projects = domain.table("projects", {
   tenantPolicy(row.tenantId),
 ]).enableRLS();
 
+export const projectShares = domain.table("project_shares", {
+  tenantId: uuid("tenant_id").notNull(),
+  projectId: uuid("project_id").notNull(),
+  token: uuid("token").notNull().unique(),
+}, (row) => [
+  primaryKey({ columns: [row.tenantId, row.projectId] }),
+  foreignKey({ columns: [row.tenantId, row.projectId], foreignColumns: [projects.tenantId, projects.id] })
+    .onDelete("cascade"),
+  tenantPolicy(row.tenantId),
+  pgPolicy("public_link", {
+    for: "select", to: "feito_app",
+    using: sql`domain.current_tenant() IS NULL AND ${row.token}::text = current_setting('feito.project_share_token', true)`,
+  }),
+]).enableRLS();
+
 export const sections = domain.table("sections", {
   tenantId: uuid("tenant_id").notNull(),
   projectId: uuid("project_id").notNull(),

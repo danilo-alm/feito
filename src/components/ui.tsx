@@ -162,38 +162,44 @@ export function Popover({
   const content = useSticky(children, open);
 
   useLayoutEffect(() => {
-    if (!open || !anchor || !ref.current) return;
+    const node = ref.current;
+    if (!open || !anchor || !node) return;
     const place = () => {
       // A largura precisa estar no DOM antes de medir; senão a 1ª abertura mede o popover largo demais.
-      if (width) ref.current!.style.width = `${width}px`;
+      if (width) node.style.width = `${width}px`;
       // Mede na altura natural; --pop-max limita o conteúdo quando nenhum dos lados comporta tudo.
-      ref.current!.style.removeProperty("--pop-max");
+      node.style.removeProperty("--pop-max");
       const rect = anchor.getBoundingClientRect();
-      const box = ref.current!.getBoundingClientRect();
+      // As dimensões do layout não incluem a escala da animação de entrada.
+      const { offsetWidth: boxWidth, offsetHeight: boxHeight } = node;
       const margin = 8;
       const gap = 6;
-      let left = align === "end" ? rect.right - box.width : rect.left;
-      left = Math.max(margin, Math.min(left, window.innerWidth - box.width - margin));
+      let left = align === "end" ? rect.right - boxWidth : rect.left;
+      left = Math.max(margin, Math.min(left, window.innerWidth - boxWidth - margin));
       // Abre abaixo da âncora; senão acima; senão no lado com mais espaço, sem cobrir a âncora.
       const below = window.innerHeight - margin - (rect.bottom + gap);
       const over = rect.top - gap - margin;
-      const above = box.height > below && (box.height <= over || over > below);
+      const above = boxHeight > below && (boxHeight <= over || over > below);
       const room = above ? over : below;
-      if (box.height > room) ref.current!.style.setProperty("--pop-max", `${Math.floor(room)}px`);
-      const height = Math.min(box.height, room);
+      if (boxHeight > room) node.style.setProperty("--pop-max", `${Math.floor(room)}px`);
+      const height = Math.min(boxHeight, room);
       const top = above ? Math.max(margin, rect.top - gap - height) : rect.bottom + gap;
       // A escala parte do lado da âncora, inclusive quando o popover vira para cima.
       const placed = { top, left, width, transformOrigin: `${align === "end" ? "right" : "left"} ${above ? "bottom" : "top"}` };
       // Aplica já no DOM: o foco inicial (efeito seguinte) falha num nó ainda com visibility:hidden.
-      Object.assign(ref.current!.style, { top: `${top}px`, left: `${left}px`, visibility: "" });
+      Object.assign(node.style, { top: `${top}px`, left: `${left}px`, visibility: "" });
       setStyle(placed);
+    };
+    const onScroll = (event: Event) => {
+      // Só reposiciona quando a rolagem pode mover a âncora.
+      if (event.target === window || (event.target instanceof Node && event.target.contains(anchor))) place();
     };
     place();
     window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [open, mounted, anchor, align, width]);
 
@@ -383,10 +389,12 @@ export function MenuButton({
 
 // ---------- Avisos ----------
 
-type Toast = { id: number; message: string; bad: boolean; leaving: boolean };
+export type ToastAction = { label: string; onClick: () => void };
+export type ToastOptions = { bad?: boolean; action?: ToastAction };
+type Toast = { id: number; message: string; bad: boolean; action?: ToastAction; leaving: boolean };
 const TOAST_MS = 3200;
 const TOAST_LIMIT = 3;
-const ToastContext = createContext<(message: string, options?: { bad?: boolean }) => void>(() => {});
+const ToastContext = createContext<(message: string, options?: ToastOptions) => void>(() => {});
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -399,13 +407,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((current) => current.map((toast) => (ids.includes(toast.id) ? { ...toast, leaving: true } : toast)));
     window.setTimeout(() => setToasts((current) => current.filter((toast) => !ids.includes(toast.id))), motionMs("base"));
   }, []);
-  const show = useCallback((message: string, options: { bad?: boolean } = {}) => {
+  const show = useCallback((message: string, options: ToastOptions = {}) => {
     const id = ++next.current;
     setToasts((current) => {
       const visible = current.filter((toast) => !toast.leaving);
       const overflow = visible.slice(0, Math.max(0, visible.length - (TOAST_LIMIT - 1))).map((toast) => toast.id);
       if (overflow.length) queueMicrotask(() => dismiss(overflow));
-      return [...current, { id, message, bad: !!options.bad, leaving: false }];
+      return [...current, { id, message, bad: !!options.bad, action: options.action, leaving: false }];
     });
     window.setTimeout(() => dismiss([id]), TOAST_MS);
   }, [dismiss]);
@@ -414,10 +422,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div ref={stack} className="toast-stack" role="status" aria-live="polite">
         {toasts.map((toast) => (
-          <div key={toast.id} className={`toast${toast.bad ? " bad" : ""}`} style={{ paddingRight: 14 }}
+          <div key={toast.id} className={`toast${toast.bad ? " bad" : ""}`} style={{ paddingRight: toast.action ? 8 : 14 }}
             data-flip={`toast:${toast.id}`} data-state={toast.leaving ? "exiting" : "entered"} aria-hidden={toast.leaving || undefined}>
-            {toast.bad ? null : <IconCheck />}
+            {toast.bad ? null : <IconCheck aria-hidden="true" />}
             {toast.message}
+            {toast.action && <button type="button" className="btn" onClick={() => {
+              dismiss([toast.id]);
+              toast.action?.onClick();
+            }}>{toast.action.label}</button>}
           </div>
         ))}
       </div>

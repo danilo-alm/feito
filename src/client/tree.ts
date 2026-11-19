@@ -1,6 +1,9 @@
 // Regras de organização de um projeto no cliente: soltura de arraste, comandos de teclado/menu
 // e aplicação otimista. Espelham as validações de POST /tasks/{id}/move (docs/02, seção 3.6).
 import type { Layout, MoveTarget, PositionTarget, ProjectPage, TaskItem } from "./types";
+import { taskAncestors, walkTaskTree } from "@/domain/task-tree";
+
+export const maxOverviewDepth = 5;
 
 export type Zone = "before" | "after" | "center";
 export type DropOver =
@@ -8,10 +11,10 @@ export type DropOver =
   | { kind: "group"; sectionId: string | null };
 
 export type Indicator =
-  | { type: "line"; id: string; side: "before" | "after"; indent: boolean }
-  | { type: "nest"; id: string; previewAfterId: string }
+  | { type: "line"; id: string; side: "before" | "after"; depth: number }
+  | { type: "nest"; id: string; previewAfterId: string; depth: number }
   | { type: "group"; sectionId: string | null }
-  | { type: "invalid"; id?: string; sectionId?: string | null; message: string };
+  | { type: "invalid"; id: string; message: string };
 
 export type MovePlan = { valid: true; steps: MoveTarget[]; indicator: Indicator; message: string };
 export type InvalidPlan = { valid: false; indicator: Indicator; message: string };
@@ -36,10 +39,19 @@ export function activeSiblings(page: ProjectPage, task: TaskItem, tasks = taskMa
   return ids.map((id) => tasks.get(id)).filter((item): item is TaskItem => !!item && item.status === "active");
 }
 
-/** Última linha visível do bloco de uma raiz (ela própria ou seu último filho). */
-function blockEnd(task: TaskItem, tasks: Map<string, TaskItem>) {
-  const visible = task.childIds.filter((id) => tasks.has(id));
-  return visible.length ? visible[visible.length - 1] : task.id;
+export function taskBranch<T extends { childIds: string[] }>(task: T, tasks: ReadonlyMap<string, T>, maxDepth?: number) {
+  return walkTaskTree([task], (item) => item.childIds.flatMap((id) => tasks.get(id) ?? []), maxDepth);
+}
+
+/** Última linha visível de um ramo. */
+function blockEnd(task: TaskItem, tasks: Map<string, TaskItem>, depth: number) {
+  let last = task;
+  for (let level = depth; level < maxOverviewDepth; level++) {
+    const childId = last.childIds.findLast((id) => tasks.has(id));
+    if (!childId) break;
+    last = tasks.get(childId)!;
+  }
+  return last.id;
 }
 
 const invalid = (message: string, indicator: Indicator): InvalidPlan => ({ valid: false, message, indicator });
@@ -48,15 +60,13 @@ function nestPlan(page: ProjectPage, active: TaskItem, target: TaskItem, tasks: 
   const mark = (message: string) => invalid(message, { type: "invalid", id: target.id, message });
   if (active.parentId === target.id) return null;
   if (target.status !== "active") return mark("Reabra a tarefa antes");
-  if (target.parentId) return mark("Só um nível de subtarefa");
-  if (active.subtasks.total > 0) return mark("Esta tarefa já tem subtarefas");
   if (active.recurrence) return mark("Tarefa recorrente não vira subtarefa");
   if (target.recurrence) return mark("Tarefa recorrente não recebe subtarefas");
-  if (active.parentId && active.sectionId !== target.sectionId) return mark("Promova a subtarefa antes");
+  const depth = Array.from(taskAncestors(target, tasks)).length;
   return {
     valid: true,
     steps: [{ type: "position", projectId: page.project.id, sectionId: target.sectionId, parentId: target.id }],
-    indicator: { type: "nest", id: target.id, previewAfterId: blockEnd(target, tasks) },
+    indicator: { type: "nest", id: target.id, previewAfterId: blockEnd(target, tasks, depth), depth: depth + 1 },
     message: `“${active.title}” agora é subtarefa de “${target.title}”`,
   };
 }
@@ -87,29 +97,33 @@ export function resolveDrop(page: ProjectPage, activeId: string, over: DropOver,
 
   if (over.kind === "group") {
     const { sectionId } = over;
-    if (active.parentId && active.sectionId !== sectionId) {
-      return invalid("Promova a subtarefa antes", { type: "invalid", sectionId, message: "Promova a subtarefa antes" });
-    }
-    const steps: MoveTarget[] = [];
-    if (active.parentId) steps.push({ type: "promote" });
     const target: PositionTarget = { type: "position", projectId, sectionId, parentId: null };
-    if (!active.parentId && !wouldChange(page, active, target, tasks)) return null;
+    if (!wouldChange(page, active, target, tasks)) return null;
     if (!active.parentId && active.sectionId === sectionId && !manual) return null;
-    steps.push(target);
     const name = sectionName(page, sectionId);
     return {
-      valid: true, steps, indicator: { type: "group", sectionId },
+      valid: true, steps: [target], indicator: { type: "group", sectionId },
       message: active.sectionId === sectionId ? `Movida para o fim de ${name}` : `Movida para ${name}`,
     };
   }
 
   const target = tasks.get(over.id);
   if (!target || target.id === active.id) return null;
+  const ancestors = Array.from(taskAncestors(target, tasks));
+  if (ancestors.some((ancestor) => ancestor.id === active.id)) {
+    const message = "Uma tarefa não pode ficar abaixo de suas subtarefas";
+    return invalid(message, { type: "invalid", id: target.id, message });
+  }
+  const changesSection = target.sectionId !== active.sectionId;
+  // O centro de uma tarefa de outra seção também aceita a subtarefa como raiz.
+  if (active.parentId && changesSection && over.zone === "center") {
+    return resolveDrop(page, activeId, { kind: "group", sectionId: target.sectionId }, layout);
+  }
   if (over.zone === "center") return nestPlan(page, active, target, tasks);
 
   if (!manual) {
     // Sem âncora: só mudança de coluna no Painel continua disponível.
-    if (layout === "board" && !active.parentId && target.sectionId !== active.sectionId) {
+    if (layout === "board" && changesSection) {
       return resolveDrop(page, activeId, { kind: "group", sectionId: target.sectionId }, layout);
     }
     return null;
@@ -126,33 +140,30 @@ export function resolveDrop(page: ProjectPage, activeId: string, over: DropOver,
       };
       if (!wouldChange(page, active, step, tasks)) return null;
       return {
-        valid: true, steps: [step], indicator: { type: "line", id: target.id, side, indent: true },
+        valid: true, steps: [step],
+        indicator: { type: "line", id: side === "after" ? blockEnd(target, tasks, ancestors.length) : target.id, side, depth: ancestors.length },
         message: "Nova posição salva",
       };
     }
     // Sobre o bloco de outra raiz: entra como raiz logo depois desse bloco.
-    const parent = tasks.get(target.parentId);
-    if (!parent || parent.id === active.id) return null;
-    return rootPlan(page, active, parent, "after", tasks);
+    const root = ancestors.at(-1);
+    return root ? rootPlan(page, active, root, "after", tasks) : null;
   }
   return rootPlan(page, active, target, side, tasks);
 }
 
 function rootPlan(page: ProjectPage, active: TaskItem, target: TaskItem, side: "before" | "after", tasks: Map<string, TaskItem>): Plan | null {
-  if (active.parentId && active.sectionId !== target.sectionId) {
-    return invalid("Promova a subtarefa antes", { type: "invalid", id: target.id, message: "Promova a subtarefa antes" });
-  }
   const step: PositionTarget = {
     type: "position", projectId: page.project.id, sectionId: target.sectionId, parentId: null,
     ...(side === "before" ? { beforeId: target.id } : { afterId: target.id }),
   };
-  if (!active.parentId && !wouldChange(page, active, step, tasks)) return null;
-  const lineId = side === "after" ? blockEnd(target, tasks) : target.id;
+  if (!wouldChange(page, active, step, tasks)) return null;
+  const lineId = side === "after" ? blockEnd(target, tasks, 0) : target.id;
   const name = sectionName(page, target.sectionId);
   return {
     valid: true,
-    steps: active.parentId ? [{ type: "promote" }, step] : [step],
-    indicator: { type: "line", id: lineId, side, indent: false },
+    steps: [step],
+    indicator: { type: "line", id: lineId, side, depth: 0 },
     message: active.sectionId !== target.sectionId ? `Movida para ${name}`
       : active.parentId ? "Promovida a tarefa" : `Nova posição salva em ${name}`,
   };
@@ -161,8 +172,7 @@ function rootPlan(page: ProjectPage, active: TaskItem, target: TaskItem, side: "
 export type KeyAction = "up" | "down" | "nest" | "promote" | "left" | "right";
 
 /** Comandos de teclado e de menu (Alt+setas). */
-export function keyboardPlan(page: ProjectPage, taskId: string, action: KeyAction): Plan | null {
-  const tasks = taskMap(page);
+export function keyboardPlan(page: ProjectPage, taskId: string, action: KeyAction, tasks = taskMap(page)): Plan | null {
   const task = tasks.get(taskId);
   if (!task) return null;
   const fail = (message: string) => invalid(message, { type: "invalid", id: task.id, message });
@@ -179,23 +189,27 @@ export function keyboardPlan(page: ProjectPage, taskId: string, action: KeyActio
       type: "position", projectId: page.project.id, sectionId: task.sectionId, parentId: task.parentId,
       ...(action === "up" ? { beforeId: neighbor.id } : { afterId: neighbor.id }),
     };
-    return { valid: true, steps: [step], indicator: { type: "line", id: neighbor.id, side: action === "up" ? "before" : "after", indent: !!task.parentId }, message: "Nova posição salva" };
+    const depth = Array.from(taskAncestors(task, tasks)).length;
+    const side = action === "up" ? "before" : "after";
+    const id = side === "after" ? blockEnd(neighbor, tasks, depth) : neighbor.id;
+    return { valid: true, steps: [step], indicator: { type: "line", id, side, depth }, message: "Nova posição salva" };
   }
   if (action === "nest") {
-    if (task.parentId) return fail("Já é uma subtarefa");
     const previous = siblings[index - 1];
     if (!previous) return fail("Não há tarefa acima para receber a subtarefa");
     return nestPlan(page, task, previous, tasks);
   }
   if (action === "promote") {
-    if (!task.parentId) return null;
+    const parent = task.parentId ? tasks.get(task.parentId) : undefined;
+    if (!parent) return null;
+    const depth = Array.from(taskAncestors(parent, tasks)).length;
     return {
-      valid: true, steps: [{ type: "promote" }], indicator: { type: "line", id: task.parentId, side: "after", indent: false },
-      message: "Promovida a tarefa",
+      valid: true, steps: [{ type: "promote" }],
+      indicator: { type: "line", id: blockEnd(parent, tasks, depth), side: "after", depth },
+      message: depth ? "Subtarefa movida um nível acima" : "Promovida a tarefa",
     };
   }
   // Painel: coluna vizinha.
-  if (task.parentId) return fail("Promova a subtarefa antes");
   const order = page.groups.map((group) => group.sectionId);
   const next = order[order.indexOf(task.sectionId) + (action === "left" ? -1 : 1)];
   if (next === undefined) return null;
@@ -203,14 +217,14 @@ export function keyboardPlan(page: ProjectPage, taskId: string, action: KeyActio
 }
 
 /** Itens do menu “⋯” de uma tarefa num projeto. */
-export function menuActions(page: ProjectPage, taskId: string) {
+export function menuActions(page: ProjectPage, taskId: string, tasks = taskMap(page)) {
   const actions: { action: "up" | "down" | "nest" | "promote"; label: string; key: string }[] = [];
   const order: ["up" | "down" | "nest" | "promote", string, string][] = [
     ["up", "Mover para cima", "Alt ↑"], ["down", "Mover para baixo", "Alt ↓"],
     ["nest", "Tornar subtarefa da anterior", "Alt →"], ["promote", "Promover a tarefa", "Alt ←"],
   ];
   for (const [action, label, key] of order) {
-    const plan = keyboardPlan(page, taskId, action);
+    const plan = keyboardPlan(page, taskId, action, tasks);
     if (plan?.valid) actions.push({ action, label, key });
   }
   return actions;
@@ -253,47 +267,30 @@ export function applyStep(source: ProjectPage, taskId: string, step: MoveTarget)
       if (group) group.rootIds = group.rootIds.filter((id) => id !== task.id);
     }
   };
-  const setSection = (sectionId: string | null) => {
-    task.sectionId = sectionId;
-    for (const childId of task.childIds) {
-      const child = tasks.get(childId);
-      if (child) child.sectionId = sectionId;
-    }
-  };
-
   if (step.type === "promote") {
     const parent = task.parentId ? tasks.get(task.parentId) : undefined;
     if (!parent) return source;
-    detach();
-    task.parentId = null;
-    setSection(parent.sectionId);
-    const group = page.groups.find((item) => item.sectionId === parent.sectionId);
-    if (group) group.rootIds = insert(group.rootIds, task.id, { afterId: parent.id });
-    return page;
+    step = { type: "position", projectId: task.projectId, sectionId: task.sectionId, parentId: parent.parentId, afterId: parent.id };
   }
 
+  const branch = Array.from(taskBranch(task, tasks), ({ task }) => task);
   if (step.projectId !== page.project.id) {
-    const removed = new Set([task.id, ...task.childIds]);
+    const removed = new Set(branch.map((item) => item.id));
     detach();
     page.tasks = page.tasks.filter((item) => !removed.has(item.id));
     return page;
   }
 
+  const parent = step.parentId ? tasks.get(step.parentId) : undefined;
+  if (step.parentId && (!parent || branch.includes(parent))) return source;
   detach();
-  if (step.parentId) {
-    const parent = tasks.get(step.parentId);
-    if (!parent) return source;
-    task.parentId = parent.id;
-    setSection(parent.sectionId);
+  task.parentId = parent?.id ?? null;
+  const destination = parent ? parent.sectionId : step.sectionId;
+  for (const item of branch) item.sectionId = destination;
+  if (parent) {
     parent.childIds = insert(parent.childIds, task.id, step);
     parent.subtasks = { ...parent.subtasks, total: parent.subtasks.total + 1 };
-    // Subtarefas aparecem logo depois do pai na lista plana de tarefas.
-    page.tasks = page.tasks.filter((item) => item.id !== task.id);
-    const at = page.tasks.findIndex((item) => item.id === parent.id);
-    page.tasks.splice(at + 1, 0, task);
   } else {
-    task.parentId = null;
-    setSection(step.sectionId);
     const group = page.groups.find((item) => item.sectionId === step.sectionId);
     if (group) group.rootIds = insert(group.rootIds, task.id, step);
   }

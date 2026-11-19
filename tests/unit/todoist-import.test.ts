@@ -123,14 +123,13 @@ describe("Todoist import", () => {
       title: "Comprar pão", labels: ["casa", "mercado"], priority: 3, description: "Integral",
       dueDate: "2026-11-23", recurrence: null,
     });
-    expect(shopping.children.map((child) => child.title)).toEqual(["Pão", "Neto"]);
-    expect(shopping.children[1].description).toBe("Comentários do Todoist:\n- Lembrar do troco");
+    expect(shopping.children).toMatchObject([{ title: "Pão", children: [{ title: "Neto" }] }]);
+    expect(shopping.children[0].children[0].description).toBe("Comentários do Todoist:\n- Lembrar do troco");
     expect(review).toMatchObject({ dueDate: null, recurrence: null });
     expect(review.description).toBe("Data no Todoist: every 2 weeks\n\nPrazo no Todoist: dec 1");
     expect(warnings).toEqual([
       "1 responsável foi ignorado: o Feito é individual.",
       "1 duração foi ignorada.",
-      "1 subtarefa de nível profundo foi movida para o primeiro nível, pois o Feito aceita um nível de subtarefas.",
       "1 comentário foi adicionado à descrição da tarefa, pois o Feito não tem comentários.",
       "1 data não foi reconhecida (por exemplo, recorrências como “a cada 2 semanas”); o texto original ficou na descrição.",
       "1 prazo foi copiado para a descrição, pois o Feito não tem prazos.",
