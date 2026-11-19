@@ -15,14 +15,13 @@ Feito é um app de tarefas pessoais que você hospeda na sua máquina ou no seu 
 
 ## Instalação
 
-Você precisa de Docker com o plugin Docker Compose, Git e OpenSSL. Execute os comandos em um shell como Bash ou Zsh. Se for usar um PostgreSQL externo, instale também o cliente `psql` na máquina que fará a configuração.
+Você precisa de Docker com o plugin Docker Compose, Git e OpenSSL. Execute os comandos em um shell como Bash ou Zsh. Para configurar um PostgreSQL externo, o Docker também executa o cliente `psql` usado no comando abaixo.
 
 ```sh
 git clone https://github.com/danilo-alm/feito.git
 cd feito
 
 FEITO_ENV="$HOME/.config/feito/feito.env"
-scripts/new-env.sh "$FEITO_ENV" https://localhost:3000
 ```
 
 Para instalar num servidor público, substitua `https://localhost:3000` pelo domínio HTTPS do Feito, por exemplo `https://feito.example.org`. Aponte o DNS para o servidor e deixe as portas 80 e 443 acessíveis para que o Caddy emita o certificado. Use o mesmo endereço para abrir o app depois de instalar.
@@ -32,6 +31,7 @@ O script gera as credenciais e as chaves de criptografia. Mantenha o arquivo for
 ### Opção A — PostgreSQL no Docker
 
 ```sh
+scripts/new-env.sh "$FEITO_ENV" --origin https://localhost:3000
 FEITO_COMPOSE=compose.prod.yaml
 docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" up -d --build --wait
 ```
@@ -46,6 +46,14 @@ Use um banco acessível pelo host e pelos contêineres do Feito. Para a configur
 
 No painel do projeto Supabase, abra **Connect** e copie os dados de conexão do PostgreSQL. O banco padrão se chama `postgres`. Ambos os modos abaixo usam a porta `5432`.
 
+Em uma rede IPv4, selecione **Session pooler** em **Connect**. Use `--supabase` para gerar as credenciais. O script pede a referência do projeto (o trecho após `postgres.` no usuário do pooler) e o host mostrado em **View parameters**.
+
+```sh
+scripts/new-env.sh "$FEITO_ENV" --origin https://localhost:3000 --supabase
+```
+
+Para passar esses dados pelo comando, acrescente `--project-ref SEU_PROJECT_REF` e `--pooler-host HOST_DO_POOLER`. Para conexão direta, use `--supabase-direct` e informe a referência quando o script perguntar ou via `--project-ref`. Os dois modos preenchem as quatro URLs automaticamente. Se você já gerou o arquivo, ajuste as URLs conforme o passo abaixo para preservar as senhas e chaves existentes.
+
 | Campo | Conexão direta | Pooler Session |
 | --- | --- | --- |
 | Host | `db.<project-ref>.supabase.co` | Host do **Session pooler** mostrado em **Connect** |
@@ -56,20 +64,26 @@ Se a rede do servidor só tiver IPv4, use o pooler **Session** ou uma conexão d
 
 #### Criar os usuários do banco e iniciar
 
-Execute uma vez, substituindo os parâmetros pelos do seu provedor. O `psql` pede a senha administrativa no terminal. O script cria quatro usuários no PostgreSQL com as senhas geradas no `$FEITO_ENV`.
+Para outro provedor, gere primeiro o arquivo com `scripts/new-env.sh "$FEITO_ENV" --origin https://localhost:3000`. Execute o comando abaixo uma vez com os parâmetros administrativos do provedor. No Session pooler, use o host informado na geração e `--username=postgres.SEU_PROJECT_REF`. A imagem oficial `postgres:18` fornece o cliente `psql`, que pede a senha administrativa no terminal. O script cria quatro usuários no PostgreSQL com as senhas geradas no `$FEITO_ENV`.
 
 ```sh
 (
   set -a
   . "$FEITO_ENV"
   set +a
-  PGSSLMODE=require psql -X -W --single-transaction --set=feito_external=1 \
-    --host=db.example.org --port=5432 --dbname=postgres --username=postgres \
-    --file=scripts/postgres-init.sql
+  docker run --rm -it \
+    -e POSTGRES_MIGRATOR_PASSWORD -e POSTGRES_APP_PASSWORD \
+    -e POSTGRES_AUTH_PASSWORD -e POSTGRES_IDENTITY_ADMIN_PASSWORD \
+    -e PGSSLMODE=require \
+    --volume "$PWD/scripts/postgres-init.sql:/postgres-init.sql:ro" \
+    postgres:18 \
+    psql -X -W --single-transaction --set=feito_external=1 \
+      --host=db.example.org --port=5432 --dbname=postgres --username=postgres \
+      --file=/postgres-init.sql
 )
 ```
 
-Edite as quatro URLs já geradas em `$FEITO_ENV`. Em cada uma, troque `127.0.0.1:5432/feito` pelo host, porta e banco externos e conserve a senha gerada para aquele usuário. No pooler Session do Supabase, acrescente `.<project-ref>` ao usuário em cada URL. Para o Supabase, acrescente `?sslmode=require` ao fim das quatro URLs. Para outro provedor, use os parâmetros de TLS indicados por ele.
+Se você gerou `$FEITO_ENV` com `--supabase` ou `--supabase-direct`, as quatro URLs já estão prontas. Caso precise ajustá-las, defina o host, a porta e o banco externos e conserve a senha gerada para cada usuário. No Session pooler, use o host do painel e acrescente `.<project-ref>` ao usuário em cada URL. As URLs do Supabase devem terminar com `?sslmode=require`. Para outro provedor, use os parâmetros de TLS indicados por ele.
 
 | Variável | Usuário do PostgreSQL |
 | --- | --- |
