@@ -4,6 +4,13 @@
 {
 	admin off
 	skip_install_trust
+	https_port {$FEITO_HTTPS_PORT:443}
+	auto_https disable_redirects
+}
+
+# A porta HTTPS interna pode diferir da porta da origem pública.
+http:// {
+	redir {$FEITO_ORIGIN}{uri} 308
 }
 
 {$FEITO_ORIGIN} {

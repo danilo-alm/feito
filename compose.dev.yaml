@@ -58,6 +58,7 @@ services:
     image: caddy:2.10-alpine
     environment:
       FEITO_ORIGIN: ${FEITO_ORIGIN:-https://localhost:3000}
+      FEITO_HTTPS_PORT: ${FEITO_HTTPS_PORT:-3000}
     ports:
       - "127.0.0.1:${FEITO_HTTPS_PORT:-3000}:${FEITO_HTTPS_PORT:-3000}"
     volumes:
