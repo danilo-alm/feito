@@ -5,6 +5,7 @@ import { childrenOf, groupTasks, isActive, sameGroup, taskDescendants, type Prod
 import { nextOccurrenceDate } from "@/domain/recurrence";
 import { taskAncestors } from "@/domain/task-tree";
 import { mutateProduct, type ProductAccess } from "@/server/db/product";
+import type { TaskField } from "@/server/db/desktop-sync";
 import { readTaskDetail } from "@/server/db/product-reads";
 import { ApiError } from "@/server/errors";
 import {
@@ -85,6 +86,7 @@ function reopenAncestors(product: Product, original: Product, task: Task) {
 }
 
 function insertTask(product: Product, original: Product, id: string, occurrenceId: string | null, input: CreateTaskInput) {
+  if (original.tasks.has(id)) throw new ApiError(409, "DESKTOP_ID_UNAVAILABLE", "O identificador já foi usado.");
   const suppliedParent = input.parentId ? visibleRecord(product.tasks, input.parentId) : null;
   const projectId = suppliedParent?.projectId ?? input.projectId ?? inboxProject(product).id;
   projectFor(product, projectId);
@@ -131,14 +133,14 @@ function insertTask(product: Product, original: Product, id: string, occurrenceI
 }
 
 export function createTask(access: TaskAccess, input: CreateTaskInput) {
-  const id = randomUUID();
-  const occurrenceId = input.recurrence ? randomUUID() : null;
+  const id = access.desktopOperation?.generatedIds[0] ?? randomUUID();
+  const occurrenceId = input.recurrence ? access.desktopOperation?.generatedIds[1] ?? randomUUID() : null;
   return mutateTasks(access, (product, original) => insertTask(product, original, id, occurrenceId, input));
 }
 
 export function duplicateTask(access: TaskAccess, sourceId: string) {
-  const id = randomUUID();
-  const occurrenceId = randomUUID();
+  const id = access.desktopOperation?.generatedIds[0] ?? randomUUID();
+  const occurrenceId = access.desktopOperation?.generatedIds[1] ?? randomUUID();
   return mutateTasks(access, (product, original) => {
     const source = loadedTask(product, sourceId);
     const { title, description, priority, dueDate, dueTime, recurrenceRule } = source.data;
@@ -159,12 +161,31 @@ export async function getTask(access: TaskAccess, id: string) {
   return taskDetail(product, task);
 }
 
+const editFields: Record<Exclude<keyof EditTaskInput, "revision">, TaskField> = {
+  title: "title", description: "description", priority: "priority",
+  dueDate: "schedule", dueTime: "schedule", recurrence: "schedule",
+  labelIds: "labels", destination: "placement",
+};
+
 export function editTask(access: TaskAccess, id: string, input: EditTaskInput) {
-  const { revision, labelIds, recurrence, destination, ...fields } = input;
-  const occurrence = recurrence && { ...recurrence, id: randomUUID() };
-  return mutateTasks(access, (product, original) => {
+  const occurrenceId = input.recurrence ? access.desktopOperation?.generatedIds[0] ?? randomUUID() : undefined;
+  return mutateTasks(access, (product, original, history) => {
     const current = writableTask(loadedTask(product, id));
-    taskRevision(product, current, revision);
+    const accepted = { ...input };
+    const touched: TaskField[] = [];
+    for (const key of Object.keys(editFields) as Array<keyof typeof editFields>) {
+      if (input[key] === undefined) continue;
+      const field = editFields[key];
+      if (history.canEditTaskField && !history.canEditTaskField(field)) delete accepted[key];
+      else if (!touched.includes(field)) touched.push(field);
+    }
+    if (!access.desktopOperation) taskRevision(product, current, input.revision);
+    else if (touched.length === 0) {
+      throw new ApiError(409, "DESKTOP_EDIT_SUPERSEDED", "Uma alteração mais recente já foi aplicada.");
+    }
+    history.touchedTaskFields = { id, fields: touched };
+    const { revision: _revision, labelIds, recurrence, destination, ...fields } = accepted;
+    const occurrence = recurrence && { ...recurrence, id: occurrenceId! };
     const task = recurrence === null ? withoutRecurrence(current) : current;
     if (!occurrence && task.occurrenceId && fields.dueDate === null) {
       throw validation("dueDate", "Encerre a recorrência antes de remover a data.");
@@ -206,10 +227,10 @@ function withoutRecurrence(task: Task): Task {
 }
 
 export function setRecurrence(access: TaskAccess, id: string, input: SetRecurrenceInput) {
-  const occurrenceId = randomUUID();
+  const occurrenceId = access.desktopOperation?.generatedIds[0] ?? randomUUID();
   return mutateTasks(access, (product, original) => {
     const task = writableTask(loadedTask(product, id));
-    taskRevision(product, task, input.revision);
+    if (!access.desktopOperation) taskRevision(product, task, input.revision);
     return taskDetail(product, saveTask(product, original, withRecurrence(product, task, occurrenceId, input)));
   });
 }
@@ -217,14 +238,14 @@ export function setRecurrence(access: TaskAccess, id: string, input: SetRecurren
 export function removeRecurrence(access: TaskAccess, id: string, revision: number) {
   return mutateTasks(access, (product, original) => {
     const task = writableTask(loadedTask(product, id));
-    taskRevision(product, task, revision);
+    if (!access.desktopOperation) taskRevision(product, task, revision);
     if (!task.occurrenceId) return taskDetail(product, task);
     return taskDetail(product, saveTask(product, original, withoutRecurrence(task)));
   });
 }
 
 export function completeTask(access: TaskAccess, id: string, input: CompleteTaskInput) {
-  const nextId = randomUUID();
+  const nextId = access.desktopOperation?.generatedIds[0] ?? randomUUID();
   const occurrence = input.occurrenceId ? { taskId: id, occurrenceId: input.occurrenceId } : undefined;
   return mutateTasks(access, (product, original, history) => {
     const task = visibleRecord(product.tasks, id);
@@ -240,7 +261,7 @@ export function completeTask(access: TaskAccess, id: string, input: CompleteTask
     if (task.occurrenceId && !occurrence) {
       throw validation("occurrenceId", "Informe a ocorrência a concluir.");
     }
-    taskRevision(product, task, input.revision);
+    if (!access.desktopOperation) taskRevision(product, task, input.revision);
 
     const completedAt = product.now.toString();
     if (occurrence) {
@@ -283,7 +304,7 @@ export function completeTask(access: TaskAccess, id: string, input: CompleteTask
 export function reopenTask(access: TaskAccess, id: string, revision: number) {
   return mutateTasks(access, (product, original) => {
     const task = loadedTask(product, id);
-    taskRevision(product, task, revision);
+    if (!access.desktopOperation) taskRevision(product, task, revision);
     if (task.occurrenceId || isActive(task)) throw validation("revision", "Só tarefas avulsas concluídas podem ser reabertas.");
     const reopenedParentId = reopenAncestors(product, original, task);
     const updated = saveTask(product, original, { ...task, data: { ...task.data, completedAt: null } });
@@ -295,7 +316,7 @@ export function undoTaskCompletion(access: TaskAccess, id: string, input: UndoTa
   const occurrence = input.occurrenceId ? { taskId: id, occurrenceId: input.occurrenceId } : undefined;
   return mutateTasks(access, (product, original, history) => {
     const task = loadedTask(product, id);
-    taskRevision(product, task, input.revision);
+    if (!access.desktopOperation) taskRevision(product, task, input.revision);
 
     if (occurrence) {
       const previous = history.previousCompletion;
@@ -343,7 +364,7 @@ export function undoTaskCompletion(access: TaskAccess, id: string, input: UndoTa
 export function deleteTask(access: TaskAccess, id: string, revision: number, withChildren?: boolean) {
   return mutateTasks(access, (product) => {
     const task = loadedTask(product, id);
-    taskRevision(product, task, revision);
+    if (!access.desktopOperation) taskRevision(product, task, revision);
     const children = Array.from(taskDescendants(product, id), ({ task }) => task);
     if (children.length && !withChildren) {
       throw new ApiError(409, "HAS_CHILDREN", "Confirme a exclusão das subtarefas.", { childCount: children.length });
@@ -430,7 +451,7 @@ function applyTaskMove(product: Product, original: Product, task: Task, target: 
 export function moveTask(access: TaskAccess, id: string, input: TaskMoveInput) {
   return mutateTasks(access, (product, original) => {
     const task = writableTask(loadedTask(product, id));
-    taskRevision(product, task, input.revision);
+    if (!access.desktopOperation) taskRevision(product, task, input.revision);
     const groups = applyTaskMove(product, original, task, input.target);
     return { task: taskItem(product, visibleRecord(product.tasks, id)), groups };
   });

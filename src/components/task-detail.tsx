@@ -143,10 +143,12 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
             disabled={!nextId} onClick={() => nextId && openRelatedTask(nextId, order)}><IconChevronDown /></button>
           {task && <MenuButton key={task.id} label="Ações da tarefa" items={() => [
             { label: "Duplicar", icon: <IconCopy />, onSelect: () => void actions.duplicate(task) },
-            { label: "Copiar link para a tarefa", icon: <IconLink />, onSelect: () => void copyLink(task.id) },
-            { label: "Abrir em nova janela", icon: <IconExternal />, onSelect: () => {
-              window.open(taskLink(task.id), "_blank", "noopener,popup");
-            } },
+            ...(app.browserTools ? [
+              { label: "Copiar link para a tarefa", icon: <IconLink />, onSelect: () => void copyLink(task.id) },
+              { label: "Abrir em nova janela", icon: <IconExternal />, onSelect: () => {
+                window.open(taskLink(task.id), "_blank", "noopener,popup");
+              } },
+            ] : []),
             "separator",
             { label: "Excluir", icon: <IconTrash />, danger: true, onSelect: async () => {
               const removed = await actions.remove(task);

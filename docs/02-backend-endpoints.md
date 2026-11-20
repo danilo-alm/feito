@@ -521,6 +521,17 @@ Os modelos ficam em [`src/domain/export-formats.ts`](../src/domain/export-format
 
 **Todoist** (`text/csv`, UTF-8 com BOM). O arquivo usa o mesmo cabeçalho de 20 colunas da exportação oficial, com `meta view_style`, seções e tarefas ativas na ordem manual. `INDENT` preserva a profundidade de cada tarefa a partir de `1` para a raiz. Datas e recorrências são escritas em inglês, como `Nov 20 2026 at 09:30` e `every monday at 07:00`. Etiquetas viram `@nome` no conteúdo, com espaços trocados por `_`. A opção `relativeDates=true` escreve `today`, `tomorrow` e `in N days` para datas de hoje em diante.
 
+### 3.12 Sincronização desktop
+
+As duas operações em `/api/v1/desktop-sync` exigem a sessão da conta. O envio exige o `Origin` da instalação, assim como as gravações do site.
+
+- **GET** devolve `{ cursor, user, workspace }`. A primeira leitura devolve a base da conta com projetos, seções, tarefas, etiquetas, vínculos, ocorrências concluídas e preferências. Quando `cursor` corresponde à revisão atual, `workspace` é nulo. Com `incremental=1` e um cursor anterior ainda coberto pelo diário, a resposta traz `changes` e `workspace: null`. Projetos, seções, tarefas e etiquetas usam `{ upsert, remove }`. Cada par em `taskLabels` ou `occurrences` substitui os vínculos ou o histórico da tarefa correspondente, incluindo listas vazias. Uma lacuna, excesso de alterações ou cursor antigo aciona uma nova base completa.
+- **POST** recebe `{ id, userId?, authoredAt, method, path, body?, generatedIds? }`. `id` é o UUID persistido junto à operação local. O desktop envia o `userId` esperado para prevenir gravação em outra conta após nova autenticação. `path` é relativo a `/api/v1`. `generatedIds` preserva os IDs criados offline. O servidor aceita as mutações de tarefas, projetos, seções, etiquetas e preferências previstas no serviço e responde `{ outcome: "applied" }` ou `{ outcome: "ignored", message }`. Repetir a mesma operação retorna o recibo original. Reusar o ID com outro conteúdo retorna conflito.
+
+O diário guarda referências às entidades afetadas nas últimas 512 revisões. O limite por leitura incremental é de 1.000 referências. O servidor monta os dados canônicos e as exclusões usando o mesmo snapshot que fornece o cursor.
+
+Edições de tarefa e preferências recebem ordenação por campo ou grupo de campos. Em um empate de milissegundo, o site prevalece sobre o desktop e dois dispositivos desktop são ordenados pelo UUID da operação. Horários mais de cinco minutos adiantados são recusados. Exclusões não são revertidas por edições pendentes. Revisões das entidades ainda protegem operações estruturais de projeto, seção e etiqueta. A recorrência confirma a ocorrência específica e usa a data civil do instante da ação no fuso da conta para calcular a próxima.
+
 ## 4. Comandos administrativos
 
 A administração de contas não tem rota HTTP no MVP. Implementar como comandos locais (por exemplo, `pnpm admin <comando>`) que usam o mesmo serviço de identidade e registram quem executou, a conta, o momento e o resultado.

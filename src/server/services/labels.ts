@@ -24,8 +24,9 @@ function uniqueName(product: Product, name: string, currentId?: string) {
 }
 
 export function createLabel(access: ProductAccess, name: string) {
-  const id = randomUUID();
+  const id = access.desktopOperation?.generatedIds[0] ?? randomUUID();
   return mutateProduct(access, (product) => {
+    if (product.labels.has(id)) throw new ApiError(409, "DESKTOP_ID_UNAVAILABLE", "O identificador já foi usado.");
     uniqueName(product, name);
     const label = { id, revision: 1, data: { name } };
     product.labels.set(id, label);
