@@ -28,10 +28,10 @@ type Tone = "brand" | "danger";
 type RowContent = { icon: ReactNode; label: ReactNode; hint?: ReactNode; tone?: Tone; labelFor?: string };
 
 function RowText({ icon, label, hint, tone, labelFor }: RowContent) {
-  const labelClass = `set-label${tone ? ` ${tone}` : ""}`;
+  const labelClass = `set-label${tone ? ` tone-${tone}` : ""}`;
   return (
     <>
-      <span className={`set-icon${tone ? ` ${tone}` : ""}`} aria-hidden="true">{icon}</span>
+      <span className={`set-icon${tone ? ` tone-${tone}` : ""}`} aria-hidden="true">{icon}</span>
       <span className="set-text">
         {labelFor ? <label htmlFor={labelFor} className={labelClass}>{label}</label> : <span className={labelClass}>{label}</span>}
         {hint && <span className="hint">{hint}</span>}
