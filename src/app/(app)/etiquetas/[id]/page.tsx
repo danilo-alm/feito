@@ -5,7 +5,7 @@ import { api } from "@/client/api";
 import { useQuery } from "@/client/store";
 import { useTaskPagination } from "@/client/task-pagination";
 import type { LabelTasks } from "@/client/types";
-import { useApp } from "@/components/app";
+import { refreshLabels, useApp } from "@/components/app";
 import { PageHeader, PageTaskCount } from "@/components/chrome";
 import { FlatGroup } from "@/components/flat-list";
 import { IconEdit, IconMore, IconTrash } from "@/components/icons";
@@ -18,18 +18,19 @@ export default function LabelPage({ params }: { params: Promise<{ id: string }> 
   const router = useRouter();
   const actions = useTaskActions();
   const label = app.nav?.labels.find((item) => item.id === id);
-  const query = useQuery<LabelTasks>(`label:${id}`, () => api.labels.tasks(id));
-  const pagination = useTaskPagination(query.data, query.data?.tasks, (cursor) => api.labels.tasks(id, cursor));
+  const key = `label:${id}`;
+  const query = useQuery<LabelTasks>(key, () => api.labels.tasks(id));
+  const pagination = useTaskPagination(key, query.data, "tasks", (cursor) => api.labels.tasks(id, cursor));
 
   const menu = () => label ? [
     { label: "Renomear etiqueta", icon: <IconEdit />, onSelect: async () => {
       const name = await app.prompt({ title: "Renomear etiqueta", label: "Nome", initial: label.name, confirmLabel: "Salvar" });
-      if (name && name !== label.name) await app.run(() => api.labels.rename(label.id, label.revision, name), { success: "Etiqueta renomeada" });
+      if (name && name !== label.name) await app.run(() => api.labels.rename(label.id, label.revision, name), { success: "Etiqueta renomeada", revalidate: refreshLabels });
     } },
     "separator" as const,
     { label: "Excluir etiqueta…", icon: <IconTrash />, danger: true, onSelect: async () => {
       const ok = await app.confirm({ title: `Excluir a etiqueta “${label.name}”?`, body: "As tarefas continuam, só perdem esta etiqueta.", confirmLabel: "Excluir", danger: true });
-      if (ok && await app.run(() => api.labels.remove(label.id, label.revision).then(() => true), { success: "Etiqueta excluída" })) router.push("/hoje");
+      if (ok && await app.run(() => api.labels.remove(label.id, label.revision).then(() => true), { success: "Etiqueta excluída", revalidate: refreshLabels })) router.push("/hoje");
     } },
   ] : [];
 

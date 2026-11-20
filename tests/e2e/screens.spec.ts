@@ -164,7 +164,7 @@ test.describe("telas do dia a dia", () => {
     const title = `Comprar tinta ${Date.now()}`;
     await page.goto("/hoje");
     await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
-    if (isMobile) await page.getByRole("button", { name: "Adicionar tarefa" }).click();
+    if (isMobile) await page.getByRole("button", { name: "Adicionar tarefa", exact: true }).click();
     else await page.keyboard.press("q");
     const dialog = page.getByRole("dialog", { name: "Adicionar tarefa" });
     await expect(dialog.getByLabel("Título da tarefa")).toBeFocused();

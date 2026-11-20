@@ -7,6 +7,7 @@ import { tagColor } from "@/client/colors";
 import { dateLabel, dayOfMonth, dueTone } from "@/client/dates";
 import { closeEditor, editKey, insertKey, openEditor, useEditorOpen, type InsertDefaults } from "@/client/editor-store";
 import { getQueryData, useQuery } from "@/client/store";
+import { createTask, editTask, type MutationContext } from "@/client/task-mutations";
 import type { EditTask, Frequency, Label, Priority, ProjectPage, TaskDetail, TaskItem } from "@/client/types";
 import { useApp } from "./app";
 import {
@@ -51,9 +52,10 @@ export function sectionNameOf(projectId: string, sectionId: string | null) {
 }
 
 /** Cria a tarefa e, quando pedido, a posiciona antes ou depois de uma irmã. */
-export async function createFromDraft(draft: TaskDraft, place: { parentId?: string | null; beforeId?: string; afterId?: string }, reference: string) {
+export function createFromDraft(draft: TaskDraft, place: { parentId?: string | null; beforeId?: string; afterId?: string }, context: MutationContext) {
+  const { reference } = context;
   const parentId = place.parentId ?? null;
-  const created = await api.tasks.create({
+  return createTask(context, {
     title: draft.title,
     description: draft.description.trim() ? draft.description : undefined,
     ...(parentId ? { parentId } : { projectId: draft.projectId, sectionId: draft.sectionId }),
@@ -62,21 +64,15 @@ export async function createFromDraft(draft: TaskDraft, place: { parentId?: stri
     dueTime: draft.dueDate || draft.frequency ? draft.dueTime : null,
     labelIds: draft.labelIds,
     recurrence: draft.frequency && !parentId ? { frequency: draft.frequency, anchorDate: draft.dueDate ?? reference, time: draft.dueTime } : undefined,
+    beforeId: place.beforeId,
+    afterId: place.afterId,
   });
-  if (place.beforeId || place.afterId) {
-    // Sem ordenação manual o servidor recusa a posição; a tarefa continua criada, no fim do grupo.
-    await api.tasks.move(created.id, created.revision, {
-      type: "position", projectId: created.projectId, sectionId: created.sectionId, parentId: created.parentId,
-      ...(place.beforeId ? { beforeId: place.beforeId } : { afterId: place.afterId }),
-    }).catch(() => undefined);
-  }
-  return created;
 }
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((item) => b.includes(item));
 
 /** Envia todas as mudanças da edição com a mesma revisão. */
-async function saveEdits(task: TaskItem, before: TaskDraft, after: TaskDraft, fullDescription: string | undefined, reference: string) {
+async function saveEdits(task: TaskItem, before: TaskDraft, after: TaskDraft, fullDescription: string | undefined, context: MutationContext) {
   const patch: Omit<EditTask, "revision"> = {};
   if (after.title !== before.title) patch.title = after.title;
   if (fullDescription !== undefined && after.description !== fullDescription) patch.description = after.description;
@@ -86,14 +82,14 @@ async function saveEdits(task: TaskItem, before: TaskDraft, after: TaskDraft, fu
   if (!sameSet(after.labelIds, before.labelIds)) patch.labelIds = after.labelIds;
   if (after.frequency !== before.frequency) {
     patch.recurrence = after.frequency
-      ? { frequency: after.frequency, anchorDate: after.dueDate ?? reference, time: after.dueTime }
+      ? { frequency: after.frequency, anchorDate: after.dueDate ?? context.reference, time: after.dueTime }
       : null;
   }
   if (!task.parentId && (after.projectId !== before.projectId || after.sectionId !== before.sectionId)) {
     patch.destination = { projectId: after.projectId, sectionId: after.sectionId };
   }
   if (!Object.keys(patch).length) return "unchanged" as const;
-  await api.tasks.edit(task.id, { revision: task.revision, ...patch });
+  await editTask(context, task, patch);
   return "saved" as const;
 }
 
@@ -296,12 +292,11 @@ export function InlineEdit({ task }: { task: TaskItem }) {
       submitLabel="Salvar"
       onCancel={() => closeEditor(key)}
       onSubmit={async (draft) => {
-        const result = await app.run(() => saveEdits(task, initial, draft, loaded?.description, app.reference), {
+        const saving = app.run(() => saveEdits(task, initial, draft, loaded?.description, app.taskContext), {
           success: (value) => (value === "saved" ? "Tarefa atualizada" : ""),
         });
-        if (!result) return false;
         closeEditor(key);
-        return true;
+        return !!await saving;
       }}
     />
   );
@@ -326,14 +321,13 @@ export function InlineCreate({ slot, defaults }: { slot: string; defaults: Inser
       onSubmit={async (draft) => {
         const samePlace = draft.projectId === initial.projectId && draft.sectionId === initial.sectionId;
         const place = { parentId, ...(samePlace ? { beforeId: defaults.beforeId, afterId: defaults.afterId } : {}) };
-        const created = await app.run(() => createFromDraft(draft, place, app.reference), {
+        const created = await app.run(() => createFromDraft(draft, place, app.taskContext), {
           // Fora do lugar onde o editor está, a tarefa não aparece aqui: o aviso diz para onde foi.
           success: samePlace ? undefined : `Tarefa adicionada em ${destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))}`,
         });
         if (!created) return false;
         if (samePlace && defaults.afterId) {
           // "Abaixo": o editor desce para depois da tarefa recém-criada, mantendo a ordem de digitação.
-          await app.refresh();
           openEditor({ kind: "create", key: insertKey("below", created.id), defaults: { ...defaults, afterId: created.id } });
         }
         return true;

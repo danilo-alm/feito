@@ -9,12 +9,13 @@ import { api, ApiFailure, errorMessage } from "@/client/api";
 import { editKey, insertKey, useEditorOpen } from "@/client/editor-store";
 import { getQueryData, invalidate, setQueryData, useQuery } from "@/client/store";
 import {
-  applyStep, keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, sectionName, taskMap, unnamedColumnTitle,
+  keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, sectionName, taskMap, unnamedColumnTitle,
   type DropOver, type KeyAction, type Plan, type Zone,
 } from "@/client/tree";
-import type { MoveTarget, NamedDetails, ProjectPage, Section, TaskItem } from "@/client/types";
+import { isTemporaryTask, moveTask } from "@/client/task-mutations";
+import type { NamedDetails, ProjectPage, Section, TaskItem } from "@/client/types";
 import { taskAncestors } from "@/domain/task-tree";
-import { useApp } from "./app";
+import { refreshProjects, useApp } from "./app";
 import { PageHeader, PageTaskCount } from "./chrome";
 import { Collapse, flipFrom } from "./motion";
 import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconMore, IconPlus, IconDownload, IconSub, IconTrash, IconUpload } from "./icons";
@@ -120,39 +121,18 @@ export function ProjectView({ projectId }: { projectId: string }) {
     useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 8 } }),
   );
 
-  // Movimentos em fila: cada passo usa a revisão mais recente devolvida pelo servidor.
-  const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const revisions = useRef(new Map<string, number>());
-
   const execute = useCallback((taskId: string, plan: Plan, focus = false) => {
-    if (!page) return Promise.resolve();
     if (!plan.valid) {
       toast(plan.message, { bad: true });
-      return Promise.resolve();
+      return;
     }
-    query.mutate((current) => current && plan.steps.reduce((value, step) => applyStep(value, taskId, step), current));
+    const task = page?.tasks.find((item) => item.id === taskId);
+    if (!task || isTemporaryTask(task.id)) return;
+    if (plan.steps.some((step) => step.type === "position"
+      && [step.parentId, step.beforeId, step.afterId].some((id) => id && isTemporaryTask(id)))) return;
     if (focus) focusAfter.current = taskId;
-    const known = page.tasks.find((task) => task.id === taskId)?.revision ?? 1;
-    const run = async () => {
-      try {
-        let revision = Math.max(known, revisions.current.get(taskId) ?? 0);
-        for (const step of plan.steps as MoveTarget[]) {
-          const result = await api.tasks.move(taskId, revision, step);
-          revision = result.task.revision;
-          revisions.current.set(taskId, revision);
-        }
-        toast(plan.message);
-      } catch (error) {
-        toast(error instanceof ApiFailure && error.code === "REVISION_CONFLICT"
-          ? "A lista mudou em outra aba. A posição original foi restaurada."
-          : `${errorMessage(error)} A tarefa voltou ao lugar.`, { bad: true });
-      } finally {
-        await invalidate();
-      }
-    };
-    queue.current = queue.current.then(run, run);
-    return queue.current;
-  }, [page, query, toast]);
+    return app.run(() => moveTask(app.taskContext, task, plan.steps), { success: plan.message });
+  }, [app, page, toast]);
 
   const arrange = useCallback((taskId: string, action: KeyAction) => {
     if (!page) return;
@@ -177,6 +157,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
     if (!page) return;
     query.mutate((current) => current && { ...current, project: { ...current.project, view: { ...current.project.view, ...patch } } });
     await app.run(() => api.projects.setView(projectId, patch), {
+      revalidate: (cached) => cached === key,
       success: patch.layout ? `${LAYOUT_LABEL[patch.layout]} — mesma organização do projeto`
         : patch.sortMode ? (patch.sortMode === "manual" ? "Ordem manual recuperada" : `Ordenado por ${SORT_LABEL[patch.sortMode].toLowerCase()}`)
           : undefined,
@@ -266,13 +247,13 @@ export function ProjectView({ projectId }: { projectId: string }) {
             : item),
         });
       }
-    });
+    }, { revalidate: refreshProjects });
   };
   const sectionMenu = (sectionId: string): MenuItem[] => {
     const section = page.sections.find((item) => item.id === sectionId)!;
     const index = page.sections.indexOf(section);
     const move = (anchor: { afterSectionId?: string; beforeSectionId?: string }) =>
-      app.run(() => api.sections.move(section.id, section.revision, anchor), { success: "Seção reordenada" });
+      app.run(() => api.sections.move(section.id, section.revision, anchor), { success: "Seção reordenada", revalidate: (cached) => cached === key });
     return [
       { label: "Editar seção", icon: <IconEdit />, onSelect: () => setSectionToEdit(section) },
       { label: board ? "Mover para a esquerda" : "Mover para cima", icon: <IconArrowUp />, disabled: index === 0,
@@ -288,7 +269,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
             : "A seção está vazia.",
           confirmLabel: "Excluir seção", danger: true,
         });
-        if (ok) await app.run(() => api.sections.remove(section.id, section.revision), { success: "Seção excluída" });
+        if (ok) await app.run(() => api.sections.remove(section.id, section.revision), { success: "Seção excluída", revalidate: refreshProjects });
       } },
     ];
   };
@@ -298,14 +279,14 @@ export function ProjectView({ projectId }: { projectId: string }) {
     ...(archived ? [] : [{ label: "Importar…", icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) }]),
     { label: "Exportar…", icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) },
     archived
-      ? { label: "Reativar projeto", icon: <IconArchive />, onSelect: () => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado" }) }
+      ? { label: "Reativar projeto", icon: <IconArchive />, onSelect: () => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado", revalidate: refreshProjects }) }
       : { label: "Arquivar projeto", icon: <IconArchive />, onSelect: async () => {
         const ok = await app.confirm({
           title: `Arquivar “${project.name}”?`,
           body: "O projeto sai das listas, da busca e da agenda, com tarefas e estados guardados. Você pode reativar em Ajustes.",
           confirmLabel: "Arquivar",
         });
-        if (ok && await app.run(() => api.projects.archive(project.id, project.revision), { success: "Projeto arquivado" })) router.push("/hoje");
+        if (ok && await app.run(() => api.projects.archive(project.id, project.revision), { success: "Projeto arquivado", revalidate: refreshProjects })) router.push("/hoje");
       } },
     "separator",
     { label: "Excluir projeto…", icon: <IconTrash />, danger: true, onSelect: async () => {
@@ -318,7 +299,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
       try {
         await api.projects.remove(project.id, project.revision);
         toast("Projeto excluído");
-        await invalidate();
+        await invalidate(refreshProjects);
         router.push("/hoje");
       } catch (error) {
         toast(error instanceof ApiFailure && error.code === "PROJECT_NOT_EMPTY"
@@ -368,7 +349,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
           <NamedDetailsForm key={sectionToEdit.id} kind="seção" initial={sectionToEdit} inDialog submitLabel="Salvar"
             onCancel={() => setSectionToEdit(null)} onSave={async (details) => {
               if (details.name === sectionToEdit.name && details.description === sectionToEdit.description
-                || await app.run(() => api.sections.edit(sectionToEdit.id, sectionToEdit.revision, details), { success: "Seção atualizada" })) {
+                || await app.run(() => api.sections.edit(sectionToEdit.id, sectionToEdit.revision, details), { success: "Seção atualizada", revalidate: refreshProjects })) {
                 setSectionToEdit(null);
               }
             }} />
@@ -387,7 +368,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
             <div className="banner warn">
               Projeto arquivado: só leitura. Reative para editar.
               <button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
-                onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado" })}>Reativar</button>
+                onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado", revalidate: refreshProjects })}>Reativar</button>
             </div>
           </Collapse>
           <Collapse open={!manual && !archived} appear={false}>
@@ -466,8 +447,9 @@ function DraggableTask({
 }) {
   // Em edição a linha vira formulário: arrastar a partir dos campos selecionaria texto e moveria a tarefa.
   const editing = useEditorOpen(editKey(task));
-  const draggable = useDraggable({ id: task.id, disabled: disabled || editing });
-  const droppable = useDroppable({ id: `task:${task.id}`, disabled: task.status !== "active" });
+  const temporary = isTemporaryTask(task.id);
+  const draggable = useDraggable({ id: task.id, disabled: disabled || editing || temporary });
+  const droppable = useDroppable({ id: `task:${task.id}`, disabled: task.status !== "active" || temporary });
   const setRef = (node: HTMLDivElement | null) => {
     draggable.setNodeRef(node);
     droppable.setNodeRef(node);
@@ -604,7 +586,7 @@ function ProjectHeading({ project }: { project: ProjectPage["project"] }) {
           ? { ...current, project: { ...current.project, ...saved } }
           : current);
         return saved;
-      });
+      }, { revalidate: refreshProjects });
       setPending((current) => current[field] === change ? { ...current, [field]: undefined } : current);
       return saved?.revision ?? revision;
     });
@@ -719,7 +701,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
 
   const createSection = async (afterSectionId: string | null, details: NamedDetails) => {
     const anchor = afterSectionId ? { afterSectionId } : page.sections[0] ? { beforeSectionId: page.sections[0].id } : {};
-    if (await app.run(() => api.sections.create(project.id, details, anchor), { success: `Seção “${details.name}” criada` })) {
+    if (await app.run(() => api.sections.create(project.id, details, anchor), { success: `Seção “${details.name}” criada`, revalidate: (cached) => cached === `project:${project.id}` })) {
       setAdding(undefined);
     }
   };
@@ -808,7 +790,7 @@ function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSe
     document.getElementById(`col-${sectionId ?? "none"}`)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
   };
   const createSection = async (details: NamedDetails) => {
-    if (await app.run(() => api.sections.create(project.id, details), { success: `Seção “${details.name}” criada` })) {
+    if (await app.run(() => api.sections.create(project.id, details), { success: `Seção “${details.name}” criada`, revalidate: (cached) => cached === `project:${project.id}` })) {
       setAdding(false);
     }
   };

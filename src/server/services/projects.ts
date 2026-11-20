@@ -2,40 +2,37 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { Temporal } from "@js-temporal/polyfill";
 import { groupTasks, orderedSections, type Product, type Section } from "@/domain/product";
-import { mutateProduct, readProduct, type ProductAccess } from "@/server/db/product";
+import { mutateProduct, type ProductAccess } from "@/server/db/product";
 import { readProjectView } from "@/server/db/product-reads";
+import { readProductSummary } from "@/server/db/product-summary";
 import { ApiError } from "@/server/errors";
 import { defaultsForView, type ProjectPayload, type ProjectView, type SectionPayload } from "@/validation/product";
-import { inboxProject, labelSummaries, projectCounts, projectPage, projectSummaries, projectSummary, sectionDto, visibleTask } from "./product-dto";
+import { inboxProject, labelSummaries, projectCounts, projectPage, projectSummaries, projectSummary, sectionDto } from "./product-dto";
 import { nextRevision, protectInbox, requireRevision, validation, visibleRecord, writableProject } from "./product-rules";
 
-function orderedProjects(product: Product, archived: boolean) {
+function orderedProjects(product: Pick<Product, "projects">, archived: boolean) {
   return [...product.projects.values()]
     .filter((project) => !project.isInbox && project.data.archived === archived)
     .sort((a, b) => Temporal.Instant.compare(a.data.createdAt, b.data.createdAt) || a.id.localeCompare(b.id));
 }
 
 export function getNavigation(access: ProductAccess) {
-  return readProduct(access, (product) => {
-    const inbox = inboxProject(product);
-    const { activeCount } = projectCounts(product, inbox.id);
-    const todayCount = [...product.tasks.values()].filter((task) =>
-      visibleTask(product, task) && task.data.dueDate !== null && task.data.dueDate <= product.referenceDate,
-    ).length;
+  return readProductSummary(access, "navigation", (summary, calendar) => {
+    const inbox = inboxProject(summary);
     return {
-      inbox: { projectId: inbox.id, activeCount },
-      todayCount,
-      projects: projectSummaries(product, orderedProjects(product, false)),
-      archivedCount: orderedProjects(product, true).length,
-      labels: labelSummaries(product),
-      referenceDate: product.referenceDate,
+      inbox: { projectId: inbox.id, activeCount: summary.projectCounts.get(inbox.id) ?? 0 },
+      todayCount: summary.todayCount,
+      projects: projectSummaries(orderedProjects(summary, false), summary.projectCounts),
+      archivedCount: orderedProjects(summary, true).length,
+      labels: labelSummaries(summary.labels.values(), summary.labelCounts),
+      referenceDate: calendar!.referenceDate,
     };
   });
 }
 
 export function listProjects(access: ProductAccess, status: "active" | "archived") {
-  return readProduct(access, (product) => ({
-    projects: projectSummaries(product, orderedProjects(product, status === "archived")),
+  return readProductSummary(access, `projects:${status}`, (summary) => ({
+    projects: projectSummaries(orderedProjects(summary, status === "archived"), summary.projectCounts),
   }));
 }
 

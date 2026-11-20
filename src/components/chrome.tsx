@@ -6,7 +6,7 @@ import { api, ApiFailure, errorMessage } from "@/client/api";
 import { tagColor } from "@/client/colors";
 import { invalidate } from "@/client/store";
 import type { Navigation, ProjectSummary } from "@/client/types";
-import { PROJECT_SHORTCUT_KEYS, useApp } from "./app";
+import { PROJECT_SHORTCUT_KEYS, refreshProjects, useApp } from "./app";
 import {
   IconArchive, IconBrowse, IconCheckCircle, IconChevronLeft, IconChevronRight, IconEdit, IconGear, IconInbox, IconMore, IconPlus,
   IconSearch, IconTag, IconToday, IconTrash, IconUpcoming, IconUpload, IconDownload,
@@ -101,7 +101,7 @@ function ProjectRow({ project, active, shortcut, onEdit }: { project: ProjectSum
         body: "O projeto sai das listas, da busca e da agenda, com tarefas e estados guardados. Você pode reativar em Ajustes.",
         confirmLabel: "Arquivar",
       });
-      if (ok && await app.run(() => api.projects.archive(project.id, project.revision), { success: "Projeto arquivado" }) && active) router.push("/hoje");
+      if (ok && await app.run(() => api.projects.archive(project.id, project.revision), { success: "Projeto arquivado", revalidate: refreshProjects }) && active) router.push("/hoje");
     } },
     "separator",
     { label: "Excluir projeto…", icon: <IconTrash />, danger: true, onSelect: async () => {
@@ -114,7 +114,7 @@ function ProjectRow({ project, active, shortcut, onEdit }: { project: ProjectSum
       try {
         await api.projects.remove(project.id, project.revision);
         toast("Projeto excluído");
-        await invalidate();
+        await invalidate(refreshProjects);
         if (active) router.push("/hoje");
       } catch (error) {
         toast(error instanceof ApiFailure && error.code === "PROJECT_NOT_EMPTY"

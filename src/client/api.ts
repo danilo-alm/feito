@@ -3,7 +3,7 @@ import type {
   CompleteResponse, CreateTask, EditTask, Frequency, ImportPreview, ImportResult, Label, LabelTasks, Layout,
   Me, MoveResponse, MoveTarget, NamedDetails, Navigation, ProjectDetails, Preferences, ProjectPage, ProjectShare, ProjectSummary, ProjectView,
   PublicProjectPage, ReopenResponse,
-  SearchInput, SearchResult, Section, Session, SortMode, SourceImportPreview, SourceImportResult, TaskDetail,
+  SearchInput, SearchResult, Section, Session, SortMode, SourceImportPreview, SourceImportResult, TaskDetail, TaskMutation,
   TodayView, UndoCompletionInput, UndoCompletionResponse, UpcomingView,
 } from "./types";
 
@@ -69,11 +69,9 @@ async function send(method: string, path: string, init: { body?: BodyInit; heade
   throw failure;
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const response = await send(method, path, body === undefined ? {} : {
-    body: JSON.stringify(body),
-    headers: { "Content-Type": "application/json" },
-  });
+async function request<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const response = await send(method, path, { headers, body: body === undefined ? undefined : JSON.stringify(body) });
   if (response.status === 204) return undefined as T;
   return await response.json() as T;
 }
@@ -206,6 +204,27 @@ export const api = {
       return await response.json() as SourceImportResult;
     },
   },
+};
+
+const taskPath = (id: string) => `/tasks/${enc(id)}`;
+const taskWrite = <T>(method: string, path: string, body?: unknown) => request<TaskMutation<T>>(
+  method, path, body, { "X-Feito-Task-Changes": "1" },
+);
+
+export const taskWrites = {
+  create: (input: CreateTask) => taskWrite<TaskDetail>("POST", "/tasks", input),
+  duplicate: (id: string) => taskWrite<TaskDetail>("POST", `${taskPath(id)}/duplicate`),
+  edit: (id: string, input: EditTask) => taskWrite<TaskDetail>("PATCH", taskPath(id), input),
+  move: (id: string, revision: number, target: MoveTarget) =>
+    taskWrite<MoveResponse>("POST", `${taskPath(id)}/move`, { revision, target }),
+  complete: (id: string, input: { revision: number; occurrenceId?: string; includeChildren?: boolean }) =>
+    taskWrite<CompleteResponse>("POST", `${taskPath(id)}/complete`, input),
+  reopen: (id: string, revision: number) => taskWrite<ReopenResponse>("POST", `${taskPath(id)}/reopen`, { revision }),
+  undo: (id: string, input: UndoCompletionInput) =>
+    taskWrite<UndoCompletionResponse>("POST", `${taskPath(id)}/undo-completion`, input),
+  remove: (id: string, revision: number, withChildren: boolean) => taskWrite<null>(
+    "DELETE", taskPath(id) + query({ revision, withChildren: withChildren || undefined }),
+  ),
 };
 
 export function errorMessage(error: unknown) {

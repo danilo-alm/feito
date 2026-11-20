@@ -2,6 +2,7 @@
 import { forwardRef, useState, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
 import { addDays, dayOfMonth, nextWeek, shortDate, weekend } from "@/client/dates";
 import { editKey, openEditor, useEditorOpen } from "@/client/editor-store";
+import { isTemporaryTask } from "@/client/task-mutations";
 import type { Priority, TaskItem } from "@/client/types";
 import { useApp } from "./app";
 import {
@@ -148,7 +149,8 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
 }, ref) {
   const app = useApp();
   const mobile = useIsMobile();
-  const editing = useEditorOpen(editKey(task)) && !noMenu;
+  const temporary = isTemporaryTask(task.id);
+  const editing = useEditorOpen(editKey(task)) && !noMenu && !temporary;
   const [dateOpen, setDateOpen] = useState(false);
   const [acts, setActs] = useState<HTMLDivElement | null>(null);
   // Em edição, o editor rápido ocupa o lugar da tarefa (sem os atributos de arraste da linha).
@@ -167,11 +169,11 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
   const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
   return (
     <div ref={ref} className={classes} data-task-id={noMenu ? undefined : task.id} onKeyDown={onKeyArrange} style={{ ...indent, ...style }} {...rest}>
-      {grip && variant === "row" && <span className="grip" aria-hidden="true"><IconGrip /></span>}
-      <Checkbox task={task} onToggle={() => actions.toggle(task)} />
+      {grip && !temporary && variant === "row" && <span className="grip" aria-hidden="true"><IconGrip /></span>}
+      <Checkbox task={task} disabled={temporary} onToggle={() => actions.toggle(task)} />
       <TaskContent task={task} actions={actions} showOrigin={showOrigin} timeOnly={timeOnly} preview={noMenu} showMoreSubtasks={showMoreSubtasks} />
       {tag}
-      {!noMenu && (
+      {!noMenu && !temporary && (
         <div ref={setActs} className="t-acts" style={variant === "card" ? { margin: "-4px -6px 0 0" } : undefined}>
           {showShortcuts && (
             <>

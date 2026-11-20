@@ -1,12 +1,11 @@
 "use client";
 import { usePathname } from "next/navigation";
 import { useMemo, useRef } from "react";
-import { errorMessage } from "@/client/api";
 import { getQueryData } from "@/client/store";
-import { refreshAll, useApp, type QuickAddDefaults } from "./app";
+import { useApp, type QuickAddDefaults } from "./app";
 import { destinationLabel } from "./pickers";
 import { createFromDraft, draftFromDefaults, sectionNameOf, TaskEditor } from "./task-editor";
-import { Dialog, useToast } from "./ui";
+import { Dialog } from "./ui";
 
 function inferDefaults(pathname: string, reference: string): QuickAddDefaults {
   if (pathname.startsWith("/hoje")) return { dueDate: reference };
@@ -19,7 +18,6 @@ function inferDefaults(pathname: string, reference: string): QuickAddDefaults {
 
 export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | null; onClose: () => void }) {
   const app = useApp();
-  const toast = useToast();
   const pathname = usePathname();
   const open = defaults !== null;
   const inboxId = app.nav?.inbox.projectId ?? app.me.inboxProjectId;
@@ -57,19 +55,14 @@ export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | n
           )}
           onSubmit={async (draft) => {
             const samePlace = draft.projectId === session.draft.projectId && draft.sectionId === session.draft.sectionId;
-            try {
-              const created = await createFromDraft(draft, {
-                parentId, ...(samePlace ? { beforeId: session.initial.beforeId, afterId: session.after } : {}),
-              }, app.reference);
-              if (samePlace && session.after) session.after = created.id;
-              toast(`Tarefa adicionada em ${parentId ? `“${parentTitle ?? "tarefa"}”`
-                : destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))}`);
-              void refreshAll();
-              return true;
-            } catch (error) {
-              toast(errorMessage(error), { bad: true });
-              return false;
-            }
+            const created = await app.run(() => createFromDraft(draft, {
+              parentId, ...(samePlace ? { beforeId: session.initial.beforeId, afterId: session.after } : {}),
+            }, app.taskContext), {
+              success: `Tarefa adicionada em ${parentId ? `“${parentTitle ?? "tarefa"}”`
+                : destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))}`,
+            });
+            if (created && samePlace && session.after) session.after = created.id;
+            return !!created;
           }}
         />
       )}

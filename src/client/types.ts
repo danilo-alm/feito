@@ -26,6 +26,7 @@ export type TaskItem = {
   dueTime: string | null;
   overdue: boolean;
   recurrence: { frequency: Frequency } | null;
+  recurrenceRule?: RecurrenceRule | null;
   occurrenceId: string | null;
   projectId: string;
   sectionId: string | null;
@@ -154,7 +155,22 @@ export type CreateTask = {
   dueTime?: string | null;
   labelIds?: string[];
   recurrence?: { frequency: Frequency; anchorDate?: string; time?: string | null } | null;
+  beforeId?: string;
+  afterId?: string;
 };
+
+export type TaskState = TaskItem & {
+  description?: string;
+  createdAt?: string;
+};
+
+export type TaskChanges = {
+  revision: number;
+  rows: { before?: TaskState; after?: TaskState }[];
+  groups?: MoveResponse["groups"];
+};
+
+export type TaskMutation<T> = { result: T; changes: TaskChanges };
 
 export type EditTask = {
   revision: number;

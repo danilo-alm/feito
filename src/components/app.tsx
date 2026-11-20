@@ -5,6 +5,7 @@ import { api, ApiFailure, configureApi, errorMessage } from "@/client/api";
 import { registerTagOrder } from "@/client/colors";
 import { closeEditor, type InsertDefaults } from "@/client/editor-store";
 import { clearCache, invalidate, useQuery } from "@/client/store";
+import { isTemporaryTask, type MutationContext } from "@/client/task-mutations";
 import type { Me, Navigation, Theme } from "@/client/types";
 import { motionMs, useFlip } from "./motion";
 import { Dialog, Spinner, ToastProvider, useToast, type ToastAction } from "./ui";
@@ -45,18 +46,24 @@ type PromptOptions = { title: string; label: string; initial?: string; confirmLa
 type SuccessNotice = string | { message: string; action?: ToastAction };
 type RunOptions<T> = { success?: string | ((value: T) => SuccessNotice); silent?: boolean };
 
+type Revalidate = (key: string) => boolean;
+const taskLists = /^(project|task|today|upcoming|label|search):/;
+export const refreshProjects: Revalidate = (key) => key === "nav" || key === "archived" || key === "labels" || taskLists.test(key);
+export const refreshLabels: Revalidate = (key) => key === "nav" || key === "labels" || taskLists.test(key);
+
 type AppContextValue = {
   me: Me;
   nav: Navigation | undefined;
   showProjectShortcuts: boolean;
   reference: string;
   timezone: string;
+  taskContext: MutationContext;
   refresh: () => Promise<unknown>;
   openQuickAdd: (defaults?: QuickAddDefaults) => void;
   openTask: (id: string, order?: readonly string[]) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   prompt: (options: PromptOptions) => Promise<string | null>;
-  run: <T>(action: () => Promise<T>, options?: RunOptions<T>) => Promise<T | undefined>;
+  run: <T>(action: () => Promise<T>, options?: RunOptions<T> & { revalidate?: Revalidate }) => Promise<T | undefined>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -69,10 +76,6 @@ export function useApp() {
 
 const isDragging = () => !!document.querySelector(".drag-overlay");
 
-export function refreshAll() {
-  return invalidate();
-}
-
 export type TaskSelection = { id: string; order: readonly string[] };
 
 type Overlay = {
@@ -83,7 +86,8 @@ type Overlay = {
 function visibleTaskOrder(id: string) {
   const ids = new Set<string>();
   for (const row of document.querySelectorAll<HTMLElement>("#conteudo [data-task-id]")) {
-    if (row.getClientRects().length && !row.closest("[inert]")) ids.add(row.dataset.taskId!);
+    const taskId = row.dataset.taskId!;
+    if (!isTemporaryTask(taskId) && row.getClientRects().length && !row.closest("[inert]")) ids.add(taskId);
   }
   return ids.has(id) ? [...ids] : [];
 }
@@ -209,7 +213,7 @@ export function AppShell({
   const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => setConfirmState({ ...options, resolve })), []);
   const prompt = useCallback((options: PromptOptions) => new Promise<string | null>((resolve) => setPromptState({ ...options, resolve })), []);
 
-  const run = useCallback(async <T,>(action: () => Promise<T>, options: RunOptions<T> = {}) => {
+  const run = useCallback(async <T,>(action: () => Promise<T>, options: RunOptions<T> & { revalidate?: Revalidate } = {}) => {
     try {
       const value = await action();
       const notice = typeof options.success === "function" ? options.success(value) : options.success;
@@ -228,7 +232,7 @@ export function AppShell({
       }
       return undefined;
     } finally {
-      void invalidate();
+      if (options.revalidate) void invalidate(options.revalidate);
     }
   }, [toast]);
 
@@ -238,6 +242,7 @@ export function AppShell({
     showProjectShortcuts,
     reference: nav.data?.referenceDate ?? me.data.referenceDate,
     timezone: me.data.preferences.timezone,
+    taskContext: { reference: nav.data?.referenceDate ?? me.data.referenceDate, inboxId: me.data.inboxProjectId },
     refresh: () => invalidate(),
     openQuickAdd: (defaults = {}) => setOverlay((current) => ({ ...current, quickAdd: defaults })),
     openTask: (id, order = visibleTaskOrder(id)) => setOverlay((current) => ({ ...current, task: { id, order } })),

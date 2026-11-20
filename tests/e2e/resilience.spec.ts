@@ -66,17 +66,19 @@ test.describe("recuperação e concorrência na interface", () => {
     try {
       await firstPatch.promise;
       await secondOption.press("Enter");
+      await expect(firstOption).toHaveAttribute("aria-selected", "true");
+      await expect(secondOption).toHaveAttribute("aria-selected", "true");
+      await expect(secondOption).toBeFocused();
     } finally {
       resumePatch.resolve();
     }
 
-    await expect(firstOption).toHaveAttribute("aria-selected", "true");
-    await expect(secondOption).toHaveAttribute("aria-selected", "true");
-    await expect(secondOption).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(trigger).toBeFocused();
-    const persisted = await api<TaskDetail>("GET", `/tasks/${task.id}`);
-    expect(persisted.labels.map(({ id }) => id).sort()).toEqual([first.id, second.id].sort());
+    await expect.poll(async () => {
+      const persisted = await api<TaskDetail>("GET", `/tasks/${task.id}`);
+      return persisted.labels.map(({ id }) => id).sort();
+    }).toEqual([first.id, second.id].sort());
   });
 
   test("isola as páginas de resultados ao trocar a busca", async ({ page, api }) => {

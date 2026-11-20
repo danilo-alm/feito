@@ -2,14 +2,16 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { normalizeLabelName, type Product } from "@/domain/product";
-import { mutateProduct, readProduct, type ProductAccess } from "@/server/db/product";
+import { mutateProduct, type ProductAccess } from "@/server/db/product";
 import { ApiError } from "@/server/errors";
-import { labelDto, labelSummaries, taskItemsWithOrigin, visibleTask } from "./product-dto";
+import { readProductSummary } from "@/server/db/product-summary";
+import { readTaskView } from "@/server/db/task-views";
+import { labelDto, labelSummaries, taskItemsWithOrigin } from "./product-dto";
 import { nextRevision, requireRevision, validation, visibleRecord } from "./product-rules";
 
 export function listLabels(access: ProductAccess) {
-  return readProduct(access, (product) => ({
-    labels: labelSummaries(product),
+  return readProductSummary(access, "labels", (summary) => ({
+    labels: labelSummaries(summary.labels.values(), summary.labelCounts),
   }));
 }
 
@@ -76,15 +78,16 @@ function decodeCursor(value: string, labelId: string) {
 }
 
 export function listLabelTasks(access: ProductAccess, id: string, limit: number, cursor?: string) {
-  return readProduct(access, (product) => {
-    visibleRecord(product.labels, id);
-    const after = cursor ? decodeCursor(cursor, id) : "";
-    const candidates = [...product.tasks.values()]
-      .filter((task) => task.id > after && product.taskLabels.get(task.id)?.includes(id) && visibleTask(product, task))
-      .sort((a, b) => a.id.localeCompare(b.id)).slice(0, limit + 1);
+  return readTaskView(access, {
+    operation: "label",
+    labelId: id,
+    page: { after: () => cursor ? decodeCursor(cursor, id) : undefined, limit: limit + 1 },
+  }, async (view) => {
+    const candidates = [...view.candidates.values()];
     const page = candidates.slice(0, limit);
+    const product = await view.contextFor(page);
     return {
-      referenceDate: product.referenceDate,
+      referenceDate: view.referenceDate,
       tasks: page.map(taskItemsWithOrigin(product)),
       nextCursor: candidates.length > limit ? encodeCursor(id, page.at(-1)!.id) : null,
     };

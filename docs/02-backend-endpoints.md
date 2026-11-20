@@ -267,6 +267,11 @@ type PublicTask = {
 
 ### 3.5 Tarefas
 
+O cliente web inclui `X-Feito-Task-Changes: 1` nas escritas de tarefa para receber `{ result, changes }`. `result` contém a resposta normal. `changes` contém a revisão do produto após a operação, as linhas afetadas antes e depois da gravação e a ordem dos grupos alterados quando aplicável. A exclusão nesse formato devolve `200` com `result: null`. Consumidores sem o cabeçalho mantêm as respostas originais, incluindo `204` na exclusão. Os formatos compartilham a mesma autenticação, validação e política `private, no-store`.
+
+`POST /api/v1/tasks` também aceita uma âncora opcional `beforeId` ou `afterId` para inserir na posição indicada no mesmo commit. A tarefa entra no fim do grupo quando a âncora deixou de pertencer ao destino ou o projeto usa ordenação automática. `POST /api/v1/tasks/{id}/duplicate` devolve `201` e copia a tarefa existente com descrição completa, programação, prioridade e etiquetas. A cópia entra após a original em ordenação manual e tem sua própria identidade. Subtarefas da original ficam com ela. A regra de recorrência também está disponível nas projeções privadas de tarefa para prever a próxima ocorrência.
+
+
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
 | `POST /api/v1/tasks` | 2 | `CreateTask` (abaixo). | `201 TaskDetail`. |

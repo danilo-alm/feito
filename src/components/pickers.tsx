@@ -110,7 +110,7 @@ export function LabelPicker({ selected, onChange }: { selected: string[]; onChan
   const create = async () => {
     const name = text.trim();
     if (!name) return;
-    const label = await app.run(() => api.labels.create(name), { success: `Etiqueta “${name}” criada` });
+    const label = await app.run(() => api.labels.create(name), { success: `Etiqueta “${name}” criada`, revalidate: (key) => key === "nav" || key === "labels" });
     if (label) {
       onChange((current) => current.includes(label.id) ? current : [...current, label.id]);
       setText("");

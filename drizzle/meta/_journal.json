@@ -43,6 +43,13 @@
       "when": 1795109697503,
       "tag": "0005_project_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795183792524,
+      "tag": "0006_undo_recurring_completion",
+      "breakpoints": true
     }
   ]
 }
