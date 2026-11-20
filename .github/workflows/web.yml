@@ -5,6 +5,7 @@ on:
   pull_request:
   push:
     branches: [main, dev]
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -26,6 +27,10 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+
+      - name: Verificar versão da release
+        if: github.ref_type == 'tag'
+        run: node scripts/check-release-version.mjs
 
       - run: pnpm --filter @feito/web... install --frozen-lockfile
 
@@ -102,8 +107,8 @@ jobs:
           fi
 
   publish:
-    # Só publica em push na main ou na dev, depois de os testes passarem.
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    # Os pushes de main, dev e tags de versão passam pelos testes antes de publicar.
+    if: github.event_name == 'push'
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -133,9 +138,11 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          flavor: latest=false
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
+            type=semver,pattern={{version}},enable=${{ github.ref_type == 'tag' }}
             type=sha,format=long
 
       - uses: docker/build-push-action@v6

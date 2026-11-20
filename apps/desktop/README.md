@@ -26,12 +26,7 @@ O GitHub Actions testa e empacota o desktop em pull requests, pushes para `main`
 | Windows | ARM64 | `-setup.exe` |
 | macOS | Intel e Apple Silicon | `.dmg` |
 
-Envie uma tag no formato `desktop-vX.Y.Z` que corresponda ao campo `version` de `src-tauri/tauri.conf.json`. Por exemplo, para a versão `0.1.0`:
-
-```sh
-git tag -a desktop-v0.1.0 -m "Feito 0.1.0"
-git push origin desktop-v0.1.0
-```
+Envie uma tag `vX.Y.Z` que corresponda ao campo `version` de `src-tauri/tauri.conf.json`. A mesma tag publica as imagens Docker versionadas da web. [Passo a passo de release](../../README.md#releases)
 
 A release é publicada no GitHub quando todos os jobs terminam e os 11 instaladores estão disponíveis. Os pacotes macOS usam assinatura local (ad hoc), sem notarização da Apple. Os instaladores Windows não têm assinatura de distribuição.
 

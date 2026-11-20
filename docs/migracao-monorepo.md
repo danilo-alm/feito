@@ -22,6 +22,6 @@ Os dois apps declaram dependências locais do workspace. Regras de produto receb
 
 ## Entregas
 
-O workflow web preserva as imagens do app e das ferramentas no GHCR, com `latest` em `main` e `dev` em `dev`. O workflow desktop gera 11 instaladores para a matriz de Linux, Windows e macOS e publica em GitHub Releases quando recebe uma tag `desktop-vX.Y.Z` que corresponda à versão Tauri.
+O workflow web preserva as imagens do app e das ferramentas no GHCR, com `latest` em `main` e `dev` em `dev`. Um push de tag `vX.Y.Z` que corresponda à versão Tauri publica as duas imagens versionadas no GHCR e os 11 instaladores de Linux, Windows e macOS no GitHub Releases. [Instruções de release](../README.md#releases)
 
 O build Docker usa a raiz para acessar os pacotes do workspace. O ambiente de desenvolvimento e o ambiente de produção foram iniciados com bancos PostgreSQL 18 descartáveis. O build de produção Linux x64, a migração, a CLI, o endpoint de saúde e o CSS estático via HTTPS foram verificados. Os Compose de produção foram conferidos estruturalmente, inclusive a variante com túnel usando valores de teste.

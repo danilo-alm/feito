@@ -43,7 +43,7 @@ Use **Node.js 24**, **pnpm 10** e **Rust estável**. Consulte [package.json](pac
 
 - Instale as dependências com `pnpm install --frozen-lockfile` na raiz do monorepo. Use `pnpm dev:desktop` na raiz ou `pnpm tauri dev` em `apps/desktop` para iniciar a janela nativa com Vite.
 - Para validar a sincronização real, use uma instalação HTTPS de teste com a API desktop, as migrações aplicadas e credenciais descartáveis. Use um perfil Tauri isolado para não misturar dados de validação com espaços de uso pessoal. Consulte o contrato HTTP e as instruções de operação na pasta [docs](../../docs).
-- O [workflow desktop](../../.github/workflows/desktop.yml) usa o checkout do monorepo. Em cada alvo, roda typecheck, testes TypeScript, build do frontend, formatação e testes Rust antes de empacotar com Tauri. Os instaladores ficam em `Artifacts` na execução da Actions. Um push de tag `desktop-vX.Y.Z` com a versão de `src-tauri/tauri.conf.json` publica a release depois que a matriz completa gera os 11 instaladores. Crie tags, publique releases ou altere credenciais de distribuição somente quando solicitado. [Matriz e instruções de release](README.md#ci-e-releases)
+- O [workflow desktop](../../.github/workflows/desktop.yml) usa o checkout do monorepo. Em cada alvo, roda typecheck, testes TypeScript, build do frontend, formatação e testes Rust antes de empacotar com Tauri. Os instaladores ficam em `Artifacts` na execução da Actions. Um push da tag compartilhada `vX.Y.Z` com a versão de `src-tauri/tauri.conf.json` publica a release depois que a matriz completa gera os 11 instaladores. Crie tags, publique releases ou altere credenciais de distribuição somente quando solicitado. [Matriz e instruções de release](README.md#ci-e-releases)
 
 ## Testes
 

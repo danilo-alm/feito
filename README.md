@@ -153,6 +153,17 @@ pnpm dev:desktop
 
 Para rodar o web, use `pnpm dev` com os serviços e o ambiente de teste descritos no guia de operação, ou `docker compose -f compose.dev.yaml --env-file "$FEITO_ENV" up --build`. `pnpm typecheck`, `pnpm test` e `pnpm build` verificam os dois frontends. Os instaladores são gerados com `pnpm --filter @feito/desktop tauri build`.
 
+## Releases
+
+Uma tag `vX.Y.Z` dispara os workflows de web e desktop a partir do mesmo commit. Antes de criar a tag, atualize e faça commit do campo `version` em [tauri.conf.json](apps/desktop/src-tauri/tauri.conf.json). Por exemplo, para a versão `0.2.0`:
+
+```sh
+git tag -a v0.2.0 -m "Feito 0.2.0"
+git push origin v0.2.0
+```
+
+O workflow web publica `feito:0.2.0` e `feito-tools:0.2.0` no GHCR. O workflow desktop anexa os 11 instaladores ao GitHub Releases. Os pushes para `main` e `dev` continuam publicando as imagens Docker com `latest` e `dev`, respectivamente. [Formatos dos instaladores](apps/desktop/README.md#ci-e-releases)
+
 ## Documentação
 
 - [Operação e manutenção](docs/03-operations.md)

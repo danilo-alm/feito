@@ -4,7 +4,7 @@ name: Desktop CI and Release
 on:
   push:
     branches: [main, dev]
-    tags: ['desktop-v*']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
   pull_request:
   workflow_dispatch:
 
@@ -75,12 +75,7 @@ jobs:
 
       - name: Verify release version
         if: github.ref_type == 'tag'
-        run: |
-          version="$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').version")"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$GITHUB_REF_NAME" != "desktop-v$version" ]]; then
-            echo "::error::A tag deve ser desktop-vX.Y.Z e coincidir com a versão em apps/desktop/src-tauri/tauri.conf.json."
-            exit 1
-          fi
+        run: node scripts/check-release-version.mjs
 
       - name: Set up Rust
         run: |
@@ -148,7 +143,7 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/desktop-v')
+    if: github.event_name == 'push' && github.ref_type == 'tag'
     needs: build
     runs-on: ubuntu-24.04
     permissions:
@@ -195,5 +190,5 @@ jobs:
             gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
           else
             gh release create "$GITHUB_REF_NAME" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" \
-              --verify-tag --title "Feito Desktop v${GITHUB_REF_NAME#desktop-v}" --generate-notes
+              --verify-tag --title "Feito $GITHUB_REF_NAME" --generate-notes
           fi
