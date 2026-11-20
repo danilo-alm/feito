@@ -26,7 +26,7 @@ cd feito
 FEITO_ENV="$HOME/.config/feito/feito.env"
 ```
 
-Para instalar num servidor público, substitua `https://localhost:3000` pelo domínio HTTPS do Feito, por exemplo `https://feito.example.org`. Aponte o DNS para o servidor e deixe as portas 80 e 443 acessíveis para que o Caddy emita o certificado. Use o mesmo endereço para abrir o app depois de instalar.
+Para instalar num servidor público, substitua `https://localhost:3000` pelo domínio HTTPS do Feito, por exemplo `https://feito.example.org`. Na opção A, aponte o DNS para o servidor e deixe as portas 80 e 443 acessíveis para que o Caddy emita o certificado. Na opção B, a Cloudflare atende o HTTPS e o servidor não precisa de portas abertas. Use o mesmo endereço para abrir o app depois de instalar.
 
 O script gera as credenciais e as chaves de criptografia. Mantenha o arquivo fora da pasta do projeto, preserve-o ao atualizar a instalação e guarde uma cópia segura. Você precisará das chaves para recuperar os dados cifrados de um backup.
 
@@ -40,12 +40,12 @@ docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" up -d --wait
 
 O Compose inicia o PostgreSQL 18, cria as credenciais do banco na primeira inicialização do volume e aplica as migrações. Depois, siga para [Criar a primeira conta](#criar-a-primeira-conta).
 
-### Opção B — PostgreSQL externo
+### Opção B — Supabase com Cloudflare Tunnel
 
-Use um banco acessível pelo host e pelos contêineres do Feito. Para a configuração inicial, obtenha o host, a porta, o nome do banco e um login administrativo que possa criar usuários e conceder permissão de criação de schemas.
+Um único arquivo, [`compose.prod.tunnel.yaml`](compose.prod.tunnel.yaml), sobe o migrador, o app e o `cloudflared`. O banco é um PostgreSQL externo com o certificado verificado. Nenhum contêiner publica portas no host. Para a configuração inicial, obtenha o host, a porta, o nome do banco e um login administrativo que possa criar usuários e conceder permissão de criação de schemas.
 
 ```sh
-FEITO_COMPOSE=(-f compose.prod.external.yaml)
+FEITO_COMPOSE=(-f compose.prod.tunnel.yaml)
 ```
 
 #### Parâmetros para Supabase
@@ -68,15 +68,24 @@ Para passar esses dados pelo comando, acrescente `--project-ref SEU_PROJECT_REF`
 
 Se a rede do servidor só tiver IPv4, use o pooler **Session** ou uma conexão direta com o adicional de IPv4. Use a senha do banco do Supabase no comando de inicialização. O Feito gerencia o login dos usuários pelo Better Auth. [Conexões do Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres)
 
-No painel do Supabase, abra **Database Settings → SSL Configuration → Download Certificate**. Copie o certificado para o host onde o Docker roda. Use um caminho absoluto e deixe o certificado público legível pelo usuário do contêiner. O arquivo de ambiente continua privado. [Configuração de TLS do Supabase](https://supabase.com/docs/guides/platform/ssl-enforcement)
+No painel do Supabase, abra **Database Settings → SSL Configuration → Download Certificate**. Copie o certificado para o host onde o Docker roda. Use um caminho absoluto e deixe o certificado público legível pelo usuário do contêiner. Registre o caminho no arquivo de ambiente, que continua privado. [Configuração de TLS do Supabase](https://supabase.com/docs/guides/platform/ssl-enforcement)
 
 ```sh
-export FEITO_POSTGRES_CA_FILE="$HOME/.config/feito/prod-ca-2021.crt"
-chmod 644 "$FEITO_POSTGRES_CA_FILE"
-FEITO_COMPOSE+=(-f compose.prod.external.ca.yaml)
+chmod 644 "$HOME/.config/feito/prod-ca-2021.crt"
+echo "FEITO_POSTGRES_CA_FILE=$HOME/.config/feito/prod-ca-2021.crt" >> "$FEITO_ENV"
 ```
 
-Se o arquivo de ambiente já existe, preserve as senhas e as chaves. Nas quatro URLs da tabela abaixo, substitua `sslmode=require` por `sslmode=verify-full&sslrootcert=/run/config/feito-postgres-ca.crt` e coloque cada URL inteira entre aspas simples. Use o bloco acima também ao atualizar ou operar uma instalação Supabase existente.
+Se o arquivo de ambiente já existe, preserve as senhas e as chaves. Nas quatro URLs da tabela abaixo, substitua `sslmode=require` por `sslmode=verify-full&sslrootcert=/run/config/feito-postgres-ca.crt` e coloque cada URL inteira entre aspas simples.
+
+#### Cloudflare Tunnel
+
+No painel Zero Trust, abra **Networks → Tunnels**, escolha o túnel e copie o token do comando de instalação do conector (o valor após `--token`). Acrescente-o ao arquivo de ambiente sem aspas e sem espaços:
+
+```sh
+printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' 'COLE_O_TOKEN' >> "$FEITO_ENV"
+```
+
+Em **Public Hostname**, aponte o domínio de `FEITO_ORIGIN` para o serviço `HTTP` com URL `app:3000`, ou seja, a Service URL `http://app:3000`. O `cloudflared` deste Compose alcança o app pela rede interna do Docker. Se o mesmo túnel tiver outro conector rodando no host ou em outro contêiner, pare-o, porque ele não alcança `app:3000` e a Cloudflare distribui as requisições entre os conectores. Ative **Always Use HTTPS** na zona para redirecionar visitas por HTTP.
 
 #### Criar os usuários do banco e iniciar
 
@@ -100,10 +109,10 @@ scripts/init-external-db.sh "$FEITO_ENV"
 Quando o `psql` pedir `Password:`, informe a senha administrativa do banco. O `psql` roda na imagem `postgres:18` e o script cria as quatro roles com as senhas geradas no arquivo.
 
 ```sh
-docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" up -d --wait
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" up -d --wait --remove-orphans
 ```
 
-O serviço de migração prepara as tabelas antes de o app iniciar.
+O serviço de migração prepara as tabelas antes de o app iniciar. `--remove-orphans` remove o contêiner do Caddy deixado por versões anteriores desta opção. Para confirmar o acesso público, `curl -sS https://feito.example.org/api/health` deve retornar `{"status":"ok"}`.
 
 ### Criar a primeira conta
 
@@ -114,7 +123,7 @@ docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" \
   run --rm cli pnpm admin account:create --email voce@example.org
 ```
 
-Abra [https://localhost:3000](https://localhost:3000) ou o domínio que você configurou. Em localhost, o Caddy emite o certificado com uma autoridade local. Para o navegador confiar nela, exporte o certificado raiz e adicione-o às autoridades confiáveis do seu sistema ou navegador.
+Abra [https://localhost:3000](https://localhost:3000) ou o domínio que você configurou. Na opção A em localhost, o Caddy emite o certificado com uma autoridade local. Para o navegador confiar nela, exporte o certificado raiz e adicione-o às autoridades confiáveis do seu sistema ou navegador.
 
 ```sh
 docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" \

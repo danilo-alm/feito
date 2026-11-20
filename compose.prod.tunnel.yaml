@@ -1,7 +1,94 @@
-# Acrescente ao Compose de produção quando o cloudflared roda no mesmo host.
+# Produção com PostgreSQL externo (Supabase) atrás de um Cloudflare Tunnel.
+#
+#   docker compose -f compose.prod.tunnel.yaml --env-file "$FEITO_ENV" up -d --wait --remove-orphans
+#
+# O cloudflared roda neste projeto e alcança o Next.js pela rede do Compose.
+# Na rota do Tunnel (Public Hostname), use a Service URL http://app:3000.
+# Nenhum serviço publica portas no host: o HTTPS público termina na Cloudflare.
+#
+# Variáveis do arquivo de ambiente, além das chaves do app:
+#   FEITO_ORIGIN             domínio público, por exemplo https://feito.example.org
+#   CLOUDFLARE_TUNNEL_TOKEN  token do conector do Tunnel
+#   FEITO_POSTGRES_CA_FILE   caminho absoluto da CA do banco no host
+#   *_DATABASE_URL           URLs com sslmode=verify-full&sslrootcert=/run/config/feito-postgres-ca.crt
+name: feito-external
+
+x-runtime-env: &runtime-env
+  FEITO_ORIGIN: ${FEITO_ORIGIN:?Defina FEITO_ORIGIN com o domínio público}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Defina BETTER_AUTH_SECRET}
+  DATA_KEK_ACTIVE_VERSION: ${DATA_KEK_ACTIVE_VERSION:?Defina DATA_KEK_ACTIVE_VERSION}
+  DATA_KEK_V1: ${DATA_KEK_V1:?Defina DATA_KEK_V1}
+  DATA_KEK_V2: ${DATA_KEK_V2:-}
+  DATA_KEK_V3: ${DATA_KEK_V3:-}
+
+x-image-platform: &image-platform linux/amd64 # Plataforma publicada no GHCR.
+
+# CA do banco, montada só para leitura. O Compose falha se o arquivo não existir.
+x-postgres-ca: &postgres-ca
+  type: bind
+  source: ${FEITO_POSTGRES_CA_FILE:?Defina FEITO_POSTGRES_CA_FILE com o caminho absoluto do certificado}
+  target: /run/config/feito-postgres-ca.crt
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-tools-image: &tools-image
+  image: ghcr.io/danilo-alm/feito-tools:latest
+  platform: *image-platform
+  volumes: [*postgres-ca]
+
 services:
-  caddy:
-    ports: !override
-      - "127.0.0.1:${FEITO_HTTP_PORT:-8084}:80"
-    volumes:
-      - ./docker/Caddyfile.tunnel:/etc/caddy/Caddyfile:ro
+  migrate:
+    <<: *tools-image
+    command: ["pnpm", "db:migrate"]
+    environment:
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?Defina MIGRATION_DATABASE_URL}
+    restart: "no"
+
+  app:
+    image: ghcr.io/danilo-alm/feito:latest
+    platform: *image-platform
+    environment:
+      <<: *runtime-env
+      IMPORT_PREVIEW_SECRET: ${IMPORT_PREVIEW_SECRET:?Defina IMPORT_PREVIEW_SECRET}
+      IMPORT_MAX_BYTES: ${IMPORT_MAX_BYTES:-}
+      # A Cloudflare sobrescreve este cabeçalho na borda. O app não publica portas,
+      # então só o cloudflared consegue enviá-lo.
+      AUTH_CLIENT_IP_HEADER: cf-connecting-ip
+      DOMAIN_DATABASE_URL: ${DOMAIN_DATABASE_URL:?Defina DOMAIN_DATABASE_URL}
+      AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:?Defina AUTH_DATABASE_URL}
+    volumes: [*postgres-ca]
+    read_only: true
+    tmpfs:
+      - /app/.next/cache:uid=1000,gid=1000
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:2025.8.1
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Defina CLOUDFLARE_TUNNEL_TOKEN}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Operações sob demanda (não sobe com `up`):
+  #   docker compose -f compose.prod.tunnel.yaml --env-file "$FEITO_ENV" run --rm cli pnpm admin account:create --email pessoa@example.org
+  cli:
+    <<: *tools-image
+    profiles: ["tools"]
+    command: ["pnpm", "admin", "--help"]
+    environment:
+      <<: *runtime-env
+      IDENTITY_ADMIN_DATABASE_URL: ${IDENTITY_ADMIN_DATABASE_URL:?Defina IDENTITY_ADMIN_DATABASE_URL}
+      KEY_MAINTENANCE_DATABASE_URL: ${KEY_MAINTENANCE_DATABASE_URL:-}

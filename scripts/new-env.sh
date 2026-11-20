@@ -130,7 +130,7 @@ POSTGRES_MIGRATOR_PASSWORD=$migrator
 POSTGRES_APP_PASSWORD=$app
 POSTGRES_AUTH_PASSWORD=$auth
 POSTGRES_IDENTITY_ADMIN_PASSWORD=$identity_admin
-# Usadas sem Docker ou com compose.prod.external.yaml.
+# Usadas sem Docker ou com compose.prod.tunnel.yaml.
 DOMAIN_DATABASE_URL='postgresql://feito_app$db_user_suffix:$app@$db_endpoint'
 AUTH_DATABASE_URL='postgresql://feito_auth$db_user_suffix:$auth@$db_endpoint'
 MIGRATION_DATABASE_URL='postgresql://feito_migrator$db_user_suffix:$migrator@$db_endpoint'

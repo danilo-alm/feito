@@ -83,7 +83,7 @@ O valor fica vinculado ao banco e permite abrir os registros existentes. A aplic
 
 ## Docker em detalhe
 
-O [`Dockerfile`](../Dockerfile) é multi-stage. `dev` roda `next dev` com o código montado do host, `tools` contém o código completo e as devDependencies para migração e CLIs, e `prod` leva só a saída standalone do Next.js, sem devDependencies, executando como usuário `node`. Os dois Compose de produção usam as imagens públicas `ghcr.io/danilo-alm/feito:latest` para o app e `ghcr.io/danilo-alm/feito-tools:latest` para migrações e CLIs. O [Caddy](../docker/Caddyfile) termina o TLS na frente do Next.js e sobrescreve `X-Real-IP`, lido via `AUTH_CLIENT_IP_HEADER`. Um serviço `migrate` aplica `pnpm db:migrate` antes de a aplicação subir.
+O [`Dockerfile`](../Dockerfile) é multi-stage. `dev` roda `next dev` com o código montado do host, `tools` contém o código completo e as devDependencies para migração e CLIs, e `prod` leva só a saída standalone do Next.js, sem devDependencies, executando como usuário `node`. Os Compose de produção usam as imagens públicas `ghcr.io/danilo-alm/feito:latest` para o app e `ghcr.io/danilo-alm/feito-tools:latest` para migrações e CLIs. No `compose.prod.yaml`, o [Caddy](../docker/Caddyfile) termina o TLS na frente do Next.js e sobrescreve `X-Real-IP`, lido via `AUTH_CLIENT_IP_HEADER`. No `compose.prod.tunnel.yaml`, o `cloudflared` encaminha direto ao Next.js e o app lê `Cf-Connecting-Ip`, que a Cloudflare sobrescreve na borda. Um serviço `migrate` aplica `pnpm db:migrate` antes de a aplicação subir.
 
 O [`scripts/new-env.sh`](../scripts/new-env.sh) gera o arquivo privado de ambiente. No desenvolvimento e na produção com banco interno, o Compose monta as URLs a partir das senhas `POSTGRES_*_PASSWORD`. Na produção com banco externo, o Compose lê as URLs do arquivo. Cada processo recebe apenas as credenciais que usa. As KEKs aceitas são `DATA_KEK_V1` a `DATA_KEK_V3`.
 
@@ -113,15 +113,17 @@ docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --wait
 
 Com um domínio público e as portas 80 e 443 acessíveis, o Caddy obtém o certificado via ACME. Com `localhost` ou um IP, o certificado vem da CA interna. O Next.js e o PostgreSQL não publicam portas no host. O contêiner da aplicação roda com sistema de arquivos somente leitura, sem capabilities, e tem healthcheck em `/api/health`.
 
-### Cloudflare Tunnel no mesmo host
+### Produção com PostgreSQL externo e Cloudflare Tunnel
 
-Acrescente `-f compose.prod.tunnel.yaml` depois dos arquivos Compose de produção. A opção funciona com PostgreSQL interno ou externo e publica apenas o HTTP do Caddy no loopback do host, na porta `FEITO_HTTP_PORT` (padrão `8084`).
+O [`compose.prod.tunnel.yaml`](../compose.prod.tunnel.yaml) é um arquivo único, sem overlays. Ele sobe o migrador, o app e o `cloudflared`, monta a CA do banco e não publica portas no host. O PostgreSQL já deve estar acessível a partir do host e dos contêineres.
 
-Mantenha `FEITO_ORIGIN=https://feito.example.org` com o domínio público. Na rota do Tunnel, use `http://127.0.0.1:8084` como **Service URL**, ajustando a porta se necessário. O navegador usa HTTPS com a Cloudflare, e o `cloudflared` acessa o Caddy por HTTP no host. Essa configuração dispensa um certificado no Caddy.
+O arquivo de ambiente precisa, além das chaves do app e das quatro URLs:
 
-### Produção com PostgreSQL externo
+- `FEITO_ORIGIN` com o domínio público, por exemplo `https://feito.example.org`.
+- `FEITO_POSTGRES_CA_FILE` com o caminho absoluto da CA do banco no host. O Compose recusa subir sem o arquivo.
+- `CLOUDFLARE_TUNNEL_TOKEN` com o token do conector do túnel.
 
-O [`compose.prod.external.yaml`](../compose.prod.external.yaml) sobe o Feito e o Caddy com a mesma configuração de produção. O PostgreSQL já deve estar acessível a partir do host e dos contêineres.
+Na rota do túnel (**Public Hostname**), use a Service URL `http://app:3000`. O HTTPS público termina na Cloudflare, e o `cloudflared` fala HTTP com o app pela rede do Compose. Não use `127.0.0.1` ou `localhost`: dentro do contêiner do `cloudflared`, esses endereços apontam para o próprio contêiner e a Cloudflare responde `502`. Mantenha só este conector no túnel. Outro conector no host ou em outro contêiner recebe parte das requisições e não alcança `app:3000`.
 
 Para uma instalação nova, gere o arquivo privado. Para o Supabase, use as [flags de geração do README](../README.md#parâmetros-para-supabase) no comando `new-env.sh`.
 
@@ -139,19 +141,21 @@ scripts/init-external-db.sh "$FEITO_ENV"
 ```
 
 ```sh
-FEITO_COMPOSE=(-f compose.prod.external.yaml)
-# Com Supabase, após exportar FEITO_POSTGRES_CA_FILE:
-# FEITO_COMPOSE+=(-f compose.prod.external.ca.yaml)
-docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" up -d --wait
+FEITO_COMPOSE=(-f compose.prod.tunnel.yaml)
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" up -d --wait --remove-orphans
 ```
 
-O serviço `migrate` aplica as migrações no banco externo antes de iniciar o app. Para criar contas e operar as chaves, use os comandos da seção a seguir com os mesmos arquivos Compose usados para subir o app.
+O serviço `migrate` aplica as migrações no banco externo antes de iniciar o app, e o `cloudflared` só sobe depois que o healthcheck do app passa. Para criar contas e operar as chaves, use os comandos da seção a seguir com o mesmo arquivo Compose usado para subir o app.
 
-Se o app não subir, confira o estado e os logs do migrador:
+Se o app não subir ou a Cloudflare responder `502`, confira o estado, os logs e o health a partir da rede do `cloudflared`:
 
 ```sh
-docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" ps -a migrate
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" ps -a
 docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" logs --no-color migrate
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" logs --no-color --tail 50 cloudflared
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" exec app \
+  node -e "fetch('http://app:3000/api/health').then(r => r.text()).then(console.log)"
+curl -sS https://feito.example.org/api/health
 ```
 
 O migrador informa se a falha ocorreu na conexão ou na aplicação das migrações e registra o código do erro quando disponível. A conexão inicial tem limite de 10 segundos. No Supabase, as tabelas do Feito ficam nos schemas `domain`, `identity` e `crypto_ops`.
@@ -165,7 +169,7 @@ docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" run --rm cli pnpm ad
 docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" run --rm cli pnpm keys kek:rewrap --tenant "$TENANT_ID"
 ```
 
-Em desenvolvimento, troque `compose.prod.yaml` por `compose.dev.yaml`. O [`compose.yaml`](../compose.yaml) segue disponível para subir só o banco, como nos testes de integração abaixo.
+Com o Tunnel, troque `compose.prod.yaml` por `compose.prod.tunnel.yaml`. Em desenvolvimento, troque por `compose.dev.yaml`. O [`compose.yaml`](../compose.yaml) segue disponível para subir só o banco, como nos testes de integração abaixo.
 
 ## Testes
 

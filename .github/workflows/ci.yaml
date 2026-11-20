@@ -42,7 +42,7 @@ jobs:
 
       - name: Verificar imagens dos Compose de produção
         run: |
-          for file in compose.prod.yaml compose.prod.external.yaml; do
+          for file in compose.prod.yaml; do
             echo "Validando $file"
             docker compose -f "$file" --env-file "$RUNNER_TEMP/test.env" --profile tools config --format json |
               jq -e '.services |
@@ -52,17 +52,6 @@ jobs:
                 ([.app, .migrate, .cli] | all(.[]; .platform == "linux/amd64")) and
                 all(.[]; has("build") | not)'
           done
-
-      - name: Verificar montagem da CA do PostgreSQL externo
-        run: |
-          export FEITO_POSTGRES_CA_FILE="$RUNNER_TEMP/postgres-ca.crt"
-          docker compose -f compose.prod.external.yaml -f compose.prod.external.ca.yaml \
-            --env-file "$RUNNER_TEMP/test.env" --profile tools config --format json |
-            jq -e '.services |
-              ([.migrate, .app, .cli] | all(.[]; any(.volumes[]?;
-                .type == "bind" and .source == env.FEITO_POSTGRES_CA_FILE and
-                .target == "/run/config/feito-postgres-ca.crt" and .read_only == true and
-                .bind.create_host_path == false)))'
 
       - name: Verificar porta HTTPS do Caddy
         run: |
@@ -82,43 +71,8 @@ jobs:
                   .handler == "static_response" and .status_code == 308 and .headers.Location == [$location])'
           }
           check_caddy_port https://feito.example.com 8083 compose.prod.yaml
-          check_caddy_port https://feito.example.com 8083 compose.prod.external.yaml
           check_caddy_port https://localhost:3000 3000 compose.prod.yaml
           check_caddy_port https://localhost:3000 3000 compose.dev.yaml
-
-      - name: Verificar origem HTTP do Cloudflare Tunnel
-        env:
-          FEITO_ORIGIN: https://feito.example.com
-          FEITO_HTTP_PORT: "8084"
-          FEITO_HTTPS_PORT: "8083"
-        run: |
-          for file in compose.prod.yaml compose.prod.external.yaml; do
-            docker compose -f "$file" -f compose.prod.tunnel.yaml \
-              --env-file "$RUNNER_TEMP/test.env" config --format json |
-              jq -e '.services.caddy |
-                (.ports | length == 1 and .[0].host_ip == "127.0.0.1" and
-                  .[0].published == "8084" and .[0].target == 80) and
-                any(.volumes[]; (.source | endswith("/docker/Caddyfile.tunnel")) and
-                  .target == "/etc/caddy/Caddyfile" and .read_only)'
-          done
-          docker run --rm -i --network none --add-host app:127.0.0.1 -e FEITO_ORIGIN \
-            --entrypoint sh caddy:2.10-alpine -eu -c '
-              cat > /tmp/Caddyfile
-              printf "\nhttp://:3000 {\n\trespond {http.request.header.X-Forwarded-Proto}\n}\n" >> /tmp/Caddyfile
-              caddy run --config /tmp/Caddyfile --adapter caddyfile >/tmp/caddy.log 2>&1 &
-              for attempt in 1 2 3 4 5; do
-                if body=$(wget -qO- --header="X-Forwarded-Proto: https" http://127.0.0.1/); then
-                  test "$body" = https
-                  response=$(wget -SO /dev/null --header="X-Forwarded-Proto: http" \
-                    "http://127.0.0.1/prova?x=1" 2>&1 || true)
-                  printf "%s\n" "$response" | grep -F "308 Permanent Redirect"
-                  printf "%s\n" "$response" | grep -Fi "Location: $FEITO_ORIGIN/prova?x=1"
-                  exit 0
-                fi
-                sleep 1
-              done
-              cat /tmp/caddy.log
-              exit 1' < docker/Caddyfile.tunnel
 
       - name: Testes unitários e de integração com cobertura
         run: |
