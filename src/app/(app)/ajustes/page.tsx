@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { api, ApiFailure, errorMessage } from "@/client/api";
 import { clearCache, setQueryData, useQuery } from "@/client/store";
 import type { ImportPreview, ImportResult, Me, ProjectSummary, Theme } from "@/client/types";
-import { applyTheme, useApp } from "@/components/app";
+import { applyTheme, refreshProjects, useApp } from "@/components/app";
 import { PageHeader } from "@/components/chrome";
 import { IconAlert, IconDownload, IconHash, IconMonitor, IconMoon, IconSun, IconUpload } from "@/components/icons";
 import { TimezonePicker } from "@/components/timezone-picker";
@@ -31,7 +31,7 @@ export default function SettingsPage() {
 
   const savePreferences = async (patch: { theme?: Theme; timezone?: string }) => {
     if (patch.theme) applyTheme(patch.theme);
-    const saved = await app.run(() => api.preferences(patch), { success: patch.timezone ? "Fuso horário atualizado" : undefined });
+    const saved = await app.run(() => api.preferences(patch), { success: patch.timezone ? "Fuso horário atualizado" : undefined, revalidate: patch.timezone ? (key) => key === "me" || refreshProjects(key) : undefined });
     if (saved) setQueryData<Me>("me", (me) => me && { ...me, preferences: saved });
   };
 
@@ -88,7 +88,7 @@ export default function SettingsPage() {
                     <Link href={`/projetos/${project.id}`} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <IconHash style={{ color: "var(--muted)" }} />{project.name}
                     </Link>
-                    <button type="button" className="btn" onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: `“${project.name}” reativado` })}>
+                    <button type="button" className="btn" onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: `“${project.name}” reativado`, revalidate: refreshProjects })}>
                       Reativar
                     </button>
                   </div>

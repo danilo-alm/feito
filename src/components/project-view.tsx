@@ -4,23 +4,26 @@ import {
   useSensors, type CollisionDetection, type DragMoveEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { api, ApiFailure, errorMessage } from "@/client/api";
+import { tagColor } from "@/client/colors";
 import { editKey, insertKey, useEditorOpen } from "@/client/editor-store";
 import { getQueryData, invalidate, setQueryData, useQuery } from "@/client/store";
 import {
-  applyStep, keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, sectionName, taskMap, unnamedColumnTitle,
+  keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, sectionName, taskMap, unnamedColumnTitle,
   type DropOver, type KeyAction, type Plan, type Zone,
 } from "@/client/tree";
-import type { MoveTarget, NamedDetails, ProjectPage, Section, TaskItem } from "@/client/types";
+import { isTemporaryTask, moveTask } from "@/client/task-mutations";
+import type { NamedDetails, ProjectPage, Section, TaskItem } from "@/client/types";
 import { taskAncestors } from "@/domain/task-tree";
-import { useApp } from "./app";
+import { refreshProjects, useApp } from "./app";
 import { PageHeader, PageTaskCount } from "./chrome";
-import { Collapse, flipFrom } from "./motion";
+import { Collapse, flipFrom, motionMs } from "./motion";
 import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconMore, IconPlus, IconDownload, IconSub, IconTrash, IconUpload } from "./icons";
 import { useExportDialog } from "./export-dialog";
 import { useImportDialog } from "./import-panel";
 import { NamedDetailsForm, useProjectDetailsDialog } from "./named-details";
+import { colorValue, Glyph } from "./project-style";
 import { useTaskActions } from "./task-actions";
 import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
 import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
@@ -90,10 +93,29 @@ export function ProjectView({ projectId }: { projectId: string }) {
   const key = `project:${projectId}`;
   const query = useQuery<ProjectPage>(key, () => api.projects.get(projectId));
   const page = query.data?.project.id === projectId ? query.data : undefined;
+  const projectContent = useRef<HTMLDivElement>(null);
+  const projectTitle = useRef<HTMLDivElement>(null);
+  const [titleAboveView, setTitleAboveView] = useState(false);
+  const showCompactTitle = !!page && !page.project.isInbox;
+  const projectStatus = page?.project.status;
   const [drag, setDrag] = useState<DragState | null>(null);
   const focusAfter = useRef<string | null>(null);
   const [importDialog, openImport] = useImportDialog();
   const [exportDialog, openExport] = useExportDialog();
+
+  useEffect(() => {
+    const title = projectTitle.current;
+    if (!showCompactTitle || !title) return;
+    const headerHeight = getComputedStyle(title).getPropertyValue("--mobile-header-height").trim();
+    const observer = new IntersectionObserver(([entry]) => {
+      setTitleAboveView(!!entry.rootBounds && !entry.isIntersecting && entry.boundingClientRect.bottom <= entry.rootBounds.top);
+    }, {
+      root: mobile ? null : projectContent.current,
+      rootMargin: mobile ? `-${headerHeight} 0px 0px` : "0px",
+    });
+    observer.observe(title);
+    return () => observer.disconnect();
+  }, [mobile, projectId, projectStatus, showCompactTitle]);
 
   useEffect(() => {
     if (query.error instanceof ApiFailure && query.error.code === "NOT_FOUND") router.replace("/hoje");
@@ -120,39 +142,18 @@ export function ProjectView({ projectId }: { projectId: string }) {
     useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 8 } }),
   );
 
-  // Movimentos em fila: cada passo usa a revisão mais recente devolvida pelo servidor.
-  const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const revisions = useRef(new Map<string, number>());
-
   const execute = useCallback((taskId: string, plan: Plan, focus = false) => {
-    if (!page) return Promise.resolve();
     if (!plan.valid) {
       toast(plan.message, { bad: true });
-      return Promise.resolve();
+      return;
     }
-    query.mutate((current) => current && plan.steps.reduce((value, step) => applyStep(value, taskId, step), current));
+    const task = page?.tasks.find((item) => item.id === taskId);
+    if (!task || isTemporaryTask(task.id)) return;
+    if (plan.steps.some((step) => step.type === "position"
+      && [step.parentId, step.beforeId, step.afterId].some((id) => id && isTemporaryTask(id)))) return;
     if (focus) focusAfter.current = taskId;
-    const known = page.tasks.find((task) => task.id === taskId)?.revision ?? 1;
-    const run = async () => {
-      try {
-        let revision = Math.max(known, revisions.current.get(taskId) ?? 0);
-        for (const step of plan.steps as MoveTarget[]) {
-          const result = await api.tasks.move(taskId, revision, step);
-          revision = result.task.revision;
-          revisions.current.set(taskId, revision);
-        }
-        toast(plan.message);
-      } catch (error) {
-        toast(error instanceof ApiFailure && error.code === "REVISION_CONFLICT"
-          ? "A lista mudou em outra aba. A posição original foi restaurada."
-          : `${errorMessage(error)} A tarefa voltou ao lugar.`, { bad: true });
-      } finally {
-        await invalidate();
-      }
-    };
-    queue.current = queue.current.then(run, run);
-    return queue.current;
-  }, [page, query, toast]);
+    return app.run(() => moveTask(app.taskContext, task, plan.steps), { success: plan.message });
+  }, [app, page, toast]);
 
   const arrange = useCallback((taskId: string, action: KeyAction) => {
     if (!page) return;
@@ -177,6 +178,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
     if (!page) return;
     query.mutate((current) => current && { ...current, project: { ...current.project, view: { ...current.project.view, ...patch } } });
     await app.run(() => api.projects.setView(projectId, patch), {
+      revalidate: (cached) => cached === key,
       success: patch.layout ? `${LAYOUT_LABEL[patch.layout]} — mesma organização do projeto`
         : patch.sortMode ? (patch.sortMode === "manual" ? "Ordem manual recuperada" : `Ordenado por ${SORT_LABEL[patch.sortMode].toLowerCase()}`)
           : undefined,
@@ -266,13 +268,13 @@ export function ProjectView({ projectId }: { projectId: string }) {
             : item),
         });
       }
-    });
+    }, { revalidate: refreshProjects });
   };
   const sectionMenu = (sectionId: string): MenuItem[] => {
     const section = page.sections.find((item) => item.id === sectionId)!;
     const index = page.sections.indexOf(section);
     const move = (anchor: { afterSectionId?: string; beforeSectionId?: string }) =>
-      app.run(() => api.sections.move(section.id, section.revision, anchor), { success: "Seção reordenada" });
+      app.run(() => api.sections.move(section.id, section.revision, anchor), { success: "Seção reordenada", revalidate: (cached) => cached === key });
     return [
       { label: "Editar seção", icon: <IconEdit />, onSelect: () => setSectionToEdit(section) },
       { label: board ? "Mover para a esquerda" : "Mover para cima", icon: <IconArrowUp />, disabled: index === 0,
@@ -288,7 +290,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
             : "A seção está vazia.",
           confirmLabel: "Excluir seção", danger: true,
         });
-        if (ok) await app.run(() => api.sections.remove(section.id, section.revision), { success: "Seção excluída" });
+        if (ok) await app.run(() => api.sections.remove(section.id, section.revision), { success: "Seção excluída", revalidate: refreshProjects });
       } },
     ];
   };
@@ -298,14 +300,14 @@ export function ProjectView({ projectId }: { projectId: string }) {
     ...(archived ? [] : [{ label: "Importar…", icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) }]),
     { label: "Exportar…", icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) },
     archived
-      ? { label: "Reativar projeto", icon: <IconArchive />, onSelect: () => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado" }) }
+      ? { label: "Reativar projeto", icon: <IconArchive />, onSelect: () => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado", revalidate: refreshProjects }) }
       : { label: "Arquivar projeto", icon: <IconArchive />, onSelect: async () => {
         const ok = await app.confirm({
           title: `Arquivar “${project.name}”?`,
           body: "O projeto sai das listas, da busca e da agenda, com tarefas e estados guardados. Você pode reativar em Ajustes.",
           confirmLabel: "Arquivar",
         });
-        if (ok && await app.run(() => api.projects.archive(project.id, project.revision), { success: "Projeto arquivado" })) router.push("/hoje");
+        if (ok && await app.run(() => api.projects.archive(project.id, project.revision), { success: "Projeto arquivado", revalidate: refreshProjects })) router.push("/hoje");
       } },
     "separator",
     { label: "Excluir projeto…", icon: <IconTrash />, danger: true, onSelect: async () => {
@@ -318,7 +320,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
       try {
         await api.projects.remove(project.id, project.revision);
         toast("Projeto excluído");
-        await invalidate();
+        await invalidate(refreshProjects);
         router.push("/hoje");
       } catch (error) {
         toast(error instanceof ApiFailure && error.code === "PROJECT_NOT_EMPTY"
@@ -347,6 +349,12 @@ export function ProjectView({ projectId }: { projectId: string }) {
   );
 
   const crumb = project.isInbox ? "Captura e triagem" : <>Meus projetos <span aria-hidden="true">/</span></>;
+  const compactTitle = showCompactTitle && (
+    <span className="compact-title" aria-hidden={!titleAboveView} title={project.name}>
+      <Glyph icon={project.icon} style={{ color: project.color ? colorValue(project.color) : tagColor(project.id) }} />
+      <span>{project.name}</span>
+    </span>
+  );
   const tools = (
     <>
       {!project.isInbox && <ShareMenu projectId={project.id} archived={archived} />}
@@ -359,7 +367,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <PageHeader crumb={crumb} tools={tools} mobileTitle={project.name} back={project.isInbox ? undefined : "/navegar"} />
+      <PageHeader crumb={crumb} tools={tools} compactTitle={compactTitle} mobileTitle={project.isInbox ? project.name : undefined} back={project.isInbox ? undefined : "/navegar"} />
       {importDialog}
       {exportDialog}
       {projectDetails.dialog}
@@ -368,60 +376,62 @@ export function ProjectView({ projectId }: { projectId: string }) {
           <NamedDetailsForm key={sectionToEdit.id} kind="seção" initial={sectionToEdit} inDialog submitLabel="Salvar"
             onCancel={() => setSectionToEdit(null)} onSave={async (details) => {
               if (details.name === sectionToEdit.name && details.description === sectionToEdit.description
-                || await app.run(() => api.sections.edit(sectionToEdit.id, sectionToEdit.revision, details), { success: "Seção atualizada" })) {
+                || await app.run(() => api.sections.edit(sectionToEdit.id, sectionToEdit.revision, details), { success: "Seção atualizada", revalidate: refreshProjects })) {
                 setSectionToEdit(null);
               }
             }} />
         </div>}
       </Dialog>
-      <div style={{ padding: "4px 32px 0" }} className="project-head">
-        <div className={board ? "" : "col"}>
-          <div className="page-h">
-            <ProjectHeading key={project.id} project={project} />
-            <div className="page-meta">
-              <PageTaskCount count={activeTasks} />
-              {!project.isInbox && <PublicBadge projectId={project.id} />}
+      <div className="project-content" ref={projectContent}>
+        <div style={{ padding: "4px 32px 0" }} className="project-head">
+          <div className={board ? "" : "col"}>
+            <div className="page-h">
+              <ProjectHeading key={project.id} project={project} titleRef={projectTitle} />
+              <div className="page-meta">
+                <PageTaskCount count={activeTasks} />
+                {!project.isInbox && <PublicBadge projectId={project.id} />}
+              </div>
             </div>
+            <Collapse open={archived} appear={false}>
+              <div className="banner warn">
+                Projeto arquivado: só leitura. Reative para editar.
+                <button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
+                  onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado", revalidate: refreshProjects })}>Reativar</button>
+              </div>
+            </Collapse>
+            <Collapse open={!manual && !archived} appear={false}>
+              <div className="banner warn">
+                <IconBan style={{ width: 16, height: 16, color: "var(--p2)" }} />
+                <span style={{ flex: 1 }}>
+                  Ordenação por {SORT_LABEL[view.sortMode].toLowerCase()}: reordenar por posição está desativado.
+                  {board ? " Ainda dá para arrastar entre colunas e criar subtarefas." : " Use o menu ⋯ para mudar de seção."}
+                </span>
+                <button type="button" className="btn ghost" style={{ height: 30, color: "var(--brand-text)" }} onClick={() => void changeView({ sortMode: "manual" })}>
+                  Voltar a Manual
+                </button>
+              </div>
+            </Collapse>
           </div>
-          <Collapse open={archived} appear={false}>
-            <div className="banner warn">
-              Projeto arquivado: só leitura. Reative para editar.
-              <button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
-                onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado" })}>Reativar</button>
-            </div>
-          </Collapse>
-          <Collapse open={!manual && !archived} appear={false}>
-            <div className="banner warn">
-              <IconBan style={{ width: 16, height: 16, color: "var(--p2)" }} />
-              <span style={{ flex: 1 }}>
-                Ordenação por {SORT_LABEL[view.sortMode].toLowerCase()}: reordenar por posição está desativado.
-                {board ? " Ainda dá para arrastar entre colunas e criar subtarefas." : " Use o menu ⋯ para mudar de seção."}
-              </span>
-              <button type="button" className="btn ghost" style={{ height: 30, color: "var(--brand-text)" }} onClick={() => void changeView({ sortMode: "manual" })}>
-                Voltar a Manual
-              </button>
-            </div>
-          </Collapse>
         </div>
+        <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragMove={onDragMove}
+          autoScroll={{ threshold: { x: 0.1, y: 0.1 }, acceleration: 8 }}
+          onDragEnd={onDragEnd} onDragCancel={onDragCancel}
+          accessibility={{ screenReaderInstructions: { draggable: "Para mover sem arrastar, use Alt e as setas ou o menu de ações da tarefa." } }}>
+          {board
+            ? <BoardLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator}
+              mobile={mobile} sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />
+            : <ListLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator} dragging={!!drag}
+              sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />}
+          <DragOverlay dropAnimation={null}>
+            {dragActive && (
+              <div className="drag-overlay" data-nesting={drag?.byMouse && indicator?.type === "nest" ? true : undefined}
+                style={{ width: board ? 280 : undefined }}>
+                <TaskRow task={dragActive} actions={actions} variant={board ? "card" : "row"} noMenu extraClass="is-dragging" style={{ paddingLeft: 10 }} />
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
       </div>
-      <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragMove={onDragMove}
-        autoScroll={{ threshold: { x: 0.1, y: 0.1 }, acceleration: 8 }}
-        onDragEnd={onDragEnd} onDragCancel={onDragCancel}
-        accessibility={{ screenReaderInstructions: { draggable: "Para mover sem arrastar, use Alt e as setas ou o menu de ações da tarefa." } }}>
-        {board
-          ? <BoardLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator}
-            mobile={mobile} sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />
-          : <ListLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator} dragging={!!drag}
-            sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />}
-        <DragOverlay dropAnimation={null}>
-          {dragActive && (
-            <div className="drag-overlay" data-nesting={drag?.byMouse && indicator?.type === "nest" ? true : undefined}
-              style={{ width: board ? 280 : undefined }}>
-              <TaskRow task={dragActive} actions={actions} variant={board ? "card" : "row"} noMenu extraClass="is-dragging" style={{ paddingLeft: 10 }} />
-            </div>
-          )}
-        </DragOverlay>
-      </DndContext>
       {actions.moveDialog}
     </>
   );
@@ -466,8 +476,9 @@ function DraggableTask({
 }) {
   // Em edição a linha vira formulário: arrastar a partir dos campos selecionaria texto e moveria a tarefa.
   const editing = useEditorOpen(editKey(task));
-  const draggable = useDraggable({ id: task.id, disabled: disabled || editing });
-  const droppable = useDroppable({ id: `task:${task.id}`, disabled: task.status !== "active" });
+  const temporary = isTemporaryTask(task.id);
+  const draggable = useDraggable({ id: task.id, disabled: disabled || editing || temporary });
+  const droppable = useDroppable({ id: `task:${task.id}`, disabled: task.status !== "active" || temporary });
   const setRef = (node: HTMLDivElement | null) => {
     draggable.setNodeRef(node);
     droppable.setNodeRef(node);
@@ -558,7 +569,7 @@ function renderTaskBlock(
 
 type ProjectHeadingField = keyof NamedDetails;
 
-function ProjectHeading({ project }: { project: ProjectPage["project"] }) {
+function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]; titleRef: Ref<HTMLDivElement> }) {
   const app = useApp();
   const [editing, setEditing] = useState<{ field: ProjectHeadingField; initial: string; value: string } | null>(null);
   const descriptionInput = useAutoGrow(editing?.field === "description" ? editing.value : "");
@@ -575,7 +586,7 @@ function ProjectHeading({ project }: { project: ProjectPage["project"] }) {
 
   if (project.isInbox || project.status === "archived") {
     return <>
-      <h1 className="title">{project.name}</h1>
+      <div ref={titleRef}><h1 className="title">{project.name}</h1></div>
       {!project.isInbox && project.description && <p className="project-description">{project.description}</p>}
     </>;
   }
@@ -604,7 +615,7 @@ function ProjectHeading({ project }: { project: ProjectPage["project"] }) {
           ? { ...current, project: { ...current.project, ...saved } }
           : current);
         return saved;
-      });
+      }, { revalidate: refreshProjects });
       setPending((current) => current[field] === change ? { ...current, [field]: undefined } : current);
       return saved?.revision ?? revision;
     });
@@ -633,16 +644,18 @@ function ProjectHeading({ project }: { project: ProjectPage["project"] }) {
   const description = displayValue("description");
   return (
     <div className="project-heading-fields">
-      <h1 className={editing?.field === "name" ? "sr-only" : "title"}>
-        {editing?.field === "name" ? name : (
-          <button type="button" className="project-heading-field" ref={titleButton} onClick={() => openEditor("name")}
-            aria-description="Editar título do projeto">
-            {name}
-          </button>
-        )}
-      </h1>
-      {editing?.field === "name" && <input {...editorProps} className="project-heading-field project-heading-input title"
-        aria-label="Nome do projeto" maxLength={120} />}
+      <div ref={titleRef}>
+        <h1 className={editing?.field === "name" ? "sr-only" : "title"}>
+          {editing?.field === "name" ? name : (
+            <button type="button" className="project-heading-field" ref={titleButton} onClick={() => openEditor("name")}
+              aria-description="Editar título do projeto">
+              {name}
+            </button>
+          )}
+        </h1>
+        {editing?.field === "name" && <input {...editorProps} className="project-heading-field project-heading-input title"
+          aria-label="Nome do projeto" maxLength={120} />}
+      </div>
       {editing?.field === "description" ? (
         <textarea {...editorProps} ref={descriptionInput} className="project-heading-field project-heading-input project-description"
           aria-label="Descrição do projeto" placeholder="Adicionar uma descrição" rows={1} maxLength={10_000} />
@@ -719,7 +732,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
 
   const createSection = async (afterSectionId: string | null, details: NamedDetails) => {
     const anchor = afterSectionId ? { afterSectionId } : page.sections[0] ? { beforeSectionId: page.sections[0].id } : {};
-    if (await app.run(() => api.sections.create(project.id, details, anchor), { success: `Seção “${details.name}” criada` })) {
+    if (await app.run(() => api.sections.create(project.id, details, anchor), { success: `Seção “${details.name}” criada`, revalidate: (cached) => cached === `project:${project.id}` })) {
       setAdding(undefined);
     }
   };
@@ -805,10 +818,16 @@ function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSe
   const columnName = (sectionId: string | null) =>
     sectionId === null ? project.defaultSectionName : sectionName(page, sectionId);
   const scrollTo = (sectionId: string | null) => {
-    document.getElementById(`col-${sectionId ?? "none"}`)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+    const column = document.getElementById(`col-${sectionId ?? "none"}`);
+    const board = column?.parentElement;
+    if (!column || !board) return;
+    board.scrollBy({
+      left: column.getBoundingClientRect().left - board.getBoundingClientRect().left,
+      behavior: motionMs("base") ? "smooth" : "instant",
+    });
   };
   const createSection = async (details: NamedDetails) => {
-    if (await app.run(() => api.sections.create(project.id, details), { success: `Seção “${details.name}” criada` })) {
+    if (await app.run(() => api.sections.create(project.id, details), { success: `Seção “${details.name}” criada`, revalidate: (cached) => cached === `project:${project.id}` })) {
       setAdding(false);
     }
   };

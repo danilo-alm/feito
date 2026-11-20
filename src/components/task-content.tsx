@@ -3,6 +3,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { api } from "@/client/api";
 import { tagColor } from "@/client/colors";
 import { completedLabel, dayOfMonth, dueLabel, dueTone, FREQUENCY_LABEL } from "@/client/dates";
+import { editTask, isTemporaryTask } from "@/client/task-mutations";
 import { useQuery } from "@/client/store";
 import type { TaskDetail, TaskItem } from "@/client/types";
 import { useApp } from "./app";
@@ -25,7 +26,8 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
   showMoreSubtasks?: boolean; onOpen?: (id: string) => void;
 }) {
   const app = useApp();
-  const desktop = useMediaQuery("(min-width: 900px) and (any-pointer: fine)") && !preview;
+  const temporary = isTemporaryTask(task.id);
+  const desktop = useMediaQuery("(min-width: 900px) and (any-pointer: fine)") && !preview && !temporary;
   const [openField, setOpenField] = useState<OpenField | null>(null);
   const close = useCallback(() => setOpenField((current) => current === openField ? null : current), [openField]);
   const active = task.status === "active";
@@ -105,7 +107,7 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
   const excerpt = showDescription ? task.descriptionExcerpt : null;
   return (
     <div className="t-body">
-      <button type="button" className="t-click" onClick={() => (onOpen ?? app.openTask)(task.id)}>
+      <button type="button" className="t-click" disabled={temporary} onClick={() => (onOpen ?? app.openTask)(task.id)}>
         <span className="t-title">{task.title}</span>
         {excerpt && <span className="t-desc">{excerpt}</span>}
         {!desktop && meta}
@@ -139,14 +141,14 @@ function TaskFieldPicker({ field, task, actions, close }: {
       return <RepeatMenu value={task.recurrence?.frequency ?? null} onPick={(frequency) => {
         close();
         if (frequency === task.recurrence?.frequency) return;
-        void app.run(() => frequency
-          ? api.tasks.setRecurrence(task.id, { revision: task.revision, frequency, anchorDate: task.dueDate ?? app.reference, time: task.dueTime })
-          : api.tasks.clearRecurrence(task.id, task.revision),
+        void app.run(() => editTask(app.taskContext, task, {
+          recurrence: frequency ? { frequency, anchorDate: task.dueDate ?? app.reference, time: task.dueTime } : null,
+        }),
         { success: frequency ? `Repete: ${FREQUENCY_LABEL[frequency].toLowerCase()}` : "Repetição removida" });
       }} />;
     case "labels":
       return <TaskLabels task={task} onSave={async (labelIds, revision) => {
-        if (await app.run(() => api.tasks.edit(task.id, { revision, labelIds }))) close();
+        if (await app.run(() => editTask(app.taskContext, task, { labelIds }, revision))) close();
       }} />;
     case "subtasks":
       return <TaskSubtasks taskId={task.id} close={close} />;

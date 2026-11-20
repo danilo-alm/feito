@@ -132,7 +132,9 @@ export const createTaskInput = z.strictObject({
   sectionId: entityId.nullable().optional(),
   parentId: entityId.nullable().optional(),
   recurrence: recurrenceInput.nullable().optional(),
-});
+  beforeId: entityId.optional(),
+  afterId: entityId.optional(),
+}).refine((input) => !input.beforeId || !input.afterId, { path: ["beforeId"] });
 export const editTaskInput = z.strictObject({
   revision,
   ...taskFields,

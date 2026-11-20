@@ -242,6 +242,18 @@ pnpm keys dek:rekey --tenant "$TENANT_ID"
 
 ## Medições
 
+### Cache interno de leituras do produto
+
+O Compose de produção inicia um processo Node.js por contêiner. Cada processo armazena sob demanda quatro projeções do domínio por conta. São elas a navegação, os resumos de projetos ativos, os resumos de projetos arquivados e a lista de etiquetas. Cada leitura aquece sua própria entrada. O cache de navegação guarda os projetos, etiquetas e contadores que a interface recebe. Descrições de tarefas, sessões, chaves e respostas HTTP ficam fora do cache.
+
+Depois de autorizar a sessão, cada leitura cacheável consulta `productRevision` pela chave do tenant no PostgreSQL primário, com RLS. A revisão e a reconstrução da projeção usam a mesma transação de leitura repetível. A revisão só muda para outras transações no commit. Tarefas, projetos, seções, etiquetas, importações, preferências e rotações de chave seguem esse contrato. Processos que usam o mesmo primário observam a mesma revisão, inclusive após reconectar. A virada do dia no fuso da conta também torna obsoleta a projeção de navegação. Em restauração administrativa ou alteração direta por SQL que possa reutilizar revisões, reinicie todos os processos da aplicação.
+
+Os resumos calculam contagens lendo tarefas candidatas em lotes e descartando os registros decifrados assim que contribuem para os totais. Datas e estado da tarefa estão no payload cifrado. Um miss ainda precisa decifrar os candidatos. O resumo de projetos arquivados lê apenas projetos. A página de uma etiqueta usa a busca delimitada pelo vínculo, pelo cursor e pelo tamanho da página. Projeto, detalhe de tarefa, Hoje, Em breve e busca continuam em seus fluxos de leitura específicos. Operações de escrita, importação e exportação usam leituras próprias quando exigem os registros completos.
+
+O cache agrupa misses concorrentes para a mesma conta, projeção e revisão. Entradas expiram 12 horas após a carga. A checagem de revisão continua válida durante todo esse período, e as entradas menos recentes saem ao atingir 64 entradas ou 16 MiB estimados por processo. Projeções acima de 4 MiB estimados, ou que falhem ao ser armazenadas, são devolvidas sem retenção.
+
+Os logs `product_projection_read` registram o tipo de projeção, hit, miss, leitura compartilhada ou bypass, duração e consultas de domínio evitadas. `product_projection_cache` registra expiração e evicção. Essas métricas não contêm dados pessoais nem IDs de conta. Em uma amostra sintética com PostgreSQL 18, a leitura da navegação levou 8,55 ms a frio e 1,00 ms em um hit sequencial, que evitou quatro consultas de domínio. Os tempos medem apenas esse estágio da leitura no ambiente local.
+
 ### Leituras e busca (Fase 3)
 
 Next.js compilado, PostgreSQL 18 em Docker Compose e cliente HTTP no mesmo host ARM64. Cada cenário teve três chamadas de aquecimento e 20 medições sequenciais. A massa tinha 60% de tarefas concluídas, distribuídas em cinco grupos de projeto contando a Caixa de entrada, com descrições sintéticas de tamanhos variados. Hoje foi medido com `includeCompleted=true`. A busca seletiva filtrou por projeto, etiqueta e texto. A busca ampla comparou um trecho de descrição em toda a conta.

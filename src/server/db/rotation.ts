@@ -9,7 +9,7 @@ import {
 } from "./product";
 import { reserveKek, useDek, withDekWrite, withProductReader, type ProductReader } from "./product-crypto";
 import { completedOccurrences, dekUsage, labels, preferences, projects, sections, tasks, tenantKeys, tenants } from "./schema";
-import { lockTenant, withTenant } from "./tenant";
+import { advanceProductRevision, lockTenant, withTenant } from "./tenant";
 import { writePreferences } from "./workspace";
 
 export async function activateDek({ db, keys, tenantId }: ProductAccess) {
@@ -24,6 +24,7 @@ export async function activateDek({ db, keys, tenantId }: ProductAccess) {
       await tx.insert(tenantKeys).values({ ...envelope, ...wrapDek(keys, envelope, dek) });
       await tx.insert(dekUsage).values({ tenantId, dekVersion: version, invocations: 0 });
       await tx.update(tenants).set({ activeDekVersion: version }).where(eq(tenants.id, tenantId));
+      await advanceProductRevision(tx, tenant);
       return version;
     } finally {
       dek.fill(0);
@@ -45,7 +46,7 @@ export async function rewrapKek({ db, keys, tenantId }: ProductAccess) {
 
     for (const _candidate of candidates) await reserveKek(db, keys.activeVersion);
     rewritten += await withTenant(db, tenantId, async (tx) => {
-      await lockTenant(tx, tenantId);
+      const tenant = await lockTenant(tx, tenantId);
       const rows = await tx.select({ version: tenantKeys.version }).from(tenantKeys)
         .where(and(older, inArray(tenantKeys.version, candidates.map(({ version }) => version))));
       for (const { version } of rows) {
@@ -56,6 +57,7 @@ export async function rewrapKek({ db, keys, tenantId }: ProductAccess) {
           }).where(eq(tenantKeys.version, version));
         });
       }
+      if (rows.length) await advanceProductRevision(tx, tenant);
       return rows.length;
     });
   }
@@ -113,7 +115,7 @@ export async function rekeyWithActiveDek({ db, keys, tenantId }: ProductAccess) 
       return { version: tenant.version, count: countRecords(records) };
     }, { isolationLevel: "repeatable read", accessMode: "read only" });
     if (!pending.count) return rewritten;
-    rewritten += await withDekWrite(db, keys, tenantId, pending.count, async (tx, version, dek) => {
+    rewritten += await withDekWrite(db, keys, tenantId, pending.count, async (tx, version, dek, tenant) => {
       if (version !== pending.version) return 0;
       const records = await loadOlderRecords(tx, version);
       // Under the same active DEK, concurrent application writes can only remove pending rows.
@@ -121,6 +123,7 @@ export async function rekeyWithActiveDek({ db, keys, tenantId }: ProductAccess) 
       if (count > pending.count) throw new Error("Lote de recifragem excedeu a reserva.");
       await withProductReader(tx, keys, tenantId, (reader) =>
         rewriteRecords(tx, tenantId, version, dek.key, reader, records), { version, dek });
+      if (count) await advanceProductRevision(tx, tenant);
       return count;
     });
   }

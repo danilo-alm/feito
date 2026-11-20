@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import type { TaskChanges } from "@/client/types";
 import { childrenOf, groupTasks, isActive, sameGroup, taskDescendants, type Product, type Task, type TaskGroup } from "@/domain/product";
 import { nextOccurrenceDate } from "@/domain/recurrence";
 import { taskAncestors } from "@/domain/task-tree";
@@ -11,9 +12,25 @@ import {
   type TaskMoveInput, type UndoTaskCompletionInput,
 } from "@/validation/product";
 import { inboxProject, taskDetail, taskItem } from "./product-dto";
+import { taskChanges } from "./task-changes";
 import {
   labelSelection, nextRevision, requireRevision, validateSection, validation, visibleRecord, writableProject, writableTask,
 } from "./product-rules";
+
+export type TaskAccess = ProductAccess & { receiveChanges?: (changes: TaskChanges) => void };
+
+function mutateTasks<T>(
+  access: TaskAccess,
+  apply: Parameters<typeof mutateProduct<T>>[1],
+  occurrence?: Parameters<typeof mutateProduct<T>>[2],
+  options?: Parameters<typeof mutateProduct<T>>[3],
+) {
+  return mutateProduct(access, (draft, original, history, revision) => {
+    const value = apply(draft, original, history, revision);
+    if (access.receiveChanges) access.receiveChanges(taskChanges(original, draft, revision));
+    return value;
+  }, occurrence, options);
+}
 
 function projectFor(product: Product, id: string) {
   return writableProject(visibleRecord(product.projects, id));
@@ -67,60 +84,85 @@ function reopenAncestors(product: Product, original: Product, task: Task) {
   return reopenedParentId;
 }
 
-export function createTask(access: ProductAccess, input: CreateTaskInput) {
+function insertTask(product: Product, original: Product, id: string, occurrenceId: string | null, input: CreateTaskInput) {
+  const suppliedParent = input.parentId ? visibleRecord(product.tasks, input.parentId) : null;
+  const projectId = suppliedParent?.projectId ?? input.projectId ?? inboxProject(product).id;
+  projectFor(product, projectId);
+  const parent = suppliedParent ? parentFor(product, suppliedParent.id, projectId) : null;
+  const sectionId = parent ? parent.sectionId : input.sectionId ?? null;
+  validateSection(product, projectId, sectionId);
+  if (parent && input.recurrence) throw notAllowedRecurrence();
+
+  const anchorDate = input.recurrence?.anchorDate ?? input.dueDate ?? null;
+  if (input.recurrence && anchorDate === null) {
+    throw validation("recurrence", "Informe uma data de âncora ou de agendamento.");
+  }
+  const dueDate = input.dueDate ?? (input.recurrence ? anchorDate : null);
+  const dueTime = input.dueTime === undefined ? input.recurrence?.time ?? null : input.dueTime;
+  validateSchedule(dueDate, dueTime);
+  const recurrenceRule = input.recurrence && anchorDate ? {
+    frequency: input.recurrence.frequency,
+    anchorDate,
+    nominalDate: anchorDate,
+    time: input.recurrence.time === undefined ? dueTime : input.recurrence.time,
+  } : null;
+
+  const group = { projectId, sectionId, parentId: parent?.id ?? null };
+  const position = (groupTasks(product, group).at(-1)?.data.position ?? -1) + 1;
+  const labelIds = labelSelection(product, input.labelIds ?? []);
+  const task = saveTask(product, original, {
+    ...group, id, revision: 1, occurrenceId,
+    data: {
+      title: input.title,
+      description: input.description ?? "",
+      priority: input.priority ?? 4,
+      createdAt: product.now.toString(),
+      completedAt: null,
+      dueDate, dueTime, position, recurrenceRule,
+    },
+  });
+  if (labelIds.length) product.taskLabels.set(id, labelIds);
+  const anchorId = input.beforeId ?? input.afterId;
+  const anchor = anchorId ? product.tasks.get(anchorId) : undefined;
+  if (anchor && sameGroup(anchor, task) && projectFor(product, projectId).data.view.sortMode === "manual") {
+    applyTaskMove(product, original, task, { type: "position", ...group, beforeId: input.beforeId, afterId: input.afterId });
+  }
+  return taskDetail(product, visibleRecord(product.tasks, id));
+}
+
+export function createTask(access: TaskAccess, input: CreateTaskInput) {
   const id = randomUUID();
   const occurrenceId = input.recurrence ? randomUUID() : null;
-  return mutateProduct(access, (product, original) => {
-    const suppliedParent = input.parentId ? visibleRecord(product.tasks, input.parentId) : null;
-    const projectId = suppliedParent?.projectId ?? input.projectId ?? inboxProject(product).id;
-    projectFor(product, projectId);
-    const parent = suppliedParent ? parentFor(product, suppliedParent.id, projectId) : null;
-    const sectionId = parent ? parent.sectionId : input.sectionId ?? null;
-    validateSection(product, projectId, sectionId);
-    if (parent && input.recurrence) throw notAllowedRecurrence();
+  return mutateTasks(access, (product, original) => insertTask(product, original, id, occurrenceId, input));
+}
 
-    const anchorDate = input.recurrence?.anchorDate ?? input.dueDate ?? null;
-    if (input.recurrence && anchorDate === null) {
-      throw validation("recurrence", "Informe uma data de âncora ou de agendamento.");
-    }
-    const dueDate = input.dueDate ?? (input.recurrence ? anchorDate : null);
-    const dueTime = input.dueTime === undefined ? input.recurrence?.time ?? null : input.dueTime;
-    validateSchedule(dueDate, dueTime);
-    const recurrenceRule = input.recurrence && anchorDate ? {
-      frequency: input.recurrence.frequency,
-      anchorDate,
-      nominalDate: anchorDate,
-      time: input.recurrence.time === undefined ? dueTime : input.recurrence.time,
-    } : null;
-
-    const group = { projectId, sectionId, parentId: parent?.id ?? null };
-    const position = (groupTasks(product, group).at(-1)?.data.position ?? -1) + 1;
-    const labelIds = labelSelection(product, input.labelIds ?? []);
-    const task = saveTask(product, original, {
-      ...group, id, revision: 1, occurrenceId,
-      data: {
-        title: input.title,
-        description: input.description ?? "",
-        priority: input.priority ?? 4,
-        createdAt: product.now.toString(),
-        completedAt: null,
-        dueDate, dueTime, position, recurrenceRule,
-      },
+export function duplicateTask(access: TaskAccess, sourceId: string) {
+  const id = randomUUID();
+  const occurrenceId = randomUUID();
+  return mutateTasks(access, (product, original) => {
+    const source = loadedTask(product, sourceId);
+    const { title, description, priority, dueDate, dueTime, recurrenceRule } = source.data;
+    return insertTask(product, original, id, recurrenceRule ? occurrenceId : null, {
+      title, description, priority, dueDate, dueTime,
+      projectId: source.projectId, sectionId: source.sectionId, parentId: source.parentId,
+      labelIds: product.taskLabels.get(sourceId),
+      recurrence: recurrenceRule ? {
+        frequency: recurrenceRule.frequency, anchorDate: dueDate ?? recurrenceRule.anchorDate, time: recurrenceRule.time,
+      } : undefined,
+      afterId: sourceId,
     });
-    if (labelIds.length) product.taskLabels.set(id, labelIds);
-    return taskDetail(product, task);
   });
 }
 
-export async function getTask(access: ProductAccess, id: string) {
+export async function getTask(access: TaskAccess, id: string) {
   const { product, task } = await readTaskDetail(access, id);
   return taskDetail(product, task);
 }
 
-export function editTask(access: ProductAccess, id: string, input: EditTaskInput) {
+export function editTask(access: TaskAccess, id: string, input: EditTaskInput) {
   const { revision, labelIds, recurrence, destination, ...fields } = input;
   const occurrence = recurrence && { ...recurrence, id: randomUUID() };
-  return mutateProduct(access, (product, original) => {
+  return mutateTasks(access, (product, original) => {
     const current = writableTask(loadedTask(product, id));
     taskRevision(product, current, revision);
     const task = recurrence === null ? withoutRecurrence(current) : current;
@@ -163,17 +205,17 @@ function withoutRecurrence(task: Task): Task {
   return { ...task, occurrenceId: null, data: { ...task.data, recurrenceRule: null } };
 }
 
-export function setRecurrence(access: ProductAccess, id: string, input: SetRecurrenceInput) {
+export function setRecurrence(access: TaskAccess, id: string, input: SetRecurrenceInput) {
   const occurrenceId = randomUUID();
-  return mutateProduct(access, (product, original) => {
+  return mutateTasks(access, (product, original) => {
     const task = writableTask(loadedTask(product, id));
     taskRevision(product, task, input.revision);
     return taskDetail(product, saveTask(product, original, withRecurrence(product, task, occurrenceId, input)));
   });
 }
 
-export function removeRecurrence(access: ProductAccess, id: string, revision: number) {
-  return mutateProduct(access, (product, original) => {
+export function removeRecurrence(access: TaskAccess, id: string, revision: number) {
+  return mutateTasks(access, (product, original) => {
     const task = writableTask(loadedTask(product, id));
     taskRevision(product, task, revision);
     if (!task.occurrenceId) return taskDetail(product, task);
@@ -181,10 +223,10 @@ export function removeRecurrence(access: ProductAccess, id: string, revision: nu
   });
 }
 
-export function completeTask(access: ProductAccess, id: string, input: CompleteTaskInput) {
+export function completeTask(access: TaskAccess, id: string, input: CompleteTaskInput) {
   const nextId = randomUUID();
   const occurrence = input.occurrenceId ? { taskId: id, occurrenceId: input.occurrenceId } : undefined;
-  return mutateProduct(access, (product, original, history) => {
+  return mutateTasks(access, (product, original, history) => {
     const task = visibleRecord(product.tasks, id);
     if (history.recorded) {
       return { task: taskItem(product, task), completedChildIds: [], alreadyProcessed: true };
@@ -238,8 +280,8 @@ export function completeTask(access: ProductAccess, id: string, input: CompleteT
   }, occurrence);
 }
 
-export function reopenTask(access: ProductAccess, id: string, revision: number) {
-  return mutateProduct(access, (product, original) => {
+export function reopenTask(access: TaskAccess, id: string, revision: number) {
+  return mutateTasks(access, (product, original) => {
     const task = loadedTask(product, id);
     taskRevision(product, task, revision);
     if (task.occurrenceId || isActive(task)) throw validation("revision", "Só tarefas avulsas concluídas podem ser reabertas.");
@@ -249,9 +291,9 @@ export function reopenTask(access: ProductAccess, id: string, revision: number) 
   });
 }
 
-export function undoTaskCompletion(access: ProductAccess, id: string, input: UndoTaskCompletionInput) {
+export function undoTaskCompletion(access: TaskAccess, id: string, input: UndoTaskCompletionInput) {
   const occurrence = input.occurrenceId ? { taskId: id, occurrenceId: input.occurrenceId } : undefined;
-  return mutateProduct(access, (product, original, history) => {
+  return mutateTasks(access, (product, original, history) => {
     const task = loadedTask(product, id);
     taskRevision(product, task, input.revision);
 
@@ -298,8 +340,8 @@ export function undoTaskCompletion(access: ProductAccess, id: string, input: Und
   }, occurrence, occurrence ? { removeOccurrence: occurrence } : {});
 }
 
-export function deleteTask(access: ProductAccess, id: string, revision: number, withChildren?: boolean) {
-  return mutateProduct(access, (product) => {
+export function deleteTask(access: TaskAccess, id: string, revision: number, withChildren?: boolean) {
+  return mutateTasks(access, (product) => {
     const task = loadedTask(product, id);
     taskRevision(product, task, revision);
     const children = Array.from(taskDescendants(product, id), ({ task }) => task);
@@ -385,8 +427,8 @@ function applyTaskMove(product: Product, original: Product, task: Task, target: 
   return groups;
 }
 
-export function moveTask(access: ProductAccess, id: string, input: TaskMoveInput) {
-  return mutateProduct(access, (product, original) => {
+export function moveTask(access: TaskAccess, id: string, input: TaskMoveInput) {
+  return mutateTasks(access, (product, original) => {
     const task = writableTask(loadedTask(product, id));
     taskRevision(product, task, input.revision);
     const groups = applyTaskMove(product, original, task, input.target);

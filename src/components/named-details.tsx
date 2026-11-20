@@ -6,7 +6,7 @@ import { api } from "@/client/api";
 import type { NamedDetails, ProjectStyle, ProjectSummary } from "@/client/types";
 import type { ProjectColor, ProjectIcon } from "@/validation/project-style";
 import { ProjectStyleFields } from "./project-style";
-import { useApp } from "./app";
+import { refreshProjects, useApp } from "./app";
 import { Dialog, useAutoGrow } from "./ui";
 
 export function NamedDetailsForm({ kind, initial, submitLabel, onSave, onCancel, inDialog = false, projectId }: {
@@ -84,7 +84,7 @@ export function useProjectDetailsDialog() {
             }
             const saved = await app.run(
               () => project ? api.projects.edit(project.id, project.revision, details) : api.projects.create({ ...details, color: details.color ?? null, icon: details.icon ?? "hash" }),
-              { success: project ? "Projeto atualizado" : "Projeto criado" },
+              { success: project ? "Projeto atualizado" : "Projeto criado", revalidate: project ? refreshProjects : (key) => key === "nav" },
             );
             if (!saved) return;
             close();

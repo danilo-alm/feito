@@ -48,7 +48,7 @@ export default function SearchPage() {
   const hasCriteria = !!(criteria.text || projectId || labelId || priority || date);
   const key = hasCriteria ? `search:${JSON.stringify(criteria)}` : null;
   const query = useQuery<SearchResult>(key, () => api.search(criteria));
-  const pagination = useTaskPagination(query.data, query.data?.results, async (cursor) => {
+  const pagination = useTaskPagination(key, query.data, "results", async (cursor) => {
     const page = await api.search({ ...criteria, cursor });
     return { tasks: page.results, nextCursor: page.nextCursor };
   });

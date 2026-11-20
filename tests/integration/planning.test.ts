@@ -108,6 +108,33 @@ describe("recurring occurrences", () => {
     expect((await getTaskById(call, root.id)).recurrenceRule?.nominalDate).toBe("2026-11-23");
   });
 
+  it("undoes a recurring completion through the application role and restores the prior occurrence", async () => {
+    now("2026-11-17T14:15:00Z");
+    const [call, other] = await Promise.all([accountFixture(), accountFixture()]);
+    const series = await newTask(call, "Diária", {
+      dueDate: "2026-11-17", recurrence: { frequency: "daily", time: "09:30" },
+    });
+    const shifted = await payload<Task>(await call("PATCH", `/tasks/${series.id}`, {
+      revision: series.revision, dueTime: "06:00",
+    }));
+    const advanced = await completeOccurrence(call, shifted);
+    const path = `/tasks/${series.id}/undo-completion`;
+    const input = { revision: advanced.task.revision, occurrenceId: shifted.occurrenceId };
+    await failure(await other("POST", path, input), 404, "NOT_FOUND");
+    const { db, tenantId } = productAccess(other);
+    expect(await withTenant(db, tenantId, (tx) => tx.delete(completedOccurrences)
+      .where(eq(completedOccurrences.taskId, series.id)).returning({ occurrenceId: completedOccurrences.occurrenceId }))).toEqual([]);
+    expect(await historyRows(call, series.id)).toHaveLength(1);
+    await payload(await call("POST", path, input));
+    expect(await getTaskById(call, series.id)).toMatchObject({
+      occurrenceId: shifted.occurrenceId, dueDate: shifted.dueDate, dueTime: "06:00",
+      recurrenceRule: { nominalDate: shifted.recurrenceRule!.nominalDate, time: "09:30" },
+    });
+    expect(await historyRows(call, series.id)).toHaveLength(0);
+    const reopened = await getTaskById(call, series.id);
+    expect((await completeOccurrence(call, reopened)).alreadyProcessed).toBe(false);
+  });
+
   it("returns to the original day after February and preserves history across replacement and removal", async () => {
     const clock = now("2027-01-31T14:00:00Z");
     const call = await accountFixture();

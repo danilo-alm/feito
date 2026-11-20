@@ -294,7 +294,7 @@ type MutationOutcome<T> = { value: T } | { error: ApiError };
 
 export async function mutateProduct<T>(
   access: ProductAccess,
-  apply: (draft: Product, original: Product, history: MutationHistory) => T,
+  apply: (draft: Product, original: Product, history: MutationHistory, snapshotRevision: number) => T,
   occurrence?: OccurrenceReference,
   options: {
     beforeCommit?: (tx: Transaction, outcome: MutationOutcome<T>) => Promise<void>;
@@ -310,7 +310,7 @@ export async function mutateProduct<T>(
     let plan: Changes | undefined;
     try {
       const history: MutationHistory = { recorded, previousCompletion };
-      outcome = { value: apply(draft, original, history) };
+      outcome = { value: apply(draft, original, history, revision) };
       plan = changes(original, draft, history.completion);
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;

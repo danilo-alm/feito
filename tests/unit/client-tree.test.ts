@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyStep, keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, taskBranch, taskMap } from "@/client/tree";
-import type { ProjectPage, SortMode, TaskItem } from "@/client/types";
+import { TaskDraft } from "@/client/task-mutations";
+import { applyTaskChanges } from "@/client/task-projections";
+import { keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, taskBranch, taskMap } from "@/client/tree";
+import type { MoveTarget, ProjectPage, SortMode, TaskItem } from "@/client/types";
 
 function task(id: string, sectionId: string | null, fields: Partial<TaskItem> = {}): TaskItem {
   return {
@@ -9,6 +11,15 @@ function task(id: string, sectionId: string | null, fields: Partial<TaskItem> = 
     projectId: "p", sectionId, parentId: null, childIds: [], subtasks: { total: 0, completed: 0 }, labels: [],
     ...fields,
   };
+}
+
+function applyStep(page: ProjectPage, id: string, target: MoveTarget) {
+  const key = `project:${page.project.id}`;
+  const data = new Map<string, unknown>([[key, page]]);
+  const draft = new TaskDraft(data, { inboxId: page.project.id, reference: page.referenceDate });
+  draft.move(id, target);
+  applyTaskChanges(data, draft.changes());
+  return data.get(key) as ProjectPage;
 }
 
 // Planejar: a, c (com filho d), e · Comprar: f, g · Sem seção: s
@@ -195,7 +206,7 @@ describe("keyboardPlan and menuActions", () => {
   });
 });
 
-describe("applyStep", () => {
+describe("optimistic movement", () => {
   it("reorders roots and keeps children with their parent", () => {
     const page = applyStep(fixture(), "c", { type: "position", projectId: "p", sectionId: "buy", parentId: null, beforeId: "g" });
     expect(page.groups.find((group) => group.sectionId === "plan")!.rootIds).toEqual(["a", "e"]);

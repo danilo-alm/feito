@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
-import { api, ApiFailure, errorMessage } from "@/client/api";
+import { api, ApiFailure } from "@/client/api";
 import { dateLabel } from "@/client/dates";
 import { useQuery } from "@/client/store";
+import { completeTask, duplicateTask, editTask, removeTask, reopenTask, undoTask } from "@/client/task-mutations";
 import type { Priority, ProjectPage, TaskItem } from "@/client/types";
 import { useApp } from "./app";
 import { IconCheck, IconInbox, IconSearch } from "./icons";
@@ -10,17 +11,13 @@ import { ProjectGlyph } from "./project-style";
 import { Collapse } from "./motion";
 import { Dialog, useToast } from "./ui";
 
-type Movable = Pick<TaskItem, "id" | "revision" | "title" | "projectId" | "sectionId" | "parentId" | "status">;
-
 export function useTaskActions() {
   const app = useApp();
   const toast = useToast();
-  const [moving, setMoving] = useState<Movable | null>(null);
+  const [moving, setMoving] = useState<TaskItem | null>(null);
 
   const complete = useCallback(async (task: TaskItem) => {
-    const attempt = (includeChildren?: boolean) => api.tasks.complete(task.id, {
-      revision: task.revision, occurrenceId: task.occurrenceId ?? undefined, includeChildren,
-    });
+    const attempt = (includeChildren?: boolean) => completeTask(app.taskContext, task, includeChildren);
     await app.run(async () => {
       try {
         return await attempt();
@@ -38,7 +35,7 @@ export function useTaskActions() {
     }, {
       success: (result) => {
         if (!result) return "";
-        const message = task.recurrence && result.task.status === "active" && result.task.dueDate
+        const message = result.previous.recurrence && result.task.status === "active" && result.task.dueDate
           ? `Concluída · próxima em ${dateLabel(result.task.dueDate, app.reference).toLowerCase()}`
           : result.completedChildIds.length
             ? `Concluída com ${result.completedChildIds.length} subtarefa(s)`
@@ -49,9 +46,9 @@ export function useTaskActions() {
           action: {
             label: "Desfazer",
             onClick: () => {
-              void app.run(() => api.tasks.undoCompletion(task.id, {
+              void app.run(() => undoTask(app.taskContext, result.previous, {
                 revision: result.task.revision,
-                occurrenceId: task.occurrenceId ?? undefined,
+                occurrenceId: result.previous.occurrenceId ?? undefined,
                 completedChildIds: result.completedChildIds,
               }), { success: "Conclusão desfeita" });
             },
@@ -62,7 +59,7 @@ export function useTaskActions() {
   }, [app]);
 
   const reopen = useCallback(async (task: TaskItem) => {
-    await app.run(() => api.tasks.reopen(task.id, task.revision), {
+    await app.run(() => reopenTask(app.taskContext, task), {
       success: (result) => (result.reopenedParentId ? "Tarefa e tarefas-pai reabertas" : "Tarefa reaberta"),
     });
   }, [app]);
@@ -80,7 +77,7 @@ export function useTaskActions() {
       danger: true,
     });
     if (!ok) return false;
-    const done = await app.run(() => api.tasks.remove(task.id, task.revision, children > 0).then(() => true), { success: "Tarefa excluída" });
+    const done = await app.run(() => removeTask(app.taskContext, task).then(() => true), { success: "Tarefa excluída" });
     return !!done;
   }, [app]);
 
@@ -89,51 +86,31 @@ export function useTaskActions() {
       toast("Para tirar a data de uma recorrente, remova a repetição no detalhe.", { bad: true });
       return;
     }
-    await app.run(() => api.tasks.edit(task.id, {
-      revision: task.revision, dueDate, ...(dueTime !== undefined ? { dueTime } : {}),
+    await app.run(() => editTask(app.taskContext, task, {
+      dueDate, ...(dueTime !== undefined ? { dueTime } : {}),
     }), { success: dueDate ? `Agendada para ${dateLabel(dueDate, app.reference).toLowerCase()}` : "Data removida" });
   }, [app, toast]);
 
   const setPriority = useCallback(async (task: TaskItem, priority: Priority) => {
     if (priority === task.priority) return;
-    await app.run(() => api.tasks.edit(task.id, { revision: task.revision, priority }), {
+    await app.run(() => editTask(app.taskContext, task, { priority }), {
       success: priority < 4 ? `Prioridade ${priority}` : "Prioridade removida",
     });
   }, [app]);
 
   /** Cria uma cópia (sem subtarefas) logo abaixo da original. */
   const duplicate = useCallback(async (task: TaskItem) => {
-    await app.run(async () => {
-      const source = await api.tasks.get(task.id);
-      const copy = await api.tasks.create({
-        title: source.title,
-        description: source.description || undefined,
-        ...(source.parentId ? { parentId: source.parentId } : { projectId: source.projectId, sectionId: source.sectionId }),
-        priority: source.priority,
-        dueDate: source.dueDate,
-        dueTime: source.dueTime,
-        labelIds: source.labels.map((label) => label.id),
-        recurrence: source.recurrenceRule
-          ? { frequency: source.recurrenceRule.frequency, anchorDate: source.dueDate ?? source.recurrenceRule.anchorDate, time: source.recurrenceRule.time }
-          : undefined,
-      });
-      // Logo abaixo da original; com ordenação automática o servidor recusa a posição e a cópia fica no fim.
-      await api.tasks.move(copy.id, copy.revision, {
-        type: "position", projectId: source.projectId, sectionId: source.sectionId, parentId: source.parentId, afterId: source.id,
-      }).catch(() => undefined);
-      return copy;
-    }, { success: "Tarefa duplicada" });
+    await app.run(() => duplicateTask(app.taskContext, task), { success: "Tarefa duplicada" });
   }, [app]);
 
-  const openMove = useCallback((task: Movable) => setMoving(task), []);
+  const openMove = useCallback((task: TaskItem) => setMoving(task), []);
   const moveDialog = <MoveDialog task={moving} onClose={() => setMoving(null)} />;
 
   return { complete, reopen, toggle, remove, reschedule, setPriority, duplicate, openMove, moveDialog };
 }
 
-function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => void }) {
+function MoveDialog({ task, onClose }: { task: TaskItem | null; onClose: () => void }) {
   const app = useApp();
-  const toast = useToast();
   const [filter, setFilter] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -152,16 +129,11 @@ function MoveDialog({ task, onClose }: { task: Movable | null; onClose: () => vo
       return;
     }
     setBusy(true);
-    try {
-      await api.tasks.edit(task.id, { revision: task.revision, destination: { projectId, sectionId } });
-      toast(`Movida para ${label}`);
-      onClose();
-    } catch (error) {
-      toast(errorMessage(error), { bad: true });
-    } finally {
-      setBusy(false);
-      void app.refresh();
-    }
+    const saved = await app.run(() => editTask(app.taskContext, task, { destination: { projectId, sectionId } }), {
+      success: `Movida para ${label}`,
+    });
+    setBusy(false);
+    if (saved) onClose();
   };
 
   return (

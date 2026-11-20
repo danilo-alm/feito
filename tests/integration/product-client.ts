@@ -20,6 +20,7 @@ import * as section from "@/app/api/v1/sections/[id]/route";
 import * as moveSectionRoute from "@/app/api/v1/sections/[id]/move/route";
 import * as tasks from "@/app/api/v1/tasks/route";
 import * as task from "@/app/api/v1/tasks/[id]/route";
+import * as duplicate from "@/app/api/v1/tasks/[id]/duplicate/route";
 import * as complete from "@/app/api/v1/tasks/[id]/complete/route";
 import * as undoCompletion from "@/app/api/v1/tasks/[id]/undo-completion/route";
 import * as reopen from "@/app/api/v1/tasks/[id]/reopen/route";
@@ -66,6 +67,7 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "/sections/:id/move": moveSectionRoute,
   "/tasks": tasks,
   "/tasks/:id": task,
+  "/tasks/:id/duplicate": duplicate,
   "/tasks/:id/complete": complete,
   "/tasks/:id/undo-completion": undoCompletion,
   "/tasks/:id/reopen": reopen,

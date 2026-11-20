@@ -63,7 +63,7 @@ describe("compose.prod.tunnel.yaml", () => {
     return spawnSync(
       "docker",
       ["compose", "-f", composeFile, "--env-file", envFile, "--profile", "tools", "config", "--format", "json"],
-      { encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? directory } },
+      { encoding: "utf8", env: { NODE_ENV: "test", PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? directory } },
     );
   }
 

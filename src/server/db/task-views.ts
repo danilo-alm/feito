@@ -1,6 +1,6 @@
 import "server-only";
 import { and, asc, eq, exists, gt, inArray } from "drizzle-orm";
-import type { Product, Project, Task } from "@/domain/product";
+import { isActive, type Product, type Project, type Task } from "@/domain/product";
 import { notFound } from "@/server/errors";
 import { logger } from "@/server/logger";
 import type { Transaction } from "./client";
@@ -19,8 +19,10 @@ type Scope = {
   projectId?: string;
   labelId?: string;
   skipTasks?: boolean;
-  operation: "today" | "upcoming" | "search";
-};
+} & (
+  | { operation: "today" | "upcoming" | "search" }
+  | { operation: "label"; labelId: string; page: { after: () => string | undefined; limit: number } }
+);
 type ViewContext = Awaited<ReturnType<typeof readCalendar>>;
 type ReadTask = (row: typeof tasks.$inferSelect) => Promise<Task>;
 
@@ -49,9 +51,13 @@ async function activeProjects(tx: Transaction, reader: ProductReader, projectId?
   return active;
 }
 
-async function scanCandidates(tx: Transaction, decrypt: ReadTask, projectIds: string[], labelId?: string) {
+async function scanCandidates(tx: Transaction, decrypt: ReadTask, projectIds: string[], scope: Scope) {
+  const { labelId } = scope;
+  const page = scope.operation === "label" ? scope.page : undefined;
+  // Status is encrypted. Keep a useful batch even when the page is tiny and
+  // many of the candidates have already been completed.
+  const batchSize = page ? Math.min(BATCH_SIZE, Math.max(128, page.limit)) : BATCH_SIZE;
   const result = new Map<string, Task>();
-  if (!projectIds.length) return result;
 
   // Task and label relationships are structural. Dates, text and status are
   // evaluated only after the authorized candidates have been decrypted.
@@ -60,14 +66,20 @@ async function scanCandidates(tx: Transaction, decrypt: ReadTask, projectIds: st
       eq(taskLabels.tenantId, tasks.tenantId), eq(taskLabels.taskId, tasks.id), eq(taskLabels.labelId, labelId),
     )),
   ) : undefined;
-  const scope = inArray(tasks.projectId, projectIds);
-  let after: string | undefined;
+  const projectsFilter = inArray(tasks.projectId, projectIds);
+  let after = page?.after();
+  if (!projectIds.length) return result;
   for (;;) {
     const rows: (typeof tasks.$inferSelect)[] = await tx.select().from(tasks)
-      .where(and(scope, labelFilter, after ? gt(tasks.id, after) : undefined))
-      .orderBy(asc(tasks.id)).limit(BATCH_SIZE);
-    for (const row of rows) result.set(row.id, await decrypt(row));
-    if (rows.length < BATCH_SIZE) return result;
+      .where(and(projectsFilter, labelFilter, after ? gt(tasks.id, after) : undefined))
+      .orderBy(asc(tasks.id)).limit(batchSize);
+    for (const row of rows) {
+      const task = await decrypt(row);
+      if (page && !isActive(task)) continue;
+      result.set(row.id, task);
+      if (page && result.size === page.limit) return result;
+    }
+    if (rows.length < batchSize) return result;
     after = rows.at(-1)!.id;
   }
 }
@@ -138,7 +150,7 @@ export async function readTaskView<T>(access: ProductAccess, scope: Scope, run: 
       metrics.taskDecodeMs += performance.now() - decodeStart;
       return task;
     };
-    const candidates = await scanCandidates(tx, decrypt, [...active.keys()], scope.labelId);
+    const candidates = await scanCandidates(tx, decrypt, [...active.keys()], scope);
     metrics.taskCandidates = candidates.size;
     return run({
       ...calendar, candidates,

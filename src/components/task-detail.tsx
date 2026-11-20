@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, ApiFailure, errorMessage } from "@/client/api";
+import { api, ApiFailure } from "@/client/api";
 import { tagColor } from "@/client/colors";
 import { dateLabel, dayOfMonth, dueTone, FREQUENCY_LABEL } from "@/client/dates";
-import { getQueryData, useQuery } from "@/client/store";
+import { useQuery } from "@/client/store";
+import { editTask } from "@/client/task-mutations";
 import type { EditTask, Frequency, Label, TaskDetail as Detail } from "@/client/types";
-import { refreshAll, useApp, type TaskSelection } from "./app";
+import { useApp, type TaskSelection } from "./app";
 import {
   DueIcon, IconChevronDown, IconChevronUp, IconClock, IconCopy, IconExternal, IconFlag, IconInbox, IconLink,
   IconMore, IconPlus, IconRepeat, IconTag, IconTrash, IconX,
@@ -67,54 +68,20 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
     ? { name: "Caixa de entrada", inbox: true }
     : { name: app.nav?.projects.find((item) => item.id === task.projectId)?.name ?? "Projeto arquivado", inbox: false });
 
-  // Salvamentos em fila: cada edição usa a revisão devolvida pela anterior.
-  const editSession = useMemo(() => ({ queue: Promise.resolve() as Promise<unknown>, revision: null as number | null }), [taskId]);
-  useEffect(() => {
-    if (task && task.revision > (editSession.revision ?? 0)) editSession.revision = task.revision;
-  }, [task, editSession]);
-
-  const enqueue = (work: (current: number) => Promise<Detail>, success?: string) => {
-    if (!task) return Promise.resolve();
-    const run = async () => {
-      try {
-        const updated = await work(editSession.revision ?? task.revision);
-        editSession.revision = updated.revision;
-        query.mutate(() => updated);
-        if (success) toast(success);
-      } catch (error) {
-        if (error instanceof ApiFailure && error.code === "REVISION_CONFLICT") {
-          toast("A tarefa mudou em outra aba. Recarreguei a versão atual.", { bad: true });
-          editSession.revision = null;
-          await query.reload();
-        } else {
-          toast(errorMessage(error), { bad: true });
-        }
-      } finally {
-        void refreshAll();
-      }
-    };
-    editSession.queue = editSession.queue.then(run, run);
-    return editSession.queue;
-  };
-
-  const save = (patch: Omit<EditTask, "revision">, success?: string) =>
-    enqueue((current) => api.tasks.edit(task!.id, { revision: current, ...patch }), success);
+  const save = (patch: Omit<EditTask, "revision">, success?: string) => task
+    ? app.run(() => editTask(app.taskContext, task, patch), { success })
+    : Promise.resolve();
 
   const changeLabels = (update: (current: string[]) => string[]) => {
-    if (!task || !taskKey) return;
-    return enqueue((revision) => {
-      const latest = getQueryData<Detail>(taskKey) ?? task;
-      return api.tasks.edit(task.id, { revision, labelIds: update(latest.labels.map((label) => label.id)) });
-    });
+    if (task) return app.run(() => editTask(app.taskContext, task, update));
   };
 
   const setRepeat = (frequency: Frequency | null) => {
     if (!task) return;
     setPop(null);
-    return enqueue((current) => (frequency
-      ? api.tasks.setRecurrence(task.id, { revision: current, frequency, anchorDate: task.dueDate ?? app.reference, time: task.dueTime })
-      : api.tasks.clearRecurrence(task.id, current)),
-    frequency ? `Repete: ${FREQUENCY_LABEL[frequency].toLowerCase()}` : "Repetição removida");
+    return save({
+      recurrence: frequency ? { frequency, anchorDate: task.dueDate ?? app.reference, time: task.dueTime } : null,
+    }, frequency ? `Repete: ${FREQUENCY_LABEL[frequency].toLowerCase()}` : "Repetição removida");
   };
 
   const updateText = (field: TextField, value: string) => {
@@ -175,18 +142,14 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
           <button type="button" className="icon-btn" aria-label="Mostrar próxima tarefa" title="Mostrar próxima tarefa"
             disabled={!nextId} onClick={() => nextId && openRelatedTask(nextId, order)}><IconChevronDown /></button>
           {task && <MenuButton key={task.id} label="Ações da tarefa" items={() => [
-            { label: "Duplicar", icon: <IconCopy />, onSelect: async () => {
-              await editSession.queue;
-              await actions.duplicate(task);
-            } },
+            { label: "Duplicar", icon: <IconCopy />, onSelect: () => void actions.duplicate(task) },
             { label: "Copiar link para a tarefa", icon: <IconLink />, onSelect: () => void copyLink(task.id) },
             { label: "Abrir em nova janela", icon: <IconExternal />, onSelect: () => {
               window.open(taskLink(task.id), "_blank", "noopener,popup");
             } },
             "separator",
             { label: "Excluir", icon: <IconTrash />, danger: true, onSelect: async () => {
-              await editSession.queue;
-              const removed = await actions.remove({ ...task, revision: editSession.revision ?? task.revision });
+              const removed = await actions.remove(task);
               if (removed && currentTaskId.current === task.id) onClose();
             } },
           ]}><IconMore /></MenuButton>}
@@ -200,12 +163,12 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
               <div className="banner warn">
                 Tarefa concluída. Reabra para editar ou mover.
                 <button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
-                  onClick={async () => { await actions.reopen(task); await query.reload(); }}>Reabrir</button>
+                  onClick={() => void actions.reopen(task)}>Reabrir</button>
               </div>
             )}
             <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
               <div style={{ marginTop: 2 }}>
-                <Checkbox task={task} onToggle={async () => { await actions.toggle(task); await query.reload(); }} />
+                <Checkbox task={task} onToggle={() => actions.toggle(task)} />
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
                 <label htmlFor="detail-title" className="sr-only">Título</label>
@@ -225,7 +188,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
                 </div>
                 {task.children.map((child) => (
                   <div key={child.id} className={`task${child.status === "completed" ? " done-t" : ""}`} style={{ background: "transparent" }}>
-                    <Checkbox task={child} onToggle={async () => { await actions.toggle(child); await query.reload(); }} />
+                    <Checkbox task={child} onToggle={() => actions.toggle(child)} />
                     <TaskContent task={child} actions={actions} showDescription={false}
                       onOpen={(id) => openRelatedTask(id, task.children.map((item) => item.id))} />
                   </div>
@@ -320,7 +283,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
           <Popover anchor={anchors.current.priority ?? null} open={pop === "priority"} onClose={closePop} label="Prioridade">
             <PriorityMenu value={task.priority} onPick={(priority) => { closePop(); if (priority !== task.priority) void save({ priority }); }} />
           </Popover>
-          <Popover anchor={anchors.current.labels ?? null} open={pop === "labels"} onClose={() => { closePop(); void labelsQuery.reload(); }} label="Etiquetas">
+          <Popover anchor={anchors.current.labels ?? null} open={pop === "labels"} onClose={closePop} label="Etiquetas">
             <LabelPicker selected={task.labels.map((label) => label.id)} onChange={(update) => void changeLabels(update)} />
           </Popover>
         </>
