@@ -2,9 +2,9 @@
 #
 #   docker compose -f compose.dev.yaml --env-file "$FEITO_ENV" up --build
 #
-# O código do checkout é montado em /app; o Next.js (Turbopack) recompila a cada
-# alteração. node_modules fica num volume do contêiner, com binários para Linux:
-# depois de mudar package.json ou pnpm-lock.yaml, rode `up --build -V`.
+# O Next.js recompila alterações no web e nos pacotes compartilhados montados.
+# Os volumes de node_modules guardam os binários Linux da imagem. Depois de
+# mudar um manifesto ou pnpm-lock.yaml, rode `up --build -V`.
 name: feito-dev
 
 x-app-image: &app-image
@@ -13,9 +13,12 @@ x-app-image: &app-image
     target: dev
   image: feito:dev
   volumes:
-    - .:/app
-    - /app/node_modules
-    - next-dev:/app/.next
+    - ./apps/web:/app/apps/web
+    - ./packages:/app/packages
+    - /app/apps/web/node_modules
+    - /app/packages/core/node_modules
+    - /app/packages/ui/node_modules
+    - next-dev:/app/apps/web/.next
 
 x-runtime-env: &runtime-env
   FEITO_ORIGIN: ${FEITO_ORIGIN:-https://localhost:3000}

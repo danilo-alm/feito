@@ -1,0 +1,5 @@
+# Runners hospedados pelo GitHub que o actionlint local ainda não reconhece.
+self-hosted-runner:
+  labels:
+    - windows-11-arm
+    - macos-15-intel

@@ -2,6 +2,8 @@
 
 Feito é um app de tarefas pessoais que você hospeda na sua máquina ou no seu servidor. Capture tarefas na Caixa de entrada, planeje o que fazer em Hoje e Em breve e organize seus projetos em listas ou painéis. O app oferece subtarefas, etiquetas, prioridades e recorrência, além de importação do Todoist e exportação de dados. Os dados de tarefas e projetos são armazenados cifrados no PostgreSQL.
 
+O [Feito para desktop](apps/desktop/README.md) usa a mesma interface e pode funcionar localmente ou sincronizar com uma instalação web por HTTPS.
+
 ![Visão Hoje com tarefas do dia, atrasos, horários e prioridades](docs/screenshots/hoje.png)
 
 <details>
@@ -140,6 +142,17 @@ Para parar a instalação preservando os volumes do Docker:
 docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" down
 ```
 
+## Desenvolvimento
+
+Use Node.js 24 e pnpm 10. Para abrir a janela nativa, instale também Rust estável e os pré-requisitos do Tauri.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm dev:desktop
+```
+
+Para rodar o web, use `pnpm dev` com os serviços e o ambiente de teste descritos no guia de operação, ou `docker compose -f compose.dev.yaml --env-file "$FEITO_ENV" up --build`. `pnpm typecheck`, `pnpm test` e `pnpm build` verificam os dois frontends. Os instaladores são gerados com `pnpm --filter @feito/desktop tauri build`.
+
 ## Documentação
 
 - [Operação e manutenção](docs/03-operations.md)
@@ -147,3 +160,4 @@ docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" down
 - [API](docs/02-backend-endpoints.md)
 - [Movimento e interação](docs/04-motion-and-interaction.md)
 - [Marca](docs/05-brand.md)
+- [Migração do monorepo](docs/migracao-monorepo.md)

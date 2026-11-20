@@ -1,0 +1,199 @@
+name: Desktop CI and Release
+
+# Todos os PRs recebem os checks da matriz. Tags não usam filtros de caminho.
+on:
+  push:
+    branches: [main, dev]
+    tags: ['desktop-v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+          - label: Linux ARM64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+          - label: Windows x64
+            runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            bundles: msi,nsis
+          - label: Windows ARM64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            bundles: nsis
+          - label: macOS Intel
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: dmg
+          - label: macOS Apple Silicon
+            runner: macos-15
+            target: aarch64-apple-darwin
+            bundles: dmg
+
+    env:
+      RUST_TARGET: ${{ matrix.target }}
+      BUNDLES: ${{ matrix.bundles }}
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+
+    steps:
+      - name: Check out Feito
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Verify release version
+        if: github.ref_type == 'tag'
+        run: |
+          version="$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').version")"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$GITHUB_REF_NAME" != "desktop-v$version" ]]; then
+            echo "::error::A tag deve ser desktop-vX.Y.Z e coincidir com a versão em apps/desktop/src-tauri/tauri.conf.json."
+            exit 1
+          fi
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --target "$RUST_TARGET"
+          rustup default stable
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Install Linux build and packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential file libayatana-appindicator3-dev \
+            librsvg2-dev libssl-dev libwebkit2gtk-4.1-dev libxdo-dev patchelf xdg-utils
+
+      - name: Install frontend dependencies
+        run: pnpm --filter @feito/desktop... install --frozen-lockfile
+
+      - name: Check frontend and run tests
+        working-directory: apps/desktop
+        run: |
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Check Rust format and run tests
+        working-directory: apps/desktop
+        run: |
+          cargo fmt --check --manifest-path src-tauri/Cargo.toml
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --target "$RUST_TARGET"
+
+      - name: Build and package the app
+        working-directory: apps/desktop
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: pnpm tauri build --ci --target "$RUST_TARGET" --bundles "$BUNDLES" -- --locked
+
+      - name: Collect installers
+        run: |
+          mkdir -p installers
+          bundle_dir="apps/desktop/src-tauri/target/$RUST_TARGET/release/bundle"
+          IFS=, read -ra bundles <<< "$BUNDLES"
+          for bundle in "${bundles[@]}"; do
+            case "$bundle" in
+              appimage) extension=AppImage ;;
+              nsis) extension=exe ;;
+              *) extension="$bundle" ;;
+            esac
+            cp "$bundle_dir/$bundle/"*."$extension" installers/
+          done
+
+      - name: Save installers
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installers-${{ matrix.target }}
+          path: installers/
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+
+  publish:
+    name: Publish GitHub Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download installers
+        uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: installers-*
+          path: installers
+
+      - name: Publish all installers from the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          artifacts=()
+          collect() {
+            local target="$1" extension
+            shift
+            for extension in "$@"; do
+              local files=(installers/"installers-$target"/*."$extension")
+              if [[ "${#files[@]}" -ne 1 ]]; then
+                echo "::error::Esperado um instalador .$extension para $target."
+                return 1
+              fi
+              artifacts+=("${files[0]}")
+            done
+          }
+          collect x86_64-unknown-linux-gnu deb rpm AppImage
+          collect aarch64-unknown-linux-gnu deb rpm AppImage
+          collect x86_64-pc-windows-msvc msi exe
+          collect aarch64-pc-windows-msvc exe
+          collect x86_64-apple-darwin dmg
+          collect aarch64-apple-darwin dmg
+
+          if status="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"; then
+            if [[ "$status" == false ]]; then
+              echo "A release $GITHUB_REF_NAME já está publicada."
+              exit 0
+            fi
+            gh release upload "$GITHUB_REF_NAME" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+          else
+            gh release create "$GITHUB_REF_NAME" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" \
+              --verify-tag --title "Feito Desktop v${GITHUB_REF_NAME#desktop-v}" --generate-notes
+          fi

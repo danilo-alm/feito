@@ -60,7 +60,7 @@ services:
     volumes: [*postgres-ca]
     read_only: true
     tmpfs:
-      - /app/.next/cache:uid=1000,gid=1000
+      - /app/apps/web/.next/cache:uid=1000,gid=1000
       - /tmp
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]

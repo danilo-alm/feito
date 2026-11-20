@@ -21,28 +21,30 @@ RUN corepack enable && corepack install
 # Todas as dependências (inclui devDependencies: drizzle-kit, tsx, typescript).
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/web/package.json apps/web/
+COPY packages/core/package.json packages/core/
+COPY packages/ui/package.json packages/ui/
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
 # ---------------------------------------------------------------------------
-# Desenvolvimento: o código chega por bind mount; node_modules fica na imagem
-# (binários nativos do Linux, como @node-rs/argon2, não podem vir do macOS).
-FROM deps AS dev
-ENV NODE_ENV=development
-EXPOSE 3000
-CMD ["pnpm", "exec", "next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
-
-# ---------------------------------------------------------------------------
-# Ferramentas operacionais: código completo + devDependencies.
+# Ferramentas operacionais: código web e pacotes comuns com as devDependencies.
 FROM deps AS tools
-COPY . .
+COPY apps/web/ apps/web/
+COPY packages/ packages/
 CMD ["pnpm", "db:migrate"]
 
 # ---------------------------------------------------------------------------
-FROM deps AS build
+# Desenvolvimento: código montado do host e dependências Linux da imagem.
+FROM tools AS dev
+ENV NODE_ENV=development
+EXPOSE 3000
+CMD ["pnpm", "--filter", "@feito/web", "exec", "next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
+
+# ---------------------------------------------------------------------------
+FROM tools AS build
 ENV NODE_ENV=production
-COPY . .
-RUN pnpm build
+RUN pnpm --filter @feito/web build
 
 # ---------------------------------------------------------------------------
 # Produção: apenas o servidor standalone rastreado pelo Next.js.
@@ -52,10 +54,10 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000
 WORKDIR /app
-COPY --from=build --chown=node:node /app/.next/standalone ./
-COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/apps/web/.next/standalone ./
+COPY --from=build --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
-CMD ["node", "server.js"]
+CMD ["node", "apps/web/server.js"]

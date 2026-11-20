@@ -4,23 +4,25 @@
 
 O Feito é um aplicativo web de tarefas pessoais para auto-hospedagem. A interface em português do Brasil reúne Caixa de entrada, Hoje, Em breve, projetos em Lista e Painel, subtarefas, etiquetas, busca, recorrência e importação e exportação. O cadastro é fechado e cada conta tem seu próprio tenant no banco.
 
+O monorepo reúne o web em [apps/web](apps/web) e o desktop Tauri em [apps/desktop](apps/desktop). O desktop funciona com um espaço local ou sincroniza com uma instalação Feito por HTTPS. Os pacotes [@feito/core](packages/core) e [@feito/ui](packages/ui) são a fonte comum. Leia o [AGENTS.md do desktop](apps/desktop/AGENTS.md) ao trabalhar em Tauri ou nos espaços.
+
 Use **Node.js 24**, **pnpm 10** e **PostgreSQL 18**. O app usa Next.js App Router, React e TypeScript. A API usa Zod, Better Auth e Drizzle, com criptografia de envelope no servidor. Os testes usam Vitest e Playwright. Consulte `package.json`, `.node-version` e `pnpm-lock.yaml` para as versões adotadas.
 
 ## Onde trabalhar
 
 | Área | Caminho |
 | --- | --- |
-| Telas e navegação | [`src/app/(app)/`](src/app/(app)/), [`src/components/`](src/components/) |
-| Estilos, componentes comuns e animação | [`globals.css`](src/app/globals.css), [`ui.tsx`](src/components/ui.tsx), [`motion.tsx`](src/components/motion.tsx) |
-| Cliente HTTP, tipos, cache e mutações otimistas | [`src/client/`](src/client/) |
-| Regras puras de agenda, recorrência e hierarquia | [`src/domain/`](src/domain/) |
-| Rotas HTTP, validação e casos de uso | [`src/app/api/`](src/app/api/), [`src/validation/`](src/validation/), [`src/server/services/`](src/server/services/) |
-| Sessão, criptografia, persistência e migrações | [`src/server/`](src/server/), [`drizzle/`](drizzle/) |
-| Testes, configuração de CI e ferramentas administrativas | [`tests/`](tests/), [`ci.yaml`](.github/workflows/ci.yaml), [`scripts/`](scripts/) |
+| Telas e navegação | [Rotas web](apps/web/src/app), [telas compartilhadas](packages/ui/src/screens), [entrada desktop](apps/desktop/src/main.tsx) |
+| Estilos, componentes e animação | [globals.css](packages/ui/src/globals.css), [ui.tsx](packages/ui/src/components/ui.tsx), [motion.tsx](packages/ui/src/components/motion.tsx) |
+| Cliente HTTP, cache e mutações otimistas | [Cliente compartilhado](packages/ui/src/client), [tipos compartilhados](packages/core/src/types.ts) |
+| Agenda, recorrência e hierarquia | [Domínio](packages/core/src/domain), [validação](packages/core/src/validation), [serviços de produto](packages/core/src/product) |
+| Rotas HTTP, sessão, criptografia e persistência web | [API](apps/web/src/app/api), [servidor](apps/web/src/server), [migrações](apps/web/drizzle) |
+| Testes, CI e ferramentas administrativas | [Testes web](apps/web/tests), [CI web](.github/workflows/web.yml), [CI desktop](.github/workflows/desktop.yml), [scripts](scripts) |
 
 - Antes de editar, siga o fluxo desde a tela ou rota até a implementação e os testes. Reaproveite os componentes, regras e contratos existentes. Quando a documentação histórica divergir da implementação, confirme o comportamento atual no código e nos testes.
 - Mantenha a mudança no escopo pedido e preserve alterações já presentes no checkout. Prefira código simples, tipos precisos e nomes claros. Justifique dependências novas com uma necessidade concreta.
 - Preserve compatibilidade com consumidores da API e dados já gravados. Quando alterar um contrato, ajuste os tipos, os chamadores, os testes e a documentação correspondente.
+- Ao alterar módulos compartilhados, confira os adaptadores e testes dos dois apps. As dependências seguem de apps/web e apps/desktop para @feito/ui e @feito/core, e de @feito/ui para @feito/core. A navegação, persistência e geração de IDs entram pelos adaptadores. Confirme as rotas `/api/v1/desktop-sync` e `/api/v1/product-events` e as migrações ao validar uma instalação integrada.
 
 ## Frontend
 
@@ -28,17 +30,17 @@ Use **Node.js 24**, **pnpm 10** e **PostgreSQL 18**. O app usa Next.js App Route
 - Para mudanças visuais ou de interação, confira a tela em um navegador nas larguras de desktop e celular. Considere os temas claro e escuro, navegação por teclado e por toque e movimento reduzido. Preserve o conteúdo e a ordem de foco em transições e reordenações.
 - Use controles semânticos com nomes acessíveis e foco visível. Preserve o foco inicial e o retorno do foco em diálogos e menus. Mantenha alternativas por teclado ou menu para ações de arraste.
 - Represente estados relevantes de carregamento, vazio, erro e nova tentativa. Durante uma atualização, preserve dados e campos em edição que ainda sejam válidos. Trate respostas fora de ordem, mudanças de rota e ações simultâneas.
-- Use `src/client/api.ts` e `src/client/store.ts` para conversar com a API e atualizar as leituras. Mutações de tarefa passam por `task-mutations.ts` e `task-projections.ts`. Aplique a previsão local, envie a gravação, reconcilie pela resposta oficial e reverta apenas a ação que falhou. Preserve a sequência de revisões quando houver dependência entre ações.
+- Use `packages/ui/src/client/api.ts` e `packages/ui/src/client/store.ts` para conversar com a API e atualizar as leituras. Mutações de tarefa passam por `task-mutations.ts` e `task-projections.ts`. Aplique a previsão local, envie a gravação, reconcilie pela resposta oficial e reverta apenas a ação que falhou. Preserve a sequência de revisões quando houver dependência entre ações.
 - Ao alterar tarefas, confira as projeções realmente afetadas, inclusive subtarefas, ordem, contagens, etiquetas, busca e agenda. Prefira aplicar a resposta canônica a disparar uma invalidação global. A previsão do navegador complementa os controles do servidor. Grave cada ação pela API e mantenha IDs temporários, rascunhos e dados do cache na memória do navegador.
 - Use o vocabulário das telas existentes e os helpers de datas. Trate vencimento como data civil `YYYY-MM-DD`, horário como hora local e conclusão como instante. Use o `referenceDate` e o fuso da conta quando a regra depender de Hoje, atrasos ou recorrência. [Movimento e interação](docs/04-motion-and-interaction.md) · [Marca](docs/05-brand.md)
 
 ## API, dados e segurança
 
-- Mantenha os Route Handlers finos. Valide corpo, parâmetros e query com os esquemas Zod, use os helpers de `src/server/http/` para autenticação, origem e erros, e concentre as regras de negócio nos serviços. Mantenha módulos sensíveis com `server-only`.
+- Mantenha os Route Handlers finos. Valide corpo, parâmetros e query com os esquemas Zod, use os helpers de `apps/web/src/server/http/` para autenticação, origem e erros, e concentre as regras de negócio nos serviços. Mantenha módulos sensíveis com `server-only`.
 - Em rotas privadas, derive o tenant da sessão validada. Use a transação criada por `withTenant` nas consultas do domínio e preserve o isolamento por RLS. Recursos de outro tenant devem se comportar como ausentes. Em compartilhamentos públicos, use o fluxo por token e exponha somente os campos permitidos pelo DTO público.
 - Preserve a validação de `Origin` nas rotas privadas que usam métodos de escrita, as restrições de senha provisória, os cookies seguros e `Cache-Control: private, no-store` nas respostas da API. Use DTOs explícitos e mantenha texto de busca e outros dados pessoais fora da URL e dos logs.
 - Faça mudanças relacionadas na mesma transação. Verifique a `revision` das entidades quando o contrato exigir e avance `productRevision` na transação de qualquer gravação que altere as projeções do produto. Considere concorrência, rollback e repetição de requisições. Preserve a idempotência dos fluxos que já a oferecem, como conclusão recorrente e importação.
-- Preserve criptografia de envelope, isolamento das chaves por conta, verificação de integridade dos payloads e orçamento de uso das chaves. Use as funções existentes de leitura, escrita e rotação. Em mudanças de esquema ou privilégios, use `pnpm db:generate` para acrescentar uma migração em `drizzle/`. Valide tanto a instalação nova quanto a atualização quando aplicável, com as roles reais de execução e permissões mínimas.
+- Preserve criptografia de envelope, isolamento das chaves por conta, verificação de integridade dos payloads e orçamento de uso das chaves. Use as funções existentes de leitura, escrita e rotação. Em mudanças de esquema ou privilégios, use `pnpm db:generate` para acrescentar uma migração em `apps/web/drizzle/`. Valide tanto a instalação nova quanto a atualização quando aplicável, com as roles reais de execução e permissões mínimas.
 - Mantenha segredos e dados pessoais fora do Git, do bundle, dos logs e das métricas. Guarde arquivos de ambiente e chaves em diretórios privados fora do checkout. Separe as credenciais de domínio, autenticação, migração e administração. [Arquitetura e isolamento](docs/01-architecture-and-stack.md) · [Contrato HTTP](docs/02-backend-endpoints.md)
 
 ## Leituras e desempenho
@@ -49,7 +51,7 @@ Use **Node.js 24**, **pnpm 10** e **PostgreSQL 18**. O app usa Next.js App Route
 
 ## Desenvolvimento e operação
 
-- Instale dependências com `pnpm install --frozen-lockfile`. Para desenvolvimento local, use `compose.dev.yaml` ou `pnpm dev` com HTTPS e `FEITO_ORIGIN` igual à origem acessada pelo navegador. `scripts/new-env.sh` gera um arquivo privado de ambiente.
+- Na raiz, instale dependências com `pnpm install --frozen-lockfile`. Use `pnpm dev:desktop` para o desktop. Para desenvolvimento local, use `compose.dev.yaml` ou `pnpm dev` com HTTPS e `FEITO_ORIGIN` igual à origem acessada pelo navegador. `scripts/new-env.sh` gera um arquivo privado de ambiente.
 - A produção usa a saída standalone do Next.js. `compose.prod.yaml` usa Caddy e PostgreSQL interno. `compose.prod.tunnel.yaml` usa PostgreSQL externo com TLS verificado, e o `cloudflared` encaminha para `http://app:3000` na rede do Compose. As migrações rodam antes do app. Use `GET /api/health` para verificar a saúde da instalação.
 - Use um banco descartável e credenciais próprias para desenvolvimento e testes. O `compose.yaml` sobe apenas o PostgreSQL. Consulte a documentação de backup, restauração e rotação antes de alterações que afetem instalações existentes. [Instalação](README.md) · [Operação e manutenção](docs/03-operations.md)
 
@@ -62,8 +64,8 @@ Use **Node.js 24**, **pnpm 10** e **PostgreSQL 18**. O app usa Next.js App Route
 
 | Comando | Quando usar |
 | --- | --- |
-| `pnpm test` | Testes unitários de regras, componentes de estado e helpers. |
+| `pnpm test` | Testes unitários do web e do desktop. |
 | `pnpm test:integration` | Contratos HTTP, isolamento, persistência, concorrência e migrações. Use PostgreSQL 18 descartável e aplique `pnpm db:migrate` antes. |
-| `pnpm test:e2e` | Fluxos em Chromium, nos perfis desktop e celular, com build e servidor HTTPS de teste. [Configuração do Playwright](tests/e2e/README.md) |
+| `pnpm test:e2e` | Fluxos em Chromium, nos perfis desktop e celular, com build e servidor HTTPS de teste. [Configuração do Playwright](apps/web/tests/e2e/README.md) |
 | `pnpm test:coverage` | Testes unitários e de integração com cobertura, como no CI. |
-| `pnpm typecheck` e `pnpm build` | Tipos, rotas geradas, limites entre cliente e servidor e build de produção. |
+| `pnpm typecheck` e `pnpm build` | Tipos e builds dos dois frontends, incluindo rotas geradas e limites entre cliente e servidor. |

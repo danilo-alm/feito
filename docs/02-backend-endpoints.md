@@ -532,6 +532,12 @@ O diário guarda referências às entidades afetadas nas últimas 512 revisões.
 
 Edições de tarefa e preferências recebem ordenação por campo ou grupo de campos. Em um empate de milissegundo, o site prevalece sobre o desktop e dois dispositivos desktop são ordenados pelo UUID da operação. Horários mais de cinco minutos adiantados são recusados. Exclusões não são revertidas por edições pendentes. Revisões das entidades ainda protegem operações estruturais de projeto, seção e etiqueta. A recorrência confirma a ocorrência específica e usa a data civil do instante da ação no fuso da conta para calcular a próxima.
 
+### 3.13 Avisos de revisão
+
+`GET /api/v1/product-events` usa a sessão da conta e responde com `text/event-stream`. O evento `revision` contém o número da revisão atual na abertura e quando ela muda após uma gravação confirmada. Uma conexão pode agrupar várias alterações em um único aviso. O site refaz as consultas visíveis e o desktop usa o cursor salvo em `/api/v1/desktop-sync`.
+
+A resposta envia comentários de keepalive a cada 15 segundos e é renovada após cinco minutos. Ao reconectar, o cliente recebe a revisão atual para recuperar mudanças feitas durante a interrupção. Se o canal estiver indisponível, as consultas periódicas continuam funcionando.
+
 ## 4. Comandos administrativos
 
 A administração de contas não tem rota HTTP no MVP. Implementar como comandos locais (por exemplo, `pnpm admin <comando>`) que usam o mesmo serviço de identidade e registram quem executou, a conta, o momento e o resultado.

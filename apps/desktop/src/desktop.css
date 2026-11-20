@@ -1,0 +1,58 @@
+:root {
+  --font-inter: "Inter Variable";
+  --font-brand: "Inter Tight";
+}
+
+.desktop-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Formulário de conexão dentro do grupo Espaços de trabalho. */
+.set-form {
+  display: grid;
+  gap: 14px;
+  padding: 4px 16px 18px 62px;
+}
+
+.set-form-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 599px) {
+  .set-form {
+    padding-inline-start: 16px;
+  }
+}
+
+.desktop-sync-status {
+  position: fixed;
+  z-index: 3;
+  inset-inline-end: 16px;
+  inset-block-end: 16px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+}
+
+@media (max-width: 899px) {
+  .desktop-sync-status {
+    inset-block-end: calc(66px + env(safe-area-inset-bottom));
+  }
+}
+
+.desktop-space-start {
+  display: grid;
+  gap: 16px;
+  max-width: 560px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
