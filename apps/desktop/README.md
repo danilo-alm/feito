@@ -46,7 +46,7 @@ Na raiz, rode `pnpm --filter @feito/web exec playwright test -c playwright.deskt
 
 ## CI e releases
 
-O GitHub Actions testa e empacota o desktop em pull requests, pushes para `main` e `dev` e tags de versão. Os instaladores também ficam disponíveis como artefatos da execução.
+O GitHub Actions roda os checks do desktop em pull requests, pushes para `main` e `dev`, pushes de tags de versão e execuções manuais. O empacotamento roda em pushes de tags `vX.Y.Z` e em execuções manuais. Para testar o empacotamento, abra **Actions → Desktop CI and Release → Run workflow**. Os instaladores ficam disponíveis como artefatos da execução.
 
 | Plataforma | Arquitetura | Pacotes |
 | --- | --- | --- |
@@ -57,6 +57,6 @@ O GitHub Actions testa e empacota o desktop em pull requests, pushes para `main`
 
 Envie uma tag `vX.Y.Z` que corresponda ao campo `version` de `src-tauri/tauri.conf.json`. A mesma tag publica as imagens Docker versionadas da web. [Passo a passo de release](../../docs/03-operations.md#releases)
 
-A release é publicada no GitHub quando todos os jobs terminam e os 11 instaladores estão disponíveis. Os pacotes macOS usam assinatura local (ad hoc), sem notarização da Apple. Os instaladores Windows não têm assinatura de distribuição.
+Somente o push da tag publica a release no GitHub, depois que os seis alvos geram os 11 instaladores. Os pacotes macOS usam assinatura local (ad hoc), sem notarização da Apple. Os instaladores Windows não têm assinatura de distribuição.
 
 [Guia de implementação](docs/tauri-implementation-guide.md)

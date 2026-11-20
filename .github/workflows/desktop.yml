@@ -1,6 +1,6 @@
 name: Desktop CI and Release
 
-# Todos os PRs recebem os checks da matriz. Tags não usam filtros de caminho.
+# Todos os PRs recebem os checks da matriz. Tags e execuções manuais geram instaladores.
 on:
   push:
     branches: [main, dev]
@@ -112,6 +112,7 @@ jobs:
           cargo test --locked --manifest-path src-tauri/Cargo.toml --target "$RUST_TARGET"
 
       - name: Build and package the app
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         working-directory: apps/desktop
         env:
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
@@ -119,6 +120,7 @@ jobs:
         run: pnpm tauri build --ci --target "$RUST_TARGET" --bundles "$BUNDLES" -- --locked
 
       - name: Collect installers
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         run: |
           mkdir -p installers
           bundle_dir="apps/desktop/src-tauri/target/$RUST_TARGET/release/bundle"
@@ -133,6 +135,7 @@ jobs:
           done
 
       - name: Save installers
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7.0.2
         with:
           name: installers-${{ matrix.target }}

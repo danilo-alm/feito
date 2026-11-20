@@ -58,7 +58,7 @@ Use **Node.js 24**, **pnpm 10** e **PostgreSQL 18**. O app usa Next.js App Route
 ## CI e distribuição
 
 - O [workflow web](.github/workflows/web.yml) verifica tipos, build, Compose, testes unitários e de integração com PostgreSQL 18, e Playwright em HTTPS. Publica as imagens web e de ferramentas no GHCR após as verificações. Em pushes para `main` e `dev`, usa as tags de imagem `latest` e `dev`, respectivamente. Em pushes de tags `vX.Y.Z`, publica as imagens com a versão `X.Y.Z`.
-- O [workflow desktop](.github/workflows/desktop.yml) verifica TypeScript e Rust, gera pacotes nativos em seis alvos e guarda os instaladores nos artefatos da execução. Em pushes de tags `vX.Y.Z`, publica os 11 instaladores no GitHub Releases após a matriz passar. [Matriz de instaladores](apps/desktop/README.md#ci-e-releases)
+- O [workflow desktop](.github/workflows/desktop.yml) verifica TypeScript e Rust em seis alvos. Pushes de tags `vX.Y.Z` e execuções manuais geram os 11 instaladores e os guardam nos artefatos da execução. Pushes dessas tags também publicam os instaladores no GitHub Releases após a matriz passar. [Matriz de instaladores](apps/desktop/README.md#ci-e-releases)
 - Os dois workflows verificam pull requests e pushes para `main` e `dev`, inclusive alterações nos pacotes compartilhados. Para uma release oficial, ambos usam a mesma tag, que deve corresponder à versão em `apps/desktop/src-tauri/tauri.conf.json`. [Instruções de release](docs/03-operations.md#releases)
 
 ## Testes
