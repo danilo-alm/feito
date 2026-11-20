@@ -136,6 +136,15 @@ docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" up -d --wai
 
 O serviço `migrate` aplica as migrações no banco externo antes de iniciar o app. Para criar contas e operar as chaves, use os comandos da seção a seguir com `compose.prod.external.yaml`.
 
+Se o app não subir, confira o estado e os logs do migrador:
+
+```sh
+docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" ps -a migrate
+docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" logs --no-color migrate
+```
+
+O migrador informa se a falha ocorreu na conexão ou na aplicação das migrações e registra o código do erro quando disponível. A conexão inicial tem limite de 10 segundos. No Supabase, as tabelas do Feito ficam nos schemas `domain`, `identity` e `crypto_ops`.
+
 ### CLIs
 
 O serviço `cli` pertence ao perfil `tools` e não sobe com `up`. Ele recebe as credenciais de administração de identidade e, se configurada, `KEY_MAINTENANCE_DATABASE_URL`:
