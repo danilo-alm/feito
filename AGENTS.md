@@ -55,6 +55,12 @@ Use **Node.js 24**, **pnpm 10** e **PostgreSQL 18**. O app usa Next.js App Route
 - A produção usa a saída standalone do Next.js. `compose.prod.yaml` usa Caddy e PostgreSQL interno. `compose.prod.tunnel.yaml` usa PostgreSQL externo com TLS verificado, e o `cloudflared` encaminha para `http://app:3000` na rede do Compose. As migrações rodam antes do app. Use `GET /api/health` para verificar a saúde da instalação.
 - Use um banco descartável e credenciais próprias para desenvolvimento e testes. O `compose.yaml` sobe apenas o PostgreSQL. Consulte a documentação de backup, restauração e rotação antes de alterações que afetem instalações existentes. [Instalação](README.md) · [Operação e manutenção](docs/03-operations.md)
 
+## CI e distribuição
+
+- O [workflow web](.github/workflows/web.yml) verifica tipos, build, Compose, testes unitários e de integração com PostgreSQL 18, e Playwright em HTTPS. Em pushes para `main` ou `dev`, publica as imagens web e de ferramentas no GHCR depois que as verificações passam.
+- O [workflow desktop](.github/workflows/desktop.yml) verifica TypeScript e Rust, gera pacotes nativos em seis alvos e guarda os instaladores nos artefatos da execução. A publicação no GitHub Releases usa a tag `desktop-vX.Y.Z`, correspondente à versão Tauri. [Matriz e instruções de release](apps/desktop/README.md#ci-e-releases)
+- Os dois workflows verificam pull requests e pushes para `main` e `dev`, inclusive alterações nos pacotes compartilhados.
+
 ## Testes
 
 - Ao corrigir um bug, crie um teste de regressão na camada que reproduz o comportamento incorreto e confirme a correção.
@@ -64,8 +70,9 @@ Use **Node.js 24**, **pnpm 10** e **PostgreSQL 18**. O app usa Next.js App Route
 
 | Comando | Quando usar |
 | --- | --- |
-| `pnpm test` | Testes unitários do web e do desktop. |
+| `pnpm test` | Testes TypeScript dos dois apps. Use `pnpm --filter @feito/web test` ou `pnpm --filter @feito/desktop test` para rodar apenas um. |
 | `pnpm test:integration` | Contratos HTTP, isolamento, persistência, concorrência e migrações. Use PostgreSQL 18 descartável e aplique `pnpm db:migrate` antes. |
-| `pnpm test:e2e` | Fluxos em Chromium, nos perfis desktop e celular, com build e servidor HTTPS de teste. [Configuração do Playwright](apps/web/tests/e2e/README.md) |
+| `pnpm test:e2e` | Fluxos do web em Chromium, nos perfis de navegador desktop e celular, com build e servidor HTTPS de teste. [Configuração do Playwright](apps/web/tests/e2e/README.md) |
 | `pnpm test:coverage` | Testes unitários e de integração com cobertura, como no CI. |
 | `pnpm typecheck` e `pnpm build` | Tipos e builds dos dois frontends, incluindo rotas geradas e limites entre cliente e servidor. |
+| `cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml` | Testes do núcleo nativo do desktop, executados a partir da raiz. |

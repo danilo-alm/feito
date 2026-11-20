@@ -20,14 +20,14 @@ Use **Node.js 24**, **pnpm 10** e **Rust estável**. Consulte [package.json](pac
 | Banco SQLite, criptografia e transporte HTTPS | [workspace.rs](src-tauri/src/workspace.rs), [server.rs](src-tauri/src/server.rs) |
 | Testes, automação e distribuição | [local.test.ts](src/data/local.test.ts), [desktop.test.ts](src/data/desktop.test.ts), [desktop.yml](../../.github/workflows/desktop.yml) |
 
-- Antes de editar, rastreie o comportamento desde a tela até os adaptadores, os comandos Rust, a API web e os testes que forem afetados. Confira a raiz, a branch e as alterações que já existem nos checkouts envolvidos.
+- Antes de editar, rastreie o comportamento desde a tela até os adaptadores, os comandos Rust, a API web e os testes que forem afetados. Confira a raiz, a branch e as alterações que já existem no checkout do monorepo.
 - Reutilize os componentes e as regras dos pacotes compartilhados. Faça mudanças no app web quando houver necessidade concreta de integração e preserve os contratos atuais.
 - Preserve os dados já gravados no SQLite. Trate campos novos, operações pendentes e atualizações de versão de acordo com os formatos anteriores.
 
 ## Frontend e espaços
 
-- Use os tokens, os componentes comuns e as regras de movimento do Feito web. Preserve foco, teclado, rótulos acessíveis e movimento reduzido. Confira mudanças de interface no WebView do Tauri e em larguras compatíveis com janelas estreitas.
-- Passe comandos do produto pelo cliente compartilhado e pelo adaptador local. Reutilize validação, tipos e projeções do web. Preserve os limites do bundle estático ao importar módulos que também são usados pelo servidor.
+- Use os tokens, os componentes comuns e as regras de movimento de `packages/ui`. Preserve foco, teclado, rótulos acessíveis e movimento reduzido. Confira mudanças de interface no WebView do Tauri e em larguras compatíveis com janelas estreitas.
+- Passe comandos do produto pelo cliente compartilhado e pelo adaptador local. Reutilize a validação, os tipos e as projeções compartilhados. Preserve os limites do bundle estático ao importar módulos que também são usados pelo servidor.
 - Mostre qual espaço está em uso, os endereços vinculados, o número de ações na fila e os estados de sincronização que exigem atenção. Confirme a exclusão do espaço local e preserve os espaços remotos e suas filas. Após a exclusão, permita criar um espaço local novo ou abrir um espaço remoto.
 - Mantenha a semântica das datas do Feito. Vencimento é data civil, horário é hora local e conclusão é instante. Use o fuso do espaço para agenda e recorrência.
 
@@ -43,12 +43,13 @@ Use **Node.js 24**, **pnpm 10** e **Rust estável**. Consulte [package.json](pac
 
 - Instale as dependências com `pnpm install --frozen-lockfile` na raiz do monorepo. Use `pnpm dev:desktop` na raiz ou `pnpm tauri dev` em `apps/desktop` para iniciar a janela nativa com Vite.
 - Para validar a sincronização real, use uma instalação HTTPS de teste com a API desktop, as migrações aplicadas e credenciais descartáveis. Use um perfil Tauri isolado para não misturar dados de validação com espaços de uso pessoal. Consulte o contrato HTTP e as instruções de operação na pasta [docs](../../docs).
-- O workflow de CI usa o checkout do monorepo e compila os pacotes por plataforma. Preserve o fluxo de build e as regras de versão. Crie tags, publique releases ou altere credenciais de distribuição somente quando solicitado. [README](README.md) · [Guia de implementação](docs/tauri-implementation-guide.md)
+- O [workflow desktop](../../.github/workflows/desktop.yml) usa o checkout do monorepo. Em cada alvo, roda typecheck, testes TypeScript, build do frontend, formatação e testes Rust antes de empacotar com Tauri. Os instaladores ficam em `Artifacts` na execução da Actions. Um push de tag `desktop-vX.Y.Z` com a versão de `src-tauri/tauri.conf.json` publica a release depois que a matriz completa gera os 11 instaladores. Crie tags, publique releases ou altere credenciais de distribuição somente quando solicitado. [Matriz e instruções de release](README.md#ci-e-releases)
 
 ## Testes
 
 Execute os comandos abaixo em `apps/desktop`.
 
+- Os testes TypeScript usam uma ponte simulada para o modo local e a sincronização. Os testes Rust cobrem persistência e transporte nativos. Para conferir a interface do aplicativo, abra a janela do Tauri. Os testes Playwright do web usam Chromium.
 - Para correções, adicione a regressão na camada que reproduz o problema. Use dados sintéticos. Ao mexer no modo local, verifique gravação e reabertura. Ao mexer na sincronização, verifique interrupção, retomada, reenvio, isolamento entre espaços e atualizações do site.
 - Rode as verificações ligadas à mudança. Quando um contrato web mudar, valide também os testes de integração pertinentes no PostgreSQL descartável do site. Na entrega, registre o que passou e o que ficou pendente, com o motivo. Para documentação, revise o diff, os links e os comandos citados.
 
