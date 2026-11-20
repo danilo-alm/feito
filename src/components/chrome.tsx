@@ -226,12 +226,13 @@ export function BrowsePanel() {
 
 /** Cabeçalho da página: barra superior no desktop e barra fixa no celular. */
 export function PageHeader({
-  crumb, tools, mobileTools, mobileTitle, back,
+  crumb, tools, mobileTools, mobileTitle, compactTitle, back,
 }: {
   crumb?: ReactNode;
   tools?: ReactNode;
   mobileTools?: ReactNode;
   mobileTitle?: string;
+  compactTitle?: ReactNode;
   back?: string;
 }) {
   const router = useRouter();
@@ -246,12 +247,18 @@ export function PageHeader({
     <>
       <div className="topbar">
         <div className="crumb">{crumb}</div>
+        {compactTitle}
         <div className="tools">{tools}</div>
       </div>
       <div className={`m-top${scrolled ? " scrolled" : ""}${back ? "" : " no-back"}`}>
         {back && <button type="button" className="icon-btn" aria-label="Voltar" onClick={() => router.push(back)}><IconChevronLeft /></button>}
-        <span className="m-top-title" style={{ flex: 1, fontWeight: 700, fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} aria-hidden={!scrolled}>{mobileTitle}</span>
-        {mobileTools ?? tools}
+        {compactTitle ? <>
+          {compactTitle}
+          <div className="tools">{mobileTools ?? tools}</div>
+        </> : <>
+          <span className="m-top-title" style={{ flex: 1, fontWeight: 700, fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} aria-hidden={!scrolled}>{mobileTitle}</span>
+          {mobileTools ?? tools}
+        </>}
       </div>
     </>
   );

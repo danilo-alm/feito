@@ -64,6 +64,9 @@ test.describe("celular", () => {
     await sheet.getByRole("radio", { name: "Painel" }).click();
     await sheet.getByRole("button", { name: "Fechar (Esc)" }).click();
     await expect(page.getByRole("tablist", { name: "Colunas" })).toBeVisible();
+    await page.getByRole("tab", { name: /^Comprar ·/ }).click();
+    await expect(row(page, "Kit de ferramentas")).toBeInViewport({ ratio: 0.9 });
+    await expect(page.getByRole("heading", { name, level: 1 })).toBeInViewport();
     await expect(page.locator(".add-sec-m")).toHaveCount(0);
     await page.getByRole("button", { name: /Mostrar: Painel/ }).click();
     await sheet.getByRole("radio", { name: "Lista" }).click();

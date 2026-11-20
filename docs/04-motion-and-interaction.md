@@ -21,11 +21,12 @@ Definidos em `:root` de `src/app/globals.css`. O `motion.tsx` lê os mesmos valo
 | `--dur-fast` | 120 ms | Saída de diálogos, popovers e blocos recolhíveis; fantasmas de itens removidos; hover. |
 | `--dur-base` | 180 ms | Entrada de diálogos e popovers; scrim; entrada de itens de lista; troca de rota; saída de folha e aviso. |
 | `--dur-slow` | 260 ms | Entrada de folha inferior e aviso; itens de lista que mudam de lugar. |
+| `--dur-compact-title` | 500 ms | Fade do ícone e do nome do projeto na barra superior durante a rolagem. |
 | `--ease-out` | `cubic-bezier(.2,.8,.2,1)` | Entradas: começa rápido e assenta. |
 | `--ease-in` | `cubic-bezier(.4,0,1,1)` | Saídas: acelera para fora. |
 | `--ease-in-out` | `cubic-bezier(.4,0,.2,1)` | Deslocamentos de algo que já estava na tela (reordenação). |
 
-A saída é sempre mais curta que a entrada do mesmo elemento: quem fecha quer seguir em frente.
+A saída é mais curta que a entrada em elementos que o usuário fecha. O título compacto do projeto usa a mesma duração nos dois sentidos da rolagem.
 
 ## 3. Padrão por tipo de elemento
 
@@ -125,7 +126,7 @@ function Painel({ open, children }: { open: boolean; children: ReactNode }) {
 ## 8. Checklist de revisão
 
 - [ ] Nenhum `if (!open) return null` (ou `{cond && <Overlay/>}`) para algo que aparece e some; usa `Dialog`, `Popover`, `MenuButton`, `Collapse` ou `usePresence`.
-- [ ] Durações e curvas só com `--dur-*` e `--ease-*`; saída mais curta que entrada.
+- [ ] Durações e curvas só com `--dur-*` e `--ease-*`. Elementos que o usuário fecha têm saída mais curta que a entrada.
 - [ ] Anima só `opacity` e `transform` (exceção: altura de `Collapse`); `will-change` só durante a animação.
 - [ ] Entrada por `@starting-style` em `[data-state=entering]`; saída por `[data-state=exiting]`.
 - [ ] O nó que sai tem `inert`/`aria-hidden` e não recebe cliques.

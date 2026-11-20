@@ -1,6 +1,52 @@
 import { expect, projectState, row, seedProject, test } from "./fixtures";
 
 test.describe("telas do dia a dia", () => {
+  for (const layout of ["list", "board"] as const) {
+    test(`rola o título e a descrição junto com as tarefas em ${layout}`, async ({ page, api, isMobile }) => {
+      const name = "Oficina";
+      const { id } = await api<{ id: string }>("POST", "/projects", {
+        name, description: "Descrição do projeto longo.", color: "violeta", icon: "star",
+      });
+      await api("PATCH", `/projects/${id}/view`, { layout });
+      for (let index = 1; index <= 25; index++) {
+        await api("POST", "/tasks", { projectId: id, title: `Tarefa ${index}` });
+      }
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      await page.goto(`/projetos/${id}`);
+
+      const title = page.getByRole("heading", { name, level: 1 });
+      const description = page.getByRole("button", { name: "Editar descrição do projeto" });
+      const toolbar = page.locator(isMobile ? ".m-top" : ".topbar");
+      const compactTitle = toolbar.locator(".compact-title");
+      const fadeDuration = () => compactTitle.evaluate((element) =>
+        element.getAnimations().find((animation) =>
+          animation instanceof CSSTransition && animation.transitionProperty === "opacity")?.effect?.getTiming().duration);
+      await expect(title).toBeInViewport();
+      await expect(description).toBeInViewport();
+      await expect(compactTitle).toBeHidden();
+
+      const lastTask = row(page, "Tarefa 25");
+      await lastTask.scrollIntoViewIfNeeded();
+      await expect.poll(fadeDuration, { intervals: [16, 32, 50] }).toBe(500);
+      await expect(compactTitle).toHaveCSS("opacity", "1");
+      await expect(lastTask).toBeInViewport();
+      await expect(title).not.toBeInViewport();
+      await expect(description).not.toBeInViewport();
+      await expect(compactTitle).toBeVisible();
+      await expect(compactTitle).toHaveText(name);
+      await expect(compactTitle.locator("svg")).toHaveCSS("color", "rgb(110, 69, 201)");
+      const center = (box: { x: number; width: number }) => box.x + box.width / 2;
+      expect(Math.abs(center((await compactTitle.boundingBox())!) - center((await toolbar.boundingBox())!))).toBeLessThan(2);
+
+      await title.scrollIntoViewIfNeeded();
+      await expect.poll(fadeDuration, { intervals: [16, 32, 50] }).toBe(500);
+      await expect(title).toBeInViewport();
+      await expect(compactTitle).toBeHidden();
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await expect(compactTitle).toHaveCSS("transition-property", "none");
+    });
+  }
+
   test("exibe cinco níveis e navega pelas subtarefas profundas no detalhe", async ({ page, api, isMobile }) => {
     const project = await api<{ id: string }>("POST", "/projects", { name: "Projeto com subtarefas aninhadas" });
     let parent = await api<{ id: string }>("POST", "/tasks", { projectId: project.id, title: "Tarefa raiz" });
