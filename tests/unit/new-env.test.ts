@@ -10,6 +10,7 @@ const script = fileURLToPath(new URL("../../scripts/new-env.sh", import.meta.url
 const origin = "https://feito.example.org";
 const projectRef = "abcdefghijklmnopqrst";
 const poolerHost = "aws-0-sa-east-1.pooler.supabase.com";
+const tls = "sslmode=verify-full&sslrootcert=/run/config/feito-postgres-ca.crt";
 const databaseAccounts = [
   ["DOMAIN_DATABASE_URL", "feito_app", "POSTGRES_APP_PASSWORD"],
   ["AUTH_DATABASE_URL", "feito_auth", "POSTGRES_AUTH_PASSWORD"],
@@ -46,7 +47,7 @@ describe("new-env.sh", () => {
 
   it("generates the four direct URLs from a project reference", () => {
     execFileSync("sh", [script, file, "--supabase-direct", "--project-ref", projectRef, "--origin", origin]);
-    expectDatabaseUrls(`db.${projectRef}.supabase.co:5432/postgres?sslmode=require`);
+    expectDatabaseUrls(`db.${projectRef}.supabase.co:5432/postgres?${tls}`);
   });
 
   it.each([
@@ -60,7 +61,7 @@ describe("new-env.sh", () => {
     expect(result.status).toBe(0);
     expect(result.stderr.includes("Referência do projeto Supabase")).toBe(projectPrompt);
     expect(result.stderr.includes("Host do Session pooler")).toBe(poolerPrompt);
-    expectDatabaseUrls(`${poolerHost}:5432/postgres?sslmode=require`, `.${projectRef}`);
+    expectDatabaseUrls(`${poolerHost}:5432/postgres?${tls}`, `.${projectRef}`);
   });
 
   it("rejects an invalid project reference", () => {

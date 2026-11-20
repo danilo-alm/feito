@@ -53,6 +53,17 @@ jobs:
                 all(.[]; has("build") | not)'
           done
 
+      - name: Verificar montagem da CA do PostgreSQL externo
+        run: |
+          export FEITO_POSTGRES_CA_FILE="$RUNNER_TEMP/postgres-ca.crt"
+          docker compose -f compose.prod.external.yaml -f compose.prod.external.ca.yaml \
+            --env-file "$RUNNER_TEMP/test.env" --profile tools config --format json |
+            jq -e '.services |
+              ([.migrate, .app, .cli] | all(.[]; any(.volumes[]?;
+                .type == "bind" and .source == env.FEITO_POSTGRES_CA_FILE and
+                .target == "/run/config/feito-postgres-ca.crt" and .read_only == true and
+                .bind.create_host_path == false)))'
+
       - name: Testes unitários e de integração com cobertura
         run: |
           set -a; . "$RUNNER_TEMP/test.env"; set +a

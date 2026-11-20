@@ -70,10 +70,24 @@ export POSTGRES_MIGRATOR_PASSWORD POSTGRES_APP_PASSWORD \
 PGSSLMODE=require
 export PGSSLMODE
 
+set --
+case "&${endpoint#*\?}&" in
+  *'&sslrootcert=/run/config/feito-postgres-ca.crt&'*)
+    : "${FEITO_POSTGRES_CA_FILE:?Defina FEITO_POSTGRES_CA_FILE com o caminho absoluto do certificado}"
+    case $FEITO_POSTGRES_CA_FILE in
+      /*) ;;
+      *) fail 'Use um caminho absoluto em FEITO_POSTGRES_CA_FILE.' ;;
+    esac
+    [ -f "$FEITO_POSTGRES_CA_FILE" ] && [ -r "$FEITO_POSTGRES_CA_FILE" ] ||
+      fail 'O certificado em FEITO_POSTGRES_CA_FILE deve ser um arquivo legível.'
+    set -- --mount "type=bind,source=$FEITO_POSTGRES_CA_FILE,target=/run/config/feito-postgres-ca.crt,readonly"
+    ;;
+esac
+
 exec docker run --rm -it \
   -e POSTGRES_MIGRATOR_PASSWORD -e POSTGRES_APP_PASSWORD \
   -e POSTGRES_AUTH_PASSWORD -e POSTGRES_IDENTITY_ADMIN_PASSWORD -e PGSSLMODE \
-  --volume "$script_dir/postgres-init.sql:/postgres-init.sql:ro" \
+  --volume "$script_dir/postgres-init.sql:/postgres-init.sql:ro" "$@" \
   postgres:18 \
   psql -X -W --single-transaction --set=feito_external=1 \
     --username="$admin_user" --dbname="postgresql://$endpoint" \

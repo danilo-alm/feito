@@ -34,8 +34,8 @@ O script gera as credenciais e as chaves de criptografia. Mantenha o arquivo for
 
 ```sh
 scripts/new-env.sh "$FEITO_ENV" --origin https://localhost:3000
-FEITO_COMPOSE=compose.prod.yaml
-docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" up -d --wait
+FEITO_COMPOSE=(-f compose.prod.yaml)
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" up -d --wait
 ```
 
 O Compose inicia o PostgreSQL 18, cria as credenciais do banco na primeira inicialização do volume e aplica as migrações. Depois, siga para [Criar a primeira conta](#criar-a-primeira-conta).
@@ -43,6 +43,10 @@ O Compose inicia o PostgreSQL 18, cria as credenciais do banco na primeira inici
 ### Opção B — PostgreSQL externo
 
 Use um banco acessível pelo host e pelos contêineres do Feito. Para a configuração inicial, obtenha o host, a porta, o nome do banco e um login administrativo que possa criar usuários e conceder permissão de criação de schemas.
+
+```sh
+FEITO_COMPOSE=(-f compose.prod.external.yaml)
+```
 
 #### Parâmetros para Supabase
 
@@ -54,7 +58,7 @@ Em uma rede IPv4, selecione **Session pooler** em **Connect**. Use `--supabase` 
 scripts/new-env.sh "$FEITO_ENV" --origin https://localhost:3000 --supabase
 ```
 
-Para passar esses dados pelo comando, acrescente `--project-ref SEU_PROJECT_REF` e `--pooler-host HOST_DO_POOLER`. Para conexão direta, use `--supabase-direct` e informe a referência quando o script perguntar ou via `--project-ref`. Os dois modos preenchem as quatro URLs automaticamente. Se você já gerou o arquivo, ajuste as URLs conforme o passo abaixo para preservar as senhas e chaves existentes.
+Para passar esses dados pelo comando, acrescente `--project-ref SEU_PROJECT_REF` e `--pooler-host HOST_DO_POOLER`. Para conexão direta, use `--supabase-direct` e informe a referência quando o script perguntar ou via `--project-ref`. Os dois modos preenchem as quatro URLs automaticamente com verificação do certificado e do hostname.
 
 | Campo | Conexão direta | Pooler Session |
 | --- | --- | --- |
@@ -64,11 +68,21 @@ Para passar esses dados pelo comando, acrescente `--project-ref SEU_PROJECT_REF`
 
 Se a rede do servidor só tiver IPv4, use o pooler **Session** ou uma conexão direta com o adicional de IPv4. Use a senha do banco do Supabase no comando de inicialização. O Feito gerencia o login dos usuários pelo Better Auth. [Conexões do Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres)
 
+No painel do Supabase, abra **Database Settings → SSL Configuration → Download Certificate**. Copie o certificado para o host onde o Docker roda. Use um caminho absoluto e deixe o certificado público legível pelo usuário do contêiner. O arquivo de ambiente continua privado. [Configuração de TLS do Supabase](https://supabase.com/docs/guides/platform/ssl-enforcement)
+
+```sh
+export FEITO_POSTGRES_CA_FILE="$HOME/.config/feito/prod-ca-2021.crt"
+chmod 644 "$FEITO_POSTGRES_CA_FILE"
+FEITO_COMPOSE+=(-f compose.prod.external.ca.yaml)
+```
+
+Se o arquivo de ambiente já existe, preserve as senhas e as chaves. Nas quatro URLs da tabela abaixo, substitua `sslmode=require` por `sslmode=verify-full&sslrootcert=/run/config/feito-postgres-ca.crt` e coloque cada URL inteira entre aspas simples. Use o bloco acima também ao atualizar ou operar uma instalação Supabase existente.
+
 #### Criar os usuários do banco e iniciar
 
 Para outro provedor, gere primeiro o arquivo com `scripts/new-env.sh "$FEITO_ENV" --origin https://localhost:3000` e configure as URLs antes de inicializar o banco.
 
-Se você gerou `$FEITO_ENV` com `--supabase` ou `--supabase-direct`, as quatro URLs já estão prontas. Caso precise ajustá-las, defina o host, a porta e o banco externos e conserve a senha gerada para cada usuário. No Session pooler, use o host do painel e acrescente `.<project-ref>` ao usuário em cada URL. As URLs do Supabase devem terminar com `?sslmode=require`. Para outro provedor, use os parâmetros de TLS indicados por ele.
+Se precisar ajustar as URLs, defina o host, a porta e o banco externos e conserve a senha gerada para cada usuário. No Session pooler, use o host do painel e acrescente `.<project-ref>` ao usuário em cada URL. Para outro provedor, use os parâmetros de TLS indicados por ele.
 
 | Variável | Usuário do PostgreSQL |
 | --- | --- |
@@ -77,7 +91,7 @@ Se você gerou `$FEITO_ENV` com `--supabase` ou `--supabase-direct`, as quatro U
 | `MIGRATION_DATABASE_URL` | `feito_migrator` |
 | `IDENTITY_ADMIN_DATABASE_URL` | `feito_identity_admin` |
 
-Execute uma vez o script abaixo. Ele obtém o host, a porta e o banco de `MIGRATION_DATABASE_URL` e usa o usuário administrativo `postgres` ou `postgres.<project-ref>` no Session pooler. Para um provedor com outro usuário administrativo, acrescente `--admin-user USUÁRIO`.
+Em uma instalação nova, execute uma vez o script abaixo. Ele obtém o host, a porta e o banco de `MIGRATION_DATABASE_URL` e usa o usuário administrativo `postgres` ou `postgres.<project-ref>` no Session pooler. Para um provedor com outro usuário administrativo, acrescente `--admin-user USUÁRIO`.
 
 ```sh
 scripts/init-external-db.sh "$FEITO_ENV"
@@ -86,8 +100,7 @@ scripts/init-external-db.sh "$FEITO_ENV"
 Quando o `psql` pedir `Password:`, informe a senha administrativa do banco. O `psql` roda na imagem `postgres:18` e o script cria as quatro roles com as senhas geradas no arquivo.
 
 ```sh
-FEITO_COMPOSE=compose.prod.external.yaml
-docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" up -d --wait
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" up -d --wait
 ```
 
 O serviço de migração prepara as tabelas antes de o app iniciar.
@@ -97,14 +110,14 @@ O serviço de migração prepara as tabelas antes de o app iniciar.
 Com o arquivo Compose da opção escolhida, crie a conta com seu e-mail. O comando pede uma senha provisória e o Feito solicita a troca no primeiro acesso.
 
 ```sh
-docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" \
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" \
   run --rm cli pnpm admin account:create --email voce@example.org
 ```
 
 Abra [https://localhost:3000](https://localhost:3000) ou o domínio que você configurou. Em localhost, o Caddy emite o certificado com uma autoridade local. Para o navegador confiar nela, exporte o certificado raiz e adicione-o às autoridades confiáveis do seu sistema ou navegador.
 
 ```sh
-docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" \
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" \
   cp caddy:/data/caddy/pki/authorities/local/root.crt ./feito-local-ca.crt
 ```
 
@@ -115,7 +128,7 @@ Para baixar as imagens mais recentes e atualizar a instalação, execute novamen
 Para parar a instalação preservando os volumes do Docker:
 
 ```sh
-docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" down
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" down
 ```
 
 ## Documentação

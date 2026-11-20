@@ -15,10 +15,13 @@ const poolerHost = "aws-0-sa-east-1.pooler.supabase.com";
 describe("init-external-db.sh", () => {
   let directory: string;
   let file: string;
+  let certificate: string;
 
   beforeEach(() => {
     directory = mkdtempSync(join(tmpdir(), "feito-init-external-db-"));
     file = join(directory, "credentials with spaces.env");
+    certificate = join(directory, "postgres ca.crt");
+    writeFileSync(certificate, "test certificate");
     writeFileSync(join(directory, "docker"), `#!/bin/sh
 printf '%s\n' "$@" "$PGSSLMODE" "$POSTGRES_MIGRATOR_PASSWORD" "$POSTGRES_APP_PASSWORD" \\
   "$POSTGRES_AUTH_PASSWORD" "$POSTGRES_IDENTITY_ADMIN_PASSWORD"
@@ -30,7 +33,7 @@ printf '%s\n' "$@" "$PGSSLMODE" "$POSTGRES_MIGRATOR_PASSWORD" "$POSTGRES_APP_PAS
   function run(...args: string[]) {
     return spawnSync(script, ["credentials with spaces.env", ...args], {
       cwd: directory,
-      env: { ...process.env, PATH: `${directory}${delimiter}${process.env.PATH}` },
+      env: { ...process.env, PATH: `${directory}${delimiter}${process.env.PATH}`, FEITO_POSTGRES_CA_FILE: certificate },
       encoding: "utf8",
     });
   }
@@ -56,12 +59,26 @@ printf '%s\n' "$@" "$PGSSLMODE" "$POSTGRES_MIGRATOR_PASSWORD" "$POSTGRES_APP_PAS
       "run", "--rm", "-it",
       "-e", "POSTGRES_MIGRATOR_PASSWORD", "-e", "POSTGRES_APP_PASSWORD",
       "-e", "POSTGRES_AUTH_PASSWORD", "-e", "POSTGRES_IDENTITY_ADMIN_PASSWORD", "-e", "PGSSLMODE",
-      "--volume", `${sqlFile}:/postgres-init.sql:ro`, "postgres:18", "psql", "-X", "-W",
+      "--volume", `${sqlFile}:/postgres-init.sql:ro`,
+      "--mount", `type=bind,source=${certificate},target=/run/config/feito-postgres-ca.crt,readonly`,
+      "postgres:18", "psql", "-X", "-W",
       "--single-transaction", "--set=feito_external=1", `--username=${adminUser}`,
-      `--dbname=postgresql://${host}:5432/postgres?sslmode=require`, "--file=/postgres-init.sql",
+      `--dbname=postgresql://${host}:5432/postgres?sslmode=verify-full&sslrootcert=/run/config/feito-postgres-ca.crt`,
+      "--file=/postgres-init.sql",
       "require", env.POSTGRES_MIGRATOR_PASSWORD, env.POSTGRES_APP_PASSWORD,
       env.POSTGRES_AUTH_PASSWORD, env.POSTGRES_IDENTITY_ADMIN_PASSWORD,
     ]);
+  });
+
+  it("fails before starting Docker if the configured CA file is missing", () => {
+    execFileSync(generator, [file, "--supabase-direct", "--project-ref", projectRef]);
+    rmSync(certificate);
+
+    const result = run();
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("FEITO_POSTGRES_CA_FILE");
+    expect(result.stdout).toBe("");
   });
 
   it("supports a custom administrative user and preserves the destination and connection options", () => {
@@ -75,6 +92,7 @@ printf '%s\n' "$@" "$PGSSLMODE" "$POSTGRES_MIGRATOR_PASSWORD" "$POSTGRES_APP_PAS
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("--username=database_admin\n");
     expect(result.stdout).toContain("--dbname=postgresql://db.internal:6432/other?sslmode=verify-full&connect_timeout=5\n");
+    expect(result.stdout).not.toContain("--mount\n");
     expect(result.stdout).not.toContain("private%40value");
   });
 

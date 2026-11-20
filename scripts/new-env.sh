@@ -103,7 +103,7 @@ if [ -n "$supabase_mode" ]; then
     db_host=$pooler_host
     db_user_suffix=.$project_ref
   fi
-  db_endpoint="$db_host:$db_port/postgres?sslmode=require"
+  db_endpoint="$db_host:$db_port/postgres?sslmode=verify-full&sslrootcert=/run/config/feito-postgres-ca.crt"
 fi
 
 hostport=${origin#https://}
@@ -131,9 +131,9 @@ POSTGRES_APP_PASSWORD=$app
 POSTGRES_AUTH_PASSWORD=$auth
 POSTGRES_IDENTITY_ADMIN_PASSWORD=$identity_admin
 # Usadas sem Docker ou com compose.prod.external.yaml.
-DOMAIN_DATABASE_URL=postgresql://feito_app$db_user_suffix:$app@$db_endpoint
-AUTH_DATABASE_URL=postgresql://feito_auth$db_user_suffix:$auth@$db_endpoint
-MIGRATION_DATABASE_URL=postgresql://feito_migrator$db_user_suffix:$migrator@$db_endpoint
-IDENTITY_ADMIN_DATABASE_URL=postgresql://feito_identity_admin$db_user_suffix:$identity_admin@$db_endpoint
+DOMAIN_DATABASE_URL='postgresql://feito_app$db_user_suffix:$app@$db_endpoint'
+AUTH_DATABASE_URL='postgresql://feito_auth$db_user_suffix:$auth@$db_endpoint'
+MIGRATION_DATABASE_URL='postgresql://feito_migrator$db_user_suffix:$migrator@$db_endpoint'
+IDENTITY_ADMIN_DATABASE_URL='postgresql://feito_identity_admin$db_user_suffix:$identity_admin@$db_endpoint'
 EOF
 echo "Criado $file"

@@ -122,25 +122,28 @@ FEITO_ENV="$HOME/.config/feito/prod.env"
 scripts/new-env.sh "$FEITO_ENV" --origin https://feito.example.org
 ```
 
-As flags `--supabase` e `--supabase-direct` já configuram as quatro URLs com o banco `postgres` e `sslmode=require`. Se precisar ajustar as variáveis `*_DATABASE_URL` da [tabela acima](#rodar-sem-docker), defina o host, a porta e o banco externos. Mantenha a senha correspondente a cada role e configure TLS de acordo com o provedor. A senha `POSTGRES_BOOTSTRAP_PASSWORD` gerada serve ao banco interno.
+As flags `--supabase` e `--supabase-direct` já configuram as quatro URLs com o banco `postgres`, `sslmode=verify-full` e o caminho do certificado dentro do contêiner. Siga os passos do [README para baixar e montar a CA](../README.md#parâmetros-para-supabase) antes de inicializar o banco. Para outro provedor, ajuste o host, a porta, o banco e as opções de TLS, preservando a senha correspondente a cada role. A senha `POSTGRES_BOOTSTRAP_PASSWORD` gerada serve ao banco interno.
 
-Com as URLs configuradas, inicialize o banco uma vez. O script usa o destino de `MIGRATION_DATABASE_URL` e pede a senha administrativa no `psql` da imagem `postgres:18`. O usuário padrão é `postgres`, ou `postgres.<project-ref>` no Session pooler. Use `--admin-user USUÁRIO` para outro login. O script cria as quatro roles com as senhas do arquivo e concede ao migrador permissão para criar schemas no banco selecionado.
+Em uma instalação nova, inicialize o banco uma vez. O script usa o destino de `MIGRATION_DATABASE_URL` e pede a senha administrativa no `psql` da imagem `postgres:18`. O usuário padrão é `postgres`, ou `postgres.<project-ref>` no Session pooler. Use `--admin-user USUÁRIO` para outro login. O script cria as quatro roles com as senhas do arquivo e concede ao migrador permissão para criar schemas no banco selecionado.
 
 ```sh
 scripts/init-external-db.sh "$FEITO_ENV"
 ```
 
 ```sh
-docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" up -d --wait
+FEITO_COMPOSE=(-f compose.prod.external.yaml)
+# Com Supabase, após exportar FEITO_POSTGRES_CA_FILE:
+# FEITO_COMPOSE+=(-f compose.prod.external.ca.yaml)
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" up -d --wait
 ```
 
-O serviço `migrate` aplica as migrações no banco externo antes de iniciar o app. Para criar contas e operar as chaves, use os comandos da seção a seguir com `compose.prod.external.yaml`.
+O serviço `migrate` aplica as migrações no banco externo antes de iniciar o app. Para criar contas e operar as chaves, use os comandos da seção a seguir com os mesmos arquivos Compose usados para subir o app.
 
 Se o app não subir, confira o estado e os logs do migrador:
 
 ```sh
-docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" ps -a migrate
-docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" logs --no-color migrate
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" ps -a migrate
+docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" logs --no-color migrate
 ```
 
 O migrador informa se a falha ocorreu na conexão ou na aplicação das migrações e registra o código do erro quando disponível. A conexão inicial tem limite de 10 segundos. No Supabase, as tabelas do Feito ficam nos schemas `domain`, `identity` e `crypto_ops`.
