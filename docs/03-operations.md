@@ -83,7 +83,7 @@ O valor fica vinculado ao banco e permite abrir os registros existentes. A aplic
 
 ## Docker em detalhe
 
-O [`Dockerfile`](../Dockerfile) é multi-stage. `dev` roda `next dev` com o código montado do host, `tools` contém o código completo e as devDependencies para migração e CLIs, e `prod` leva só a saída standalone do Next.js, sem devDependencies, executando como usuário `node`. Cada Compose parte do stage correspondente. Em ambos, o [Caddy](../docker/Caddyfile) termina o TLS na frente do Next.js e sobrescreve `X-Real-IP`, lido via `AUTH_CLIENT_IP_HEADER`. Um serviço `migrate` aplica `pnpm db:migrate` antes de a aplicação subir.
+O [`Dockerfile`](../Dockerfile) é multi-stage. `dev` roda `next dev` com o código montado do host, `tools` contém o código completo e as devDependencies para migração e CLIs, e `prod` leva só a saída standalone do Next.js, sem devDependencies, executando como usuário `node`. Os dois Compose de produção usam as imagens públicas `ghcr.io/danilo-alm/feito:latest` para o app e `ghcr.io/danilo-alm/feito-tools:latest` para migrações e CLIs. O [Caddy](../docker/Caddyfile) termina o TLS na frente do Next.js e sobrescreve `X-Real-IP`, lido via `AUTH_CLIENT_IP_HEADER`. Um serviço `migrate` aplica `pnpm db:migrate` antes de a aplicação subir.
 
 O [`scripts/new-env.sh`](../scripts/new-env.sh) gera o arquivo privado de ambiente. No desenvolvimento e na produção com banco interno, o Compose monta as URLs a partir das senhas `POSTGRES_*_PASSWORD`. Na produção com banco externo, o Compose lê as URLs do arquivo. Cada processo recebe apenas as credenciais que usa. As KEKs aceitas são `DATA_KEK_V1` a `DATA_KEK_V3`.
 
@@ -106,7 +106,7 @@ O projeto Compose se chama `feito-dev`. O PostgreSQL continua publicado em `127.
 ### Produção com PostgreSQL interno
 
 ```sh
-docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --build --wait
+docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --wait
 ```
 
 `FEITO_ORIGIN` é o endereço do site no Caddy. Com um domínio público (`https://feito.example.org`) e as portas 80 e 443 acessíveis, o certificado vem via ACME. Com `localhost` ou um IP, vem da CA interna. Para uma porta HTTPS diferente de 443, inclua-a em `FEITO_ORIGIN` e defina `FEITO_HTTPS_PORT` com o mesmo valor. O Next.js e o PostgreSQL não publicam portas no host. O contêiner da aplicação roda com sistema de arquivos somente leitura, sem capabilities, e tem healthcheck em `/api/health`.
@@ -131,7 +131,7 @@ scripts/init-external-db.sh "$FEITO_ENV"
 ```
 
 ```sh
-docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" up -d --build --wait
+docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" up -d --wait
 ```
 
 O serviço `migrate` aplica as migrações no banco externo antes de iniciar o app. Para criar contas e operar as chaves, use os comandos da seção a seguir com `compose.prod.external.yaml`.
@@ -178,7 +178,7 @@ Com o mesmo ambiente de integração carregado, `pnpm test:coverage` executa Vit
 
 O workflow roda em pull requests e em pushes na `main` e na `dev`. Ele executa typecheck, build, testes unitários e de integração com cobertura e Playwright headless. O workflow migra um PostgreSQL 18 descartável e gera os segredos e o certificado HTTPS a cada execução. [Workflow do GitHub Actions](../.github/workflows/ci.yaml)
 
-Em push na `main` ou na `dev`, com os testes aprovados, publica no GitHub Container Registry as imagens `ghcr.io/<dono>/feito` (alvo `prod`) e `ghcr.io/<dono>/feito-tools` (alvo `tools`), com as tags `sha-<commit>` e, conforme a branch, `latest` (`main`) ou `dev` (`dev`). Os pacotes nascem privados; torne-os públicos ou vincule-os ao repositório nas configurações do pacote, se necessário.
+Em push na `main` ou na `dev`, com os testes aprovados, o workflow publica no GitHub Container Registry as imagens `ghcr.io/danilo-alm/feito` (alvo `prod`) e `ghcr.io/danilo-alm/feito-tools` (alvo `tools`), com as tags `sha-<commit>` e, conforme a branch, `latest` (`main`) ou `dev` (`dev`).
 
 ## Backup e chaves
 

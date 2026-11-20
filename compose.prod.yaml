@@ -1,6 +1,6 @@
 # Produção com PostgreSQL interno: Next.js standalone atrás do Caddy com TLS.
 #
-#   docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --build --wait
+#   docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --wait
 #
 # FEITO_ORIGIN define o site do Caddy: um domínio público (https://feito.example.org)
 # obtém certificado via ACME nas portas 80/443; localhost ou IP usa a CA interna.
@@ -17,11 +17,11 @@ x-runtime-env: &runtime-env
   DATA_KEK_V2: ${DATA_KEK_V2:-}
   DATA_KEK_V3: ${DATA_KEK_V3:-}
 
+x-image-platform: &image-platform linux/amd64 # Plataforma publicada no GHCR.
+
 x-tools-image: &tools-image
-  build:
-    context: .
-    target: tools
-  image: feito-tools:latest
+  image: ghcr.io/danilo-alm/feito-tools:latest
+  platform: *image-platform
 
 services:
   postgres:
@@ -42,10 +42,8 @@ services:
     restart: "no"
 
   app:
-    build:
-      context: .
-      target: prod
-    image: feito:latest
+    image: ghcr.io/danilo-alm/feito:latest
+    platform: *image-platform
     environment:
       <<: *runtime-env
       IMPORT_PREVIEW_SECRET: ${IMPORT_PREVIEW_SECRET:?Defina IMPORT_PREVIEW_SECRET}

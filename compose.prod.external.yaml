@@ -1,5 +1,5 @@
 # Produção com PostgreSQL externo.
-#   docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" up -d --build --wait
+#   docker compose -f compose.prod.external.yaml --env-file "$FEITO_ENV" up -d --wait
 name: feito-external
 
 services:

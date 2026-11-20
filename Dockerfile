@@ -3,7 +3,7 @@
 # Stages:
 #   dev    → compose.dev.yaml  (next dev, código montado do host, live reload)
 #   tools  → migração e CLIs (pnpm db:migrate, pnpm admin, pnpm keys) nos dois ambientes
-#   prod   → compose.prod.yaml (saída standalone do Next.js, sem devDependencies, usuário sem privilégios)
+#   prod   → imagem de produção no GHCR (saída standalone do Next.js, sem devDependencies, usuário sem privilégios)
 
 ARG NODE_VERSION=24
 

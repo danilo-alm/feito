@@ -17,6 +17,8 @@ Feito é um app de tarefas pessoais que você hospeda na sua máquina ou no seu 
 
 Você precisa de Docker com o plugin Docker Compose, Git e OpenSSL. Execute os comandos em um shell como Bash ou Zsh. Para configurar um PostgreSQL externo, o Docker também executa o cliente `psql` usado no comando abaixo.
 
+O Docker Compose baixa as imagens públicas do Feito no GitHub Container Registry. As imagens usam `linux/amd64` e exigem emulação em hosts ARM.
+
 ```sh
 git clone https://github.com/danilo-alm/feito.git
 cd feito
@@ -33,7 +35,7 @@ O script gera as credenciais e as chaves de criptografia. Mantenha o arquivo for
 ```sh
 scripts/new-env.sh "$FEITO_ENV" --origin https://localhost:3000
 FEITO_COMPOSE=compose.prod.yaml
-docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" up -d --build --wait
+docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" up -d --wait
 ```
 
 O Compose inicia o PostgreSQL 18, cria as credenciais do banco na primeira inicialização do volume e aplica as migrações. Depois, siga para [Criar a primeira conta](#criar-a-primeira-conta).
@@ -85,7 +87,7 @@ Quando o `psql` pedir `Password:`, informe a senha administrativa do banco. O `p
 
 ```sh
 FEITO_COMPOSE=compose.prod.external.yaml
-docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" up -d --build --wait
+docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" up -d --wait
 ```
 
 O serviço de migração prepara as tabelas antes de o app iniciar.
@@ -108,7 +110,7 @@ docker compose -f "$FEITO_COMPOSE" --env-file "$FEITO_ENV" \
 
 ### Atualizar ou parar
 
-Ao atualizar o código, execute novamente `up -d --build --wait` com o mesmo arquivo de configuração e a mesma opção de banco. Antes de atualizar, consulte as [instruções de backup e restauração](docs/03-operations.md#backup-e-restauração-isolada).
+Para baixar as imagens mais recentes e atualizar a instalação, execute novamente `up -d --wait` com o mesmo arquivo de ambiente e a mesma opção de banco. Antes de atualizar, consulte as [instruções de backup e restauração](docs/03-operations.md#backup-e-restauração-isolada).
 
 Para parar a instalação preservando os volumes do Docker:
 

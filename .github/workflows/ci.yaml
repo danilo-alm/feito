@@ -40,6 +40,19 @@ jobs:
           set -a; . "$RUNNER_TEMP/test.env"; set +a
           pnpm db:migrate
 
+      - name: Verificar imagens dos Compose de produção
+        run: |
+          for file in compose.prod.yaml compose.prod.external.yaml; do
+            echo "Validando $file"
+            docker compose -f "$file" --env-file "$RUNNER_TEMP/test.env" --profile tools config --format json |
+              jq -e '.services |
+                .app.image == "ghcr.io/danilo-alm/feito:latest" and
+                .migrate.image == "ghcr.io/danilo-alm/feito-tools:latest" and
+                .cli.image == .migrate.image and
+                ([.app, .migrate, .cli] | all(.[]; .platform == "linux/amd64")) and
+                all(.[]; has("build") | not)'
+          done
+
       - name: Testes unitários e de integração com cobertura
         run: |
           set -a; . "$RUNNER_TEMP/test.env"; set +a
