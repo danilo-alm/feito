@@ -13,6 +13,8 @@
 **/certificates
 **/*.crt
 apps/desktop
+apps/web/playwright.desktop.config.ts
+apps/web/tests/desktop
 docs
 docker
 scripts

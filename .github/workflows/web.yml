@@ -32,7 +32,8 @@ jobs:
         if: github.ref_type == 'tag'
         run: node scripts/check-release-version.mjs
 
-      - run: pnpm --filter @feito/web... install --frozen-lockfile
+      # O typecheck web também cobre a suíte Playwright que importa código do desktop.
+      - run: pnpm install --frozen-lockfile
 
       - run: pnpm --filter @feito/web typecheck
 
@@ -87,6 +88,9 @@ jobs:
 
       - name: Instalar Chromium headless
         run: pnpm --filter @feito/web exec playwright install --with-deps --only-shell chromium
+
+      - name: Testes de interface do desktop em Chromium
+        run: pnpm --filter @feito/web exec playwright test --config playwright.desktop.config.ts
 
       - name: Testes ponta a ponta em HTTPS
         run: |
