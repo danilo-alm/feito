@@ -9,7 +9,7 @@ import { clearCache, invalidate, useQuery } from "../client/store";
 import { isTemporaryTask, type MutationContext } from "../client/task-mutations";
 import type { Me, Navigation, Theme } from "@feito/core/types";
 import { motionMs, useFlip } from "./motion";
-import { Dialog, Spinner, ToastProvider, useToast, type ToastAction } from "./ui";
+import { ContextMenusProvider, Dialog, Spinner, ToastProvider, useToast, type ToastAction } from "./ui";
 
 // ---------- Tema ----------
 
@@ -94,8 +94,8 @@ function visibleTaskOrder(id: string) {
   return ids.has(id) ? [...ids] : [];
 }
 
-export function AppProviders({ children }: { children: ReactNode }) {
-  return <ToastProvider>{children}</ToastProvider>;
+export function AppProviders({ children, contextMenus = false }: { children: ReactNode; contextMenus?: boolean }) {
+  return <ContextMenusProvider value={contextMenus}><ToastProvider>{children}</ToastProvider></ContextMenusProvider>;
 }
 
 export function AppShell({

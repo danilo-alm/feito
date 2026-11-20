@@ -16,7 +16,7 @@ import { DatePicker, LabelPicker, PRIORITY_NAMES, PriorityMenu, RepeatMenu, Time
 import { useTaskActions } from "./task-actions";
 import { TaskContent } from "./task-content";
 import { Checkbox } from "./task-row";
-import { Dialog, MenuButton, Popover, ReadFallback, useAutoGrow, useToast } from "./ui";
+import { Dialog, MenuButton, Popover, ReadFallback, useAutoGrow, useContextMenu, useToast } from "./ui";
 
 type Pop = "date" | "time" | "repeat" | "priority" | "labels" | null;
 type TextField = "title" | "description";
@@ -35,6 +35,8 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
   const taskKey = taskId ? `task:${taskId}` : null;
   const query = useQuery<Detail>(taskKey, () => api.tasks.get(taskId!));
   const task = query.data?.id === taskId ? query.data : undefined;
+  const contextMenu = useContextMenu(!!task);
+  const closeContextMenu = contextMenu.close;
   const labelsQuery = useQuery<{ labels: Label[] }>(taskId ? "labels" : null, api.labels.list);
   const [draft, setDraft] = useState<TaskDraft>({ taskId });
   if (draft.taskId !== taskId) setDraft({ taskId });
@@ -48,6 +50,8 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
   const currentTaskId = useRef(taskId);
   currentTaskId.current = taskId;
   const descRef = useAutoGrow(description);
+
+  useEffect(() => closeContextMenu(), [taskId, closeContextMenu]);
 
   useEffect(() => {
     if (task && focusTask.current === task.id) {
@@ -124,7 +128,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
 
   return (
     <Dialog open={!!taskId} onClose={onClose} title={task?.title ?? "Detalhe da tarefa"} wide hideHeader initialFocus={titleRef}>
-      <div className="dialog-h task-detail-head">
+      <div className="dialog-h task-detail-head" onContextMenu={contextMenu.onContextMenu}>
         <div className="crumb">
           {project?.inbox ? <IconInbox className="sm" /> : <ProjectGlyph id={task?.projectId} className="sm" />}
           <span>{project?.name}</span>
@@ -141,7 +145,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
             disabled={!previousId} onClick={() => previousId && openRelatedTask(previousId, order)}><IconChevronUp /></button>
           <button type="button" className="icon-btn" aria-label="Mostrar próxima tarefa" title="Mostrar próxima tarefa"
             disabled={!nextId} onClick={() => nextId && openRelatedTask(nextId, order)}><IconChevronDown /></button>
-          {task && <MenuButton key={task.id} label="Ações da tarefa" items={() => [
+          {task && <MenuButton key={task.id} label="Ações da tarefa" contextMenu={contextMenu} items={() => [
             { label: "Duplicar", icon: <IconCopy />, onSelect: () => void actions.duplicate(task) },
             ...(app.browserTools ? [
               { label: "Copiar link para a tarefa", icon: <IconLink />, onSelect: () => void copyLink(task.id) },

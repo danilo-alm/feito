@@ -10,7 +10,7 @@ import { PageHeader, PageTaskCount } from "../components/chrome";
 import { FlatGroup } from "../components/flat-list";
 import { IconEdit, IconMore, IconTrash } from "../components/icons";
 import { useTaskActions } from "../components/task-actions";
-import { MenuButton, ReadFallback } from "../components/ui";
+import { MenuButton, ReadFallback, useContextMenu, useIsMobile } from "../components/ui";
 
 export default function LabelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -18,6 +18,8 @@ export default function LabelPage({ params }: { params: Promise<{ id: string }> 
   const router = useRouter();
   const actions = useTaskActions();
   const label = app.nav?.labels.find((item) => item.id === id);
+  const contextMenu = useContextMenu(!!label);
+  const mobile = useIsMobile();
   const key = `label:${id}`;
   const query = useQuery<LabelTasks>(key, () => api.labels.tasks(id));
   const pagination = useTaskPagination(key, query.data, "tasks", (cursor) => api.labels.tasks(id, cursor));
@@ -35,13 +37,15 @@ export default function LabelPage({ params }: { params: Promise<{ id: string }> 
   ] : [];
 
   const { tasks, cursor } = pagination;
+  const tools = (visible: boolean) => label && (
+    <MenuButton label="Ações da etiqueta" items={menu} contextMenu={visible ? contextMenu : undefined}><IconMore /></MenuButton>
+  );
   return (
     <>
-      <PageHeader crumb="Etiqueta" mobileTitle={label?.name} back="/navegar"
-        tools={label && <MenuButton label="Ações da etiqueta" items={menu}><IconMore /></MenuButton>} />
+      <PageHeader crumb="Etiqueta" mobileTitle={label?.name} back="/navegar" tools={tools(!mobile)} mobileTools={tools(mobile)} />
       <div className="content">
         <div className="col">
-          <div className="page-h"><h1 className="title">{label?.name ?? "Etiqueta"}</h1>
+          <div className="page-h" onContextMenu={contextMenu.onContextMenu}><h1 className="title">{label?.name ?? "Etiqueta"}</h1>
             {query.data && <PageTaskCount count={tasks.length} more={Boolean(cursor)} />}</div>
           {!query.data ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : (
             <FlatGroup tasks={tasks} actions={actions}

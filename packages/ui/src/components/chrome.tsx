@@ -15,7 +15,7 @@ import { ProjectGlyph } from "./project-style";
 import { useExportDialog } from "./export-dialog";
 import { useImportDialog } from "./import-panel";
 import { useProjectDetailsDialog } from "./named-details";
-import { MenuButton, useToast, type MenuItem } from "./ui";
+import { MenuButton, useContextMenu, useToast, type MenuItem } from "./ui";
 
 export function PageTaskCount({ count, more = false }: { count: number; more?: boolean }) {
   return (
@@ -86,6 +86,7 @@ function ProjectShortcut({ keyNumber }: { keyNumber: string }) {
 
 function ProjectRow({ project, active, shortcut, onEdit }: { project: ProjectSummary; active: boolean; shortcut?: string; onEdit: () => void }) {
   const app = useApp();
+  const contextMenu = useContextMenu();
   const router = useRouter();
   const toast = useToast();
   const [importDialog, openImport] = useImportDialog();
@@ -126,14 +127,14 @@ function ProjectRow({ project, active, shortcut, onEdit }: { project: ProjectSum
   ];
 
   return (
-    <div className={`nav proj-row${active ? " on" : ""}`}>
+    <div className={`nav proj-row${active ? " on" : ""}`} onContextMenu={contextMenu.onContextMenu}>
       <Link href={`/projetos/${project.id}`} className="proj-link" aria-current={active ? "page" : undefined}
         aria-keyshortcuts={shortcut && `Control+${shortcut}`}>
         <ProjectGlyph id={project.id} /><span className="nav-name">{project.name}</span>
       </Link>
       {app.showProjectShortcuts && shortcut ? <ProjectShortcut keyNumber={shortcut} />
         : project.activeCount ? <span className="count">{project.activeCount}</span> : null}
-      <MenuButton label={`Ações de ${project.name}`} title={project.name} items={menu} className="icon-btn proj-menu">
+      <MenuButton label={`Ações de ${project.name}`} title={project.name} items={menu} className="icon-btn proj-menu" contextMenu={contextMenu}>
         <IconMore className="sm" />
       </MenuButton>
       {importDialog}

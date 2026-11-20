@@ -1,7 +1,7 @@
 "use client";
 import {
   createContext, useCallback, useContext, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncExternalStore,
-  type ReactNode, type RefObject,
+  type MouseEventHandler, type ReactNode, type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { errorMessage } from "../client/api";
@@ -144,10 +144,13 @@ function swallowNextClick() {
   document.addEventListener("pointercancel", release, { capture: true, once: true });
 }
 
+type MenuPoint = { x: number; y: number };
+
 export function Popover({
-  anchor, open, onClose, children, align = "start", width, label, role = "dialog",
+  anchor, point, open, onClose, children, align = "start", width, label, role = "dialog",
 }: {
   anchor: HTMLElement | null;
+  point?: MenuPoint;
   open: boolean;
   onClose: () => void;
   children: ReactNode;
@@ -171,7 +174,7 @@ export function Popover({
       if (width) node.style.width = `${width}px`;
       // Mede na altura natural; --pop-max limita o conteúdo quando nenhum dos lados comporta tudo.
       node.style.removeProperty("--pop-max");
-      const rect = anchor.getBoundingClientRect();
+      const rect = point ? { left: point.x, right: point.x, top: point.y, bottom: point.y } : anchor.getBoundingClientRect();
       // As dimensões do layout não incluem a escala da animação de entrada.
       const { offsetWidth: boxWidth, offsetHeight: boxHeight } = node;
       const margin = 8;
@@ -203,7 +206,7 @@ export function Popover({
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", onScroll, true);
     };
-  }, [open, mounted, anchor, align, width]);
+  }, [open, mounted, anchor, point, align, width]);
 
   useEffect(() => {
     const node = ref.current;
@@ -342,20 +345,46 @@ export function MenuList({ items, onClose }: { items: MenuItem[]; onClose: () =>
   return <div className="menu"><MenuEntries items={items} onClose={onClose} /></div>;
 }
 
+const ContextMenus = createContext(false);
+export const ContextMenusProvider = ContextMenus.Provider;
+
+export function useContextMenu(enabled = true) {
+  const supported = useContext(ContextMenus);
+  const [activation, setActivation] = useState<{ point?: MenuPoint } | null>(null);
+  const close = useCallback(() => setActivation(null), []);
+  const handle: MouseEventHandler<HTMLElement> = (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || !event.currentTarget.contains(target)
+      || target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const point = event.button === 2 || event.ctrlKey ? { x: event.clientX, y: event.clientY } : undefined;
+    setActivation({ point });
+  };
+  return { activation, close, onContextMenu: supported && enabled ? handle : undefined };
+}
+
 /** Botão que abre um menu de ações (popover no desktop, folha no celular). */
 export function MenuButton({
-  label, items, children, className = "icon-btn", title,
+  label, items, children, className = "icon-btn", title, contextMenu,
 }: {
   label: string;
   items: () => MenuItem[];
   children: ReactNode;
   className?: string;
   title?: string;
+  contextMenu?: ReturnType<typeof useContextMenu>;
 }) {
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [buttonOpen, setButtonOpen] = useState(false);
   const mobile = useIsMobile();
-  const close = useCallback(() => setOpen(false), []);
+  const closeContextMenu = contextMenu?.close;
+  const close = useCallback(() => {
+    setButtonOpen(false);
+    closeContextMenu?.();
+  }, [closeContextMenu]);
+  const open = buttonOpen || !!contextMenu?.activation;
+  const point = contextMenu?.activation?.point;
   const list = open ? items() : [];
   return (
     <>
@@ -368,8 +397,10 @@ export function MenuButton({
         aria-expanded={open}
         onClick={(event) => {
           event.stopPropagation();
-          setOpen((value) => !value);
+          if (open) close();
+          else setButtonOpen(true);
         }}
+        onContextMenu={contextMenu?.onContextMenu}
         onPointerDown={(event) => event.stopPropagation()}
       >
         {children}
@@ -383,7 +414,7 @@ export function MenuButton({
           </div>
         </Dialog>
       ) : (
-        <Popover anchor={anchor} open={open} onClose={close} label={title ?? label} role="menu" align="end">
+        <Popover anchor={anchor} point={point} open={open} onClose={close} label={title ?? label} role="menu" align={point ? "start" : "end"}>
           <MenuList items={list} onClose={close} />
         </Popover>
       )}

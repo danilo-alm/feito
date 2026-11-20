@@ -27,7 +27,7 @@ import { colorValue, Glyph } from "./project-style";
 import { useTaskActions } from "./task-actions";
 import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
 import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
-import { Dialog, MenuButton, ReadFallback, useAutoGrow, useIsMobile, useToast, type MenuItem } from "./ui";
+import { Dialog, MenuButton, ReadFallback, useAutoGrow, useContextMenu, useIsMobile, useToast, type MenuItem } from "./ui";
 import { ShareMenu, useProjectShare } from "./share-menu";
 import { LAYOUT_LABEL, SORT_LABEL, ViewMenu } from "./view-menu";
 
@@ -93,6 +93,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
   const key = `project:${projectId}`;
   const query = useQuery<ProjectPage>(key, () => api.projects.get(projectId));
   const page = query.data?.project.id === projectId ? query.data : undefined;
+  const contextMenu = useContextMenu(!!page && !page.project.isInbox);
   const projectContent = useRef<HTMLDivElement>(null);
   const projectTitle = useRef<HTMLDivElement>(null);
   const [titleAboveView, setTitleAboveView] = useState(false);
@@ -350,24 +351,25 @@ export function ProjectView({ projectId }: { projectId: string }) {
 
   const crumb = project.isInbox ? "Captura e triagem" : <>Meus projetos <span aria-hidden="true">/</span></>;
   const compactTitle = showCompactTitle && (
-    <span className="compact-title" aria-hidden={!titleAboveView} title={project.name}>
+    <span className="compact-title" aria-hidden={!titleAboveView} title={project.name} onContextMenu={contextMenu.onContextMenu}>
       <Glyph icon={project.icon} style={{ color: project.color ? colorValue(project.color) : tagColor(project.id) }} />
       <span>{project.name}</span>
     </span>
   );
-  const tools = (
+  const tools = (visible: boolean) => (
     <>
       {app.browserTools && !project.isInbox && <ShareMenu projectId={project.id} archived={archived} />}
       {!archived && <ViewMenu page={page} onChange={(patch) => void changeView(patch)} />}
       {!project.isInbox && (
-        <MenuButton label="Ações do projeto" title={project.name} items={projectMenu}><IconMore /></MenuButton>
+        <MenuButton label="Ações do projeto" title={project.name} items={projectMenu} contextMenu={visible ? contextMenu : undefined}><IconMore /></MenuButton>
       )}
     </>
   );
 
   return (
     <>
-      <PageHeader crumb={crumb} tools={tools} compactTitle={compactTitle} mobileTitle={project.isInbox ? project.name : undefined} back={project.isInbox ? undefined : "/navegar"} />
+      <PageHeader crumb={crumb} tools={tools(!mobile)} mobileTools={tools(mobile)} compactTitle={compactTitle}
+        mobileTitle={project.isInbox ? project.name : undefined} back={project.isInbox ? undefined : "/navegar"} />
       {importDialog}
       {exportDialog}
       {projectDetails.dialog}
@@ -385,7 +387,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
       <div className="project-content" ref={projectContent}>
         <div style={{ padding: "4px 32px 0" }} className="project-head">
           <div className={board ? "" : "col"}>
-            <div className="page-h">
+            <div className="page-h" onContextMenu={contextMenu.onContextMenu}>
               <ProjectHeading key={project.id} project={project} titleRef={projectTitle} />
               <div className="page-meta">
                 <PageTaskCount count={activeTasks} />
@@ -720,6 +722,25 @@ function SectionTitle({ sectionId, name, archived, renameSection }: {
     }} />;
 }
 
+function SectionHeader({ sectionId, name, count, archived, renameSection, sectionMenu, board }:
+  Pick<LayoutProps, "archived" | "renameSection" | "sectionMenu"> & {
+    sectionId: string | null; name: string | null; count: number; board?: boolean;
+  }) {
+  const showMenu = sectionId !== null && !archived;
+  const contextMenu = useContextMenu(showMenu);
+  const title = name ?? unnamedColumnTitle;
+  return (
+    <div className={board ? "col-h" : "sec-h"} data-flip={board ? undefined : `sec:${sectionId ?? "none"}`}
+      style={name === null ? { color: "var(--muted)" } : undefined} onContextMenu={contextMenu.onContextMenu}>
+      <SectionTitle sectionId={sectionId} name={name} archived={archived} renameSection={renameSection} />
+      <span className="count">{count}</span>
+      {showMenu && (
+        <MenuButton label={`Ações da seção ${title}`} title={title} items={() => sectionMenu(sectionId)} contextMenu={contextMenu}><IconMore /></MenuButton>
+      )}
+    </div>
+  );
+}
+
 function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu, renameSection, archived }: LayoutProps & { dragging: boolean }) {
   const app = useApp();
   const [adding, setAdding] = useState<string | null | undefined>(undefined);
@@ -753,13 +774,8 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
             <GroupDrop key={group.sectionId ?? "none"} sectionId={group.sectionId} label={title ?? (project.isInbox ? project.name : "Tarefas do projeto")}
               className={`list-group${over ? " over" : ""}`}>
               {!project.isInbox && title ? (
-                <div className="sec-h" data-flip={`sec:${group.sectionId ?? "none"}`}>
-                  <SectionTitle sectionId={group.sectionId} name={title} archived={archived} renameSection={renameSection} />
-                  <span className="count">{activeCounts.get(group.sectionId) ?? 0}</span>
-                  {section && !archived && (
-                    <MenuButton label={`Ações da seção ${title}`} title={title} items={() => sectionMenu(section.id)}><IconMore /></MenuButton>
-                  )}
-                </div>
+                <SectionHeader sectionId={group.sectionId} name={title} count={activeCounts.get(group.sectionId) ?? 0}
+                  archived={archived} renameSection={renameSection} sectionMenu={sectionMenu} />
               ) : <div style={{ height: 10, borderBottom: "1px solid var(--border)" }} />}
               {section?.description && <p className="section-description">{section.description}</p>}
               {active.flatMap(block)}
@@ -856,13 +872,8 @@ function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSe
             <Fragment key={group.sectionId ?? "none"}>
               <GroupDrop sectionId={group.sectionId} as="section" label={`Coluna ${title}`} id={`col-${group.sectionId ?? "none"}`}
                 className={`column${target ? " target" : ""}`}>
-                <div className="col-h" style={{ color: name === null ? "var(--muted)" : undefined }}>
-                  <SectionTitle sectionId={group.sectionId} name={name} archived={archived} renameSection={renameSection} />
-                  <span className="count">{active.length}</span>
-                  {group.sectionId !== null && !archived && (
-                    <MenuButton label={`Ações da seção ${title}`} title={title} items={() => sectionMenu(group.sectionId!)}><IconMore /></MenuButton>
-                  )}
-                </div>
+                <SectionHeader board sectionId={group.sectionId} name={name} count={active.length}
+                  archived={archived} renameSection={renameSection} sectionMenu={sectionMenu} />
                 {description && <p className="section-description">{description}</p>}
                 {active.flatMap(block)}
                 {target && <div className="slot column-drop">Soltar aqui muda para {title}</div>}

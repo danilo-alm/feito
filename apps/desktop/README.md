@@ -42,6 +42,8 @@ pnpm dev:desktop
 
 Em `apps/desktop`, para compilar, use `pnpm tauri build`. Para validar sem gerar um instalador, use `pnpm tauri build --debug --no-bundle`. Os comandos `pnpm typecheck`, `pnpm test`, `cargo fmt --check --manifest-path src-tauri/Cargo.toml` e `cargo test --locked --manifest-path src-tauri/Cargo.toml` verificam as duas camadas.
 
+Na raiz, rode `pnpm --filter @feito/web exec playwright test -c playwright.desktop.config.ts` para verificar os menus de contexto com Chromium e uma ponte Tauri simulada.
+
 ## CI e releases
 
 O GitHub Actions testa e empacota o desktop em pull requests, pushes para `main` e `dev` e tags de versão. Os instaladores também ficam disponíveis como artefatos da execução.

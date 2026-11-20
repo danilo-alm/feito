@@ -14,7 +14,7 @@ import { DatePicker, PRIORITY_NAMES } from "./pickers";
 import type { useTaskActions } from "./task-actions";
 import { TaskContent } from "./task-content";
 import { InlineEdit } from "./task-editor";
-import { MenuButton, Popover, useIsMobile, type MenuItem } from "./ui";
+import { MenuButton, Popover, useContextMenu, useIsMobile, type MenuItem } from "./ui";
 
 export type TaskActions = ReturnType<typeof useTaskActions>;
 
@@ -145,11 +145,12 @@ type RowProps = HTMLAttributes<HTMLDivElement> & {
 
 export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
   task, actions, showOrigin, grip, tag, arrange, onArrange, onKeyArrange, insert, variant = "row",
-  depth = task.parentId && !showOrigin ? 1 : 0, showMoreSubtasks, extraClass = "", noMenu, timeOnly, style, ...rest
+  depth = task.parentId && !showOrigin ? 1 : 0, showMoreSubtasks, extraClass = "", noMenu, timeOnly, style, onContextMenu, ...rest
 }, ref) {
   const app = useApp();
   const mobile = useIsMobile();
   const temporary = isTemporaryTask(task.id);
+  const contextMenu = useContextMenu(!noMenu && !temporary);
   const editing = useEditorOpen(editKey(task)) && !noMenu && !temporary;
   const [dateOpen, setDateOpen] = useState(false);
   const [acts, setActs] = useState<HTMLDivElement | null>(null);
@@ -168,7 +169,8 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
     .filter(Boolean).join(" ");
   const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
   return (
-    <div ref={ref} className={classes} data-task-id={noMenu ? undefined : task.id} onKeyDown={onKeyArrange} style={{ ...indent, ...style }} {...rest}>
+    <div ref={ref} className={classes} data-task-id={noMenu ? undefined : task.id} onKeyDown={onKeyArrange} style={{ ...indent, ...style }}
+      onContextMenu={onContextMenu ?? contextMenu.onContextMenu} {...rest}>
       {grip && !temporary && variant === "row" && <span className="grip" aria-hidden="true"><IconGrip /></span>}
       <Checkbox task={task} disabled={temporary} onToggle={() => actions.toggle(task)} />
       <TaskContent task={task} actions={actions} showOrigin={showOrigin} timeOnly={timeOnly} preview={noMenu} showMoreSubtasks={showMoreSubtasks} />
@@ -188,7 +190,7 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
               </button>
             </>
           )}
-          <MenuButton label={`Ações de “${task.title}”`} title={task.title}
+          <MenuButton label={`Ações de “${task.title}”`} title={task.title} contextMenu={contextMenu}
             items={() => taskMenu({
               task, actions, reference: app.reference, edit, insert, arrange, onArrange,
               datePicker: (close) => (

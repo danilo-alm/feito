@@ -127,6 +127,7 @@ try {
   applyTheme("system");
 }
 configureApi({ fetch: desktop.fetch });
+document.addEventListener("contextmenu", (event) => event.preventDefault(), { capture: true });
 document.querySelector<HTMLAnchorElement>(".sr-only")?.addEventListener("click", (event) => {
   const main = document.getElementById("conteudo");
   if (!main) return;
@@ -139,7 +140,7 @@ function DesktopApp() {
   const router = useRouter();
   return (
     <NavigationProvider pathname={pathname} router={router} Link={Link}>
-      <AppProviders><WorkspaceScreen /></AppProviders>
+      <AppProviders contextMenus><WorkspaceScreen /></AppProviders>
     </NavigationProvider>
   );
 }
