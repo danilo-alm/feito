@@ -95,7 +95,10 @@ jobs:
 
       - name: Logs do PostgreSQL em caso de falha
         if: failure()
-        run: docker compose -p feito-test --env-file "$RUNNER_TEMP/test.env" logs postgres
+        run: |
+          if [ -f "$RUNNER_TEMP/test.env" ]; then
+            docker compose -p feito-test --env-file "$RUNNER_TEMP/test.env" logs postgres
+          fi
 
   publish:
     # Só publica em push na main ou na dev, depois de os testes passarem.
