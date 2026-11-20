@@ -109,9 +109,15 @@ O projeto Compose se chama `feito-dev`. O PostgreSQL continua publicado em `127.
 docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --wait
 ```
 
-`FEITO_ORIGIN` é o endereço HTTPS usado pelo navegador. `FEITO_HTTPS_PORT` define a porta HTTPS publicada pelo Compose. Inclua a porta em `FEITO_ORIGIN` quando o navegador acessá-la diretamente, como em `https://localhost:3000`. Com Cloudflare Tunnel, mantenha a origem pública como `https://feito.example.org` e aponte o túnel para a porta HTTPS publicada, por exemplo `https://127.0.0.1:8083` se o `cloudflared` roda no host. Configure o nome do servidor TLS do túnel com o domínio coberto pelo certificado do Caddy.
+`FEITO_ORIGIN` é o endereço HTTPS usado pelo navegador. `FEITO_HTTPS_PORT` define a porta HTTPS publicada pelo Compose. Inclua a porta em `FEITO_ORIGIN` quando o navegador acessá-la diretamente, como em `https://localhost:3000`.
 
 Com um domínio público e as portas 80 e 443 acessíveis, o Caddy obtém o certificado via ACME. Com `localhost` ou um IP, o certificado vem da CA interna. O Next.js e o PostgreSQL não publicam portas no host. O contêiner da aplicação roda com sistema de arquivos somente leitura, sem capabilities, e tem healthcheck em `/api/health`.
+
+### Cloudflare Tunnel no mesmo host
+
+Acrescente `-f compose.prod.tunnel.yaml` depois dos arquivos Compose de produção. A opção funciona com PostgreSQL interno ou externo e publica apenas o HTTP do Caddy no loopback do host, na porta `FEITO_HTTP_PORT` (padrão `8084`).
+
+Mantenha `FEITO_ORIGIN=https://feito.example.org` com o domínio público. Na rota do Tunnel, use `http://127.0.0.1:8084` como **Service URL**, ajustando a porta se necessário. O navegador usa HTTPS com a Cloudflare, e o `cloudflared` acessa o Caddy por HTTP no host. Essa configuração dispensa um certificado no Caddy.
 
 ### Produção com PostgreSQL externo
 

@@ -1,0 +1,7 @@
+# Acrescente ao Compose de produção quando o cloudflared roda no mesmo host.
+services:
+  caddy:
+    ports: !override
+      - "127.0.0.1:${FEITO_HTTP_PORT:-8084}:80"
+    volumes:
+      - ./docker/Caddyfile.tunnel:/etc/caddy/Caddyfile:ro
