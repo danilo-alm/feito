@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useEffectEvent, useL
 import { usePathname, useRouter } from "next/navigation";
 import { api, ApiFailure, configureApi, errorMessage } from "@/client/api";
 import { registerTagOrder } from "@/client/colors";
+import { dismissFailedDrafts, useFailedDrafts, type FailedDraft } from "@/client/composer";
 import { closeEditor, type InsertDefaults } from "@/client/editor-store";
 import { clearCache, invalidate, useQuery } from "@/client/store";
 import { isTemporaryTask, type MutationContext } from "@/client/task-mutations";
@@ -273,6 +274,7 @@ export function AppShell({
       {renderOverlays(overlay, close)}
       <ConfirmDialog state={confirmState} onDone={(result) => { confirmState?.resolve(result); setConfirmState(null); }} />
       <PromptDialog state={promptState} onDone={(result) => { promptState?.resolve(result); setPromptState(null); }} />
+      <FailedDraftsDialog />
     </AppContext.Provider>
   );
 }
@@ -336,5 +338,55 @@ function PromptDialog({ state, onDone }: { state: PromptOptions | null; onDone: 
         </div>
       </form>
     </Dialog>
+  );
+}
+
+/** Tarefas que não foram adicionadas e cujo texto não pôde voltar ao campo (veja client/composer.ts). */
+function FailedDraftsDialog() {
+  const drafts = useFailedDrafts();
+  const close = useRef<HTMLButtonElement>(null);
+  const count = drafts.length;
+  return (
+    <Dialog
+      open={count > 0}
+      onClose={dismissFailedDrafts}
+      title={count === 1 ? "Tarefa não adicionada" : "Tarefas não adicionadas"}
+      initialFocus={close}
+      footer={<button ref={close} type="button" className="btn primary" onClick={dismissFailedDrafts}>Fechar</button>}
+    >
+      <div className="dialog-b">
+        <p style={{ color: "var(--muted)" }}>
+          {count === 1 ? "Não foi possível adicionar esta tarefa." : "Não foi possível adicionar estas tarefas."}
+          {" "}Copie o texto antes de fechar para tentar de novo.
+        </p>
+        <ul className="failed-drafts">
+          {drafts.map((draft) => <FailedDraftItem key={draft.id} draft={draft} />)}
+        </ul>
+      </div>
+    </Dialog>
+  );
+}
+
+function FailedDraftItem({ draft }: { draft: FailedDraft }) {
+  const [copied, setCopied] = useState(false);
+  const text = draft.description.trim() ? `${draft.title}\n\n${draft.description}` : draft.title;
+  return (
+    <li className="failed-draft">
+      <div className="failed-draft-text">
+        <strong>{draft.title}</strong>
+        {draft.description.trim() && <p>{draft.description}</p>}
+      </div>
+      <button type="button" className="btn" aria-label={`Copiar “${draft.title}”`} onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+        } catch {
+          // Sem permissão de área de transferência: o texto continua selecionável para o Ctrl/Cmd+C manual.
+          setCopied(false);
+        }
+      }}>
+        {copied ? "Copiado" : "Copiar"}
+      </button>
+    </li>
   );
 }

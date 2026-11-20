@@ -3,9 +3,10 @@
 // (no lugar de "Adicionar tarefa") e ao diálogo de adicionar (Q, botão da barra lateral e celular).
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { api } from "@/client/api";
+import { composerText, recoverDraft, registerComposer, type DraftText } from "@/client/composer";
 import { tagColor } from "@/client/colors";
 import { dateLabel, dayOfMonth, dueTone } from "@/client/dates";
-import { closeEditor, editKey, insertKey, openEditor, useEditorOpen, type InsertDefaults } from "@/client/editor-store";
+import { closeEditor, currentEditor, editKey, insertKey, openEditor, useEditorOpen, type InsertDefaults } from "@/client/editor-store";
 import { getQueryData, useQuery } from "@/client/store";
 import { createTask, editTask, type MutationContext } from "@/client/task-mutations";
 import type { EditTask, Frequency, Label, Priority, ProjectPage, TaskDetail, TaskItem } from "@/client/types";
@@ -125,6 +126,22 @@ export function TaskEditor({
   const descTouched = useRef(false);
   const loadingDescription = lateDescription === null;
   const inline = variant === "inline";
+  const latest = useRef(draft);
+  latest.current = draft;
+
+  // Criação: o editor aberto recebe de volta o texto de uma gravação que falhou (veja client/composer.ts).
+  useEffect(() => {
+    if (!resetOnSubmit) return;
+    return registerComposer({
+      read: () => ({ title: latest.current.title, description: latest.current.description }),
+      write: (text) => {
+        descTouched.current = !!text.description;
+        latest.current = { ...latest.current, ...text };
+        setDraft((current) => ({ ...current, ...text }));
+        title.current?.focus();
+      },
+    });
+  }, [resetOnSubmit, title]);
 
   useEffect(() => {
     if (typeof lateDescription === "string" && !descTouched.current) setDraft((current) => ({ ...current, description: lateDescription }));
@@ -141,14 +158,20 @@ export function TaskEditor({
   const submit = async () => {
     const text = draft.title.trim();
     if (!text || busy) return;
+    if (resetOnSubmit) {
+      // Otimista: o campo fica livre para a próxima tarefa e o texto enviado só volta se a gravação falhar.
+      const sent: DraftText = { title: draft.title, description: draft.description };
+      descTouched.current = false;
+      latest.current = { ...latest.current, title: "", description: "" };
+      set({ title: "", description: "" });
+      title.current?.focus();
+      const ok = await onSubmit({ ...draft, title: text }).catch(() => false);
+      if (!ok) recoverDraft(sent);
+      return;
+    }
     setBusy(true);
     try {
-      const ok = await onSubmit({ ...draft, title: text });
-      if (ok && resetOnSubmit) {
-        descTouched.current = false;
-        set({ title: "", description: "" });
-        title.current?.focus();
-      }
+      await onSubmit({ ...draft, title: text });
     } finally {
       setBusy(false);
     }
@@ -302,11 +325,21 @@ export function InlineEdit({ task }: { task: TaskItem }) {
   );
 }
 
+/**
+ * Criações "abaixo" em sequência: cada uma vai depois da anterior, mesmo enviada antes de a anterior ser confirmada.
+ * Fica fora do componente porque o editor muda de lugar (e remonta) quando a sequência termina.
+ */
+const belowChains = new Map<string, { tail: Promise<string | undefined>; pending: number }>();
+
 /** Criação em linha, no lugar de "Adicionar tarefa" ou acima/abaixo de uma tarefa. Fica aberta para a próxima. */
 export function InlineCreate({ slot, defaults }: { slot: string; defaults: InsertDefaults }) {
   const app = useApp();
   const inboxId = app.nav?.inbox.projectId ?? app.me.inboxProjectId;
-  const [initial] = useState(() => draftFromDefaults(defaults, inboxId));
+  const [initial] = useState(() => {
+    const target = currentEditor();
+    const carried = target?.kind === "create" && target.key === slot ? target.text : undefined;
+    return { ...draftFromDefaults(defaults, inboxId), ...carried };
+  });
   const parentId = defaults.parentId ?? null;
   return (
     <TaskEditor
@@ -320,17 +353,33 @@ export function InlineCreate({ slot, defaults }: { slot: string; defaults: Inser
       onCancel={() => closeEditor(slot)}
       onSubmit={async (draft) => {
         const samePlace = draft.projectId === initial.projectId && draft.sectionId === initial.sectionId;
-        const place = { parentId, ...(samePlace ? { beforeId: defaults.beforeId, afterId: defaults.afterId } : {}) };
-        const created = await app.run(() => createFromDraft(draft, place, app.taskContext), {
+        const create = (afterId = samePlace ? defaults.afterId : undefined) => app.run(() => createFromDraft(draft, {
+          parentId, ...(samePlace ? { beforeId: defaults.beforeId, afterId } : {}),
+        }, app.taskContext), {
           // Fora do lugar onde o editor está, a tarefa não aparece aqui: o aviso diz para onde foi.
           success: samePlace ? undefined : `Tarefa adicionada em ${destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))}`,
         });
-        if (!created) return false;
-        if (samePlace && defaults.afterId) {
-          // "Abaixo": o editor desce para depois da tarefa recém-criada, mantendo a ordem de digitação.
-          openEditor({ kind: "create", key: insertKey("below", created.id), defaults: { ...defaults, afterId: created.id } });
+        if (!samePlace || !defaults.afterId) return !!await create();
+
+        // "Abaixo": a próxima vai depois desta; se esta falhar, a próxima fica onde esta iria.
+        const chain = belowChains.get(slot) ?? { tail: Promise.resolve(defaults.afterId), pending: 0 };
+        belowChains.set(slot, chain);
+        chain.pending += 1;
+        const attempt = chain.tail.then(async (afterId) => ({ afterId, created: await create(afterId) }));
+        chain.tail = attempt.then(({ afterId, created }) => created?.id ?? afterId);
+        const { created } = await attempt;
+        chain.pending -= 1;
+        if (chain.pending) return !!created;
+        belowChains.delete(slot);
+        // Fim da sequência: o editor desce para depois da última tarefa criada, com o texto que já estiver nele.
+        const target = currentEditor();
+        if (created && target?.key === slot) {
+          openEditor({
+            kind: "create", key: insertKey("below", created.id), defaults: { ...defaults, afterId: created.id },
+            text: composerText() ?? undefined,
+          });
         }
-        return true;
+        return !!created;
       }}
     />
   );

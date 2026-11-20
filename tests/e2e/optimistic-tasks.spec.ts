@@ -42,6 +42,7 @@ test("Enter insere a tarefa na seção e troca o ID após a resposta, sem depend
   try {
     await input.press("Enter");
     await create.received;
+    await expect(input).toHaveValue("");
     await expect(section.locator(task)).toBeVisible();
     await expect(section.locator(".count")).toHaveText("1");
     const temporaryId = await task.getAttribute("data-task-id");
@@ -59,6 +60,60 @@ test("Enter insere a tarefa na seção e troca o ID após a resposta, sem depend
   } finally {
     create.release();
     projectRead.release();
+  }
+});
+
+test("limpa o campo ao enviar e devolve o texto quando a criação falha", async ({ page, api }) => {
+  const { id: projectId } = await api<{ id: string }>("POST", "/projects", { name: "Projeto da criação recuperada" });
+  await page.goto(`/projetos/${projectId}`);
+  const failure = (route: Route) => route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "Servidor indisponível." } } });
+  const create = await holdRequest(page, "POST", "/tasks", failure);
+  await page.getByRole("button", { name: "Adicionar tarefa", exact: true }).first().click();
+  const input = page.getByRole("textbox", { name: "Título da tarefa" });
+  const description = page.getByRole("textbox", { name: "Descrição" });
+  await input.fill("Revisar orçamento");
+  await description.fill("Conferir as três cotações");
+
+  try {
+    await input.press("Enter");
+    await create.received;
+    await expect(input).toHaveValue("");
+    await expect(description).toHaveValue("");
+    await expect(row(page, "Revisar orçamento")).toBeVisible();
+    create.release();
+    await expect(row(page, "Revisar orçamento")).toBeHidden();
+    await expect(input).toHaveValue("Revisar orçamento");
+    await expect(description).toHaveValue("Conferir as três cotações");
+  } finally {
+    create.release();
+  }
+});
+
+test("mostra o texto da criação que falhou quando o campo já tem texto novo", async ({ page, api }) => {
+  const { id: projectId } = await api<{ id: string }>("POST", "/projects", { name: "Projeto da criação listada" });
+  await page.goto(`/projetos/${projectId}`);
+  const failure = (route: Route) => route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "Servidor indisponível." } } });
+  const create = await holdRequest(page, "POST", "/tasks", failure);
+  await page.getByRole("button", { name: "Adicionar tarefa", exact: true }).first().click();
+  const input = page.getByRole("textbox", { name: "Título da tarefa" });
+  await input.fill("Ligar para o fornecedor");
+  await page.getByRole("textbox", { name: "Descrição" }).fill("Pedir o prazo de entrega");
+
+  try {
+    await input.press("Enter");
+    await create.received;
+    await expect(input).toHaveValue("");
+    await input.fill("Outra ideia");
+    create.release();
+    const recovery = page.getByRole("dialog", { name: "Tarefa não adicionada" });
+    await expect(recovery).toBeVisible();
+    await expect(recovery.getByText("Ligar para o fornecedor")).toBeVisible();
+    await expect(recovery.getByText("Pedir o prazo de entrega")).toBeVisible();
+    await expect(input).toHaveValue("Outra ideia");
+    await recovery.getByRole("button", { name: "Fechar", exact: true }).click();
+    await expect(recovery).toBeHidden();
+  } finally {
+    create.release();
   }
 });
 

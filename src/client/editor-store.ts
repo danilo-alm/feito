@@ -1,6 +1,7 @@
 "use client";
 // Editor rápido em linha: no máximo um aberto por vez, no lugar de uma tarefa ou de um botão "Adicionar tarefa".
 import { useSyncExternalStore } from "react";
+import type { DraftText } from "./composer";
 
 export type InsertDefaults = {
   projectId?: string;
@@ -15,7 +16,7 @@ export type InsertDefaults = {
 
 export type EditorTarget =
   | { kind: "edit"; key: string; taskId: string }
-  | { kind: "create"; key: string; defaults: InsertDefaults };
+  | { kind: "create"; key: string; defaults: InsertDefaults; /** Texto levado quando o editor muda de lugar. */ text?: DraftText };
 
 let current: EditorTarget | null = null;
 const listeners = new Set<() => void>();
@@ -39,6 +40,10 @@ export function closeEditor(key?: string) {
   if (!current || (key && current.key !== key)) return;
   current = null;
   emit();
+}
+
+export function currentEditor() {
+  return current;
 }
 
 export function useEditorTarget() {

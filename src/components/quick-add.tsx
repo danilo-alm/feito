@@ -28,8 +28,12 @@ export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | n
     if (!defaults) return null;
     const initial = Object.keys(defaults).length ? defaults : inferDefaults(pathname, app.reference);
     round.current += 1;
-    // `after` avança a cada criação "abaixo de", mantendo a ordem de digitação.
-    return { key: round.current, initial, draft: draftFromDefaults(initial, inboxId), after: initial.afterId };
+    // `after` avança a cada criação "abaixo de", mantendo a ordem de digitação. Envios seguidos não esperam a
+    // resposta: cada um vai depois do anterior quando ele for confirmado.
+    return {
+      key: round.current, initial, draft: draftFromDefaults(initial, inboxId),
+      after: Promise.resolve(initial.afterId) as Promise<string | undefined>,
+    };
   }, [defaults, pathname, app.reference, inboxId]);
   const parentId = session?.initial.parentId ?? null;
   const parentTitle = parentId ? getQueryData<{ title: string }>(`task:${parentId}`)?.title : undefined;
@@ -55,14 +59,16 @@ export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | n
           )}
           onSubmit={async (draft) => {
             const samePlace = draft.projectId === session.draft.projectId && draft.sectionId === session.draft.sectionId;
-            const created = await app.run(() => createFromDraft(draft, {
-              parentId, ...(samePlace ? { beforeId: session.initial.beforeId, afterId: session.after } : {}),
+            const create = (afterId?: string) => app.run(() => createFromDraft(draft, {
+              parentId, ...(samePlace ? { beforeId: session.initial.beforeId, afterId } : {}),
             }, app.taskContext), {
               success: `Tarefa adicionada em ${parentId ? `“${parentTitle ?? "tarefa"}”`
                 : destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))}`,
             });
-            if (created && samePlace && session.after) session.after = created.id;
-            return !!created;
+            if (!samePlace || !session.initial.afterId) return !!await create();
+            const attempt = session.after.then(async (afterId) => ({ afterId, created: await create(afterId) }));
+            session.after = attempt.then(({ afterId, created }) => created?.id ?? afterId);
+            return !!(await attempt).created;
           }}
         />
       )}
