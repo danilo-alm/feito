@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { POST as login } from "@/app/api/v1/auth/login/route";
 import { POST as changePassword } from "@/app/api/v1/auth/password/route";
 import * as labels from "@/app/api/v1/labels/route";
+import * as desktopSync from "@/app/api/v1/desktop-sync/route";
 import * as label from "@/app/api/v1/labels/[id]/route";
 import * as labelTasks from "@/app/api/v1/labels/[id]/tasks/route";
 import * as navigation from "@/app/api/v1/navigation/route";
@@ -54,6 +55,7 @@ export type Task = Awaited<ReturnType<typeof getTask>>;
 const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "/auth/login": { POST: login },
   "/auth/password": { POST: changePassword },
+  "/desktop-sync": desktopSync,
   "/navigation": navigation,
   "/projects": projects,
   "/projects/:id": project,

@@ -93,8 +93,10 @@ function ProjectRow({ project, active, shortcut, onEdit }: { project: ProjectSum
 
   const menu = (): MenuItem[] => [
     { label: "Editar projeto", icon: <IconEdit />, onSelect: onEdit },
-    { label: "Importar…", icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) },
-    { label: "Exportar…", icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) },
+    ...(app.browserTools ? [
+      { label: "Importar…", icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) },
+      { label: "Exportar…", icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) },
+    ] : []),
     { label: "Arquivar projeto", icon: <IconArchive />, onSelect: async () => {
       const ok = await app.confirm({
         title: `Arquivar “${project.name}”?`,

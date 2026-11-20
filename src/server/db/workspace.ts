@@ -8,8 +8,10 @@ import { PAYLOAD_VERSION, sealPayload, wrapDek } from "@/server/crypto/envelope"
 import type { PayloadContext } from "@/server/crypto/envelope";
 import { preferences as preferencesSchema, type Preferences } from "@/validation/account";
 import type { Database, Transaction } from "./client";
+import { writeDesktopRevision } from "./desktop-journal";
+import { desktopClock, DesktopWriteOutcome, readDesktopReceipt, writeDesktopReceipt, type DesktopOperation } from "./desktop-sync";
 import { decodeProduct, reserveKek, useDek, withDekWrite } from "./product-crypto";
-import { dekUsage, preferences, projects, tenantKeys, tenants } from "./schema";
+import { dekUsage, desktopPreferenceClocks, preferences, projects, tenantKeys, tenants } from "./schema";
 import { advanceProductRevision, lockTenant, withTenant } from "./tenant";
 
 export function preferenceContext(row: Pick<typeof preferences.$inferSelect,
@@ -94,20 +96,47 @@ export function readWorkspace(db: Database, keys: KeyConfig, tenantId: string) {
 }
 
 export async function persistPreferences(
-  db: Database, keys: KeyConfig, tenantId: string, patch: Partial<Preferences>,
+  db: Database, keys: KeyConfig, tenantId: string, patch: Partial<Preferences>, desktopOperation?: DesktopOperation,
 ) {
-  if (!Object.keys(patch).length) return (await readWorkspace(db, keys, tenantId)).preferences;
+  if (desktopOperation) {
+    const replay = await withTenant(db, tenantId, (tx) => readDesktopReceipt(tx, desktopOperation));
+    if (replay) throw replay;
+  } else if (!Object.keys(patch).length) return (await readWorkspace(db, keys, tenantId)).preferences;
 
-  return withDekWrite(db, keys, tenantId, 1, async (tx, version, dek, tenant) => {
+  const result = await withDekWrite(db, keys, tenantId, 1, async (tx, version, dek, tenant) => {
+    if (desktopOperation) {
+      const replay = await readDesktopReceipt(tx, desktopOperation);
+      if (replay) return replay;
+    }
+    const [metadata] = await tx.select({ clocks: desktopPreferenceClocks.clocks }).from(desktopPreferenceClocks);
+    const clocks = metadata?.clocks ?? {};
+    const clock = desktopClock(desktopOperation?.authoredAt ?? new Date().toISOString(), desktopOperation?.id);
+    const accepted = { ...patch };
+    for (const field of ["theme", "timezone"] as const) {
+      if (accepted[field] === undefined) continue;
+      if (clock > (clocks[field] ?? "")) clocks[field] = clock;
+      else if (desktopOperation) delete accepted[field];
+    }
+    if (desktopOperation) {
+      const ignoredReason = Object.keys(accepted).length ? null : "DESKTOP_EDIT_SUPERSEDED";
+      await writeDesktopReceipt(tx, tenantId, desktopOperation, ignoredReason);
+      if (ignoredReason) return new DesktopWriteOutcome(ignoredReason);
+    }
     const row = await preferenceRow(tx, tenantId);
     const current = row.dekVersion === version
       ? await decodeProduct(dek, preferenceContext(row), row, preferencesSchema)
       : await readPreferences(tx, keys, row);
-    const updated = { ...current, ...patch };
+    const updated = { ...current, ...accepted };
     await writePreferences(tx, tenantId, version, dek.key, row.revision + 1, updated);
+    await tx.insert(desktopPreferenceClocks).values({ tenantId, clocks }).onConflictDoUpdate({
+      target: desktopPreferenceClocks.tenantId, set: { clocks },
+    });
+    await writeDesktopRevision(tx, tenantId, tenant.productRevision + 1, { preferences: true });
     await advanceProductRevision(tx, tenant);
     return updated;
   });
+  if (result instanceof DesktopWriteOutcome) throw result;
+  return result;
 }
 
 

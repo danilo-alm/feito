@@ -56,6 +56,7 @@ type AppContextValue = {
   me: Me;
   nav: Navigation | undefined;
   showProjectShortcuts: boolean;
+  browserTools: boolean;
   reference: string;
   timezone: string;
   taskContext: MutationContext;
@@ -98,9 +99,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
 }
 
 export function AppShell({
-  children, renderOverlays, renderChrome,
+  children, renderOverlays, renderChrome, browserTools = true,
 }: {
   children: ReactNode;
+  browserTools?: boolean;
   renderOverlays: (state: Overlay, close: (key: keyof Overlay) => void) => ReactNode;
   renderChrome: (nav: Navigation | undefined) => ReactNode;
 }) {
@@ -241,6 +243,7 @@ export function AppShell({
     me: me.data,
     nav: nav.data,
     showProjectShortcuts,
+    browserTools,
     reference: nav.data?.referenceDate ?? me.data.referenceDate,
     timezone: me.data.preferences.timezone,
     taskContext: { reference: nav.data?.referenceDate ?? me.data.referenceDate, inboxId: me.data.inboxProjectId },
@@ -250,7 +253,7 @@ export function AppShell({
     confirm,
     prompt,
     run,
-  } : null, [me.data, nav.data, showProjectShortcuts, confirm, prompt, run]);
+  } : null, [me.data, nav.data, showProjectShortcuts, browserTools, confirm, prompt, run]);
 
   if (!value) {
     if (me.error && !(me.error instanceof ApiFailure && me.error.status === 401)) {

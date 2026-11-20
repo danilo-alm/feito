@@ -6,6 +6,8 @@ import {
 } from "drizzle-orm/pg-core";
 
 import type { ImportCounts } from "@/validation/portability";
+import type { DesktopJournalReferences } from "./desktop-journal";
+import type { PreferenceClocks, TaskFieldClocks } from "./desktop-sync";
 
 export const identity = pgSchema("identity");
 export const domain = pgSchema("domain");
@@ -239,6 +241,40 @@ export const importOperations = domain.table("import_operations", {
 }, (row) => [
   primaryKey({ columns: [row.tenantId, row.operationId] }),
   check("import_fingerprint_size", sql`octet_length(${row.fingerprint}) = 32`),
+  tenantPolicy(row.tenantId),
+]).enableRLS();
+
+export const desktopOperations = domain.table("desktop_operations", {
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  id: uuid("id").notNull(),
+  fingerprint: bytea("fingerprint").notNull(),
+  ignoredReason: text("ignored_reason"),
+}, (row) => [
+  primaryKey({ columns: [row.tenantId, row.id] }),
+  check("desktop_fingerprint_size", sql`octet_length(${row.fingerprint}) = 32`),
+  tenantPolicy(row.tenantId),
+]).enableRLS();
+
+export const desktopTaskClocks = domain.table("desktop_task_clocks", {
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  taskId: uuid("task_id").notNull(),
+  clocks: jsonb("clocks").$type<TaskFieldClocks>().notNull(),
+}, (row) => [
+  primaryKey({ columns: [row.tenantId, row.taskId] }),
+  tenantPolicy(row.tenantId),
+]).enableRLS();
+
+export const desktopPreferenceClocks = domain.table("desktop_preference_clocks", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => tenants.id),
+  clocks: jsonb("clocks").$type<PreferenceClocks>().notNull(),
+}, (row) => [tenantPolicy(row.tenantId)]).enableRLS();
+
+export const desktopJournal = domain.table("desktop_journal", {
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  revision: integer("revision").notNull(),
+  references: jsonb("references").$type<DesktopJournalReferences>().notNull(),
+}, (row) => [
+  primaryKey({ columns: [row.tenantId, row.revision] }),
   tenantPolicy(row.tenantId),
 ]).enableRLS();
 

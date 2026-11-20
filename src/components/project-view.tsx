@@ -297,8 +297,8 @@ export function ProjectView({ projectId }: { projectId: string }) {
 
   const projectMenu = (): MenuItem[] => [
     ...(archived ? [] : [{ label: "Editar projeto", icon: <IconEdit />, onSelect: () => projectDetails.edit(project) }]),
-    ...(archived ? [] : [{ label: "Importar…", icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) }]),
-    { label: "Exportar…", icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) },
+    ...(!app.browserTools || archived ? [] : [{ label: "Importar…", icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) }]),
+    ...(app.browserTools ? [{ label: "Exportar…", icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) }] : []),
     archived
       ? { label: "Reativar projeto", icon: <IconArchive />, onSelect: () => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado", revalidate: refreshProjects }) }
       : { label: "Arquivar projeto", icon: <IconArchive />, onSelect: async () => {
@@ -357,7 +357,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
   );
   const tools = (
     <>
-      {!project.isInbox && <ShareMenu projectId={project.id} archived={archived} />}
+      {app.browserTools && !project.isInbox && <ShareMenu projectId={project.id} archived={archived} />}
       {!archived && <ViewMenu page={page} onChange={(patch) => void changeView(patch)} />}
       {!project.isInbox && (
         <MenuButton label="Ações do projeto" title={project.name} items={projectMenu}><IconMore /></MenuButton>
@@ -389,7 +389,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
               <ProjectHeading key={project.id} project={project} titleRef={projectTitle} />
               <div className="page-meta">
                 <PageTaskCount count={activeTasks} />
-                {!project.isInbox && <PublicBadge projectId={project.id} />}
+                {app.browserTools && !project.isInbox && <PublicBadge projectId={project.id} />}
               </div>
             </div>
             <Collapse open={archived} appear={false}>

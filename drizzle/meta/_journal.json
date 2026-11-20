@@ -50,6 +50,27 @@
       "when": 1795183792524,
       "tag": "0006_undo_recurring_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795201620523,
+      "tag": "0007_desktop_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795201893194,
+      "tag": "0008_desktop_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795202034640,
+      "tag": "0009_desktop_journal",
+      "breakpoints": true
     }
   ]
 }

@@ -45,8 +45,9 @@ type NamedDetails = Pick<SectionPayload, "name" | "description">;
 type ProjectDetails = Pick<ProjectPayload, "name" | "description" | "color" | "icon">;
 
 export function createProject(access: ProductAccess, details: ProjectDetails) {
-  const id = randomUUID();
+  const id = access.desktopOperation?.generatedIds[0] ?? randomUUID();
   return mutateProduct(access, (product) => {
+    if (product.projects.has(id)) throw new ApiError(409, "DESKTOP_ID_UNAVAILABLE", "O identificador já foi usado.");
     const createdAt = product.now.toString();
     const project = { id, revision: 1, isInbox: false, data: { ...details, createdAt, archived: false, view: defaultsForView } };
     product.projects.set(id, project);
@@ -129,8 +130,9 @@ function arrangeSections(product: Product, original: Product, section: Section, 
 }
 
 export function createSection(access: ProductAccess, projectId: string, details: NamedDetails, anchor: SectionAnchor) {
-  const id = randomUUID();
+  const id = access.desktopOperation?.generatedIds[0] ?? randomUUID();
   return mutateProduct(access, (product, original) => {
+    if (product.sections.has(id)) throw new ApiError(409, "DESKTOP_ID_UNAVAILABLE", "O identificador já foi usado.");
     const project = writableProject(visibleRecord(product.projects, projectId));
     protectInbox(project);
     arrangeSections(product, original, { id, projectId, revision: 1, data: { ...details, position: 0 } }, anchor);

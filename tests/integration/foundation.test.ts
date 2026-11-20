@@ -302,7 +302,7 @@ describe("PostgreSQL roles, RLS and encrypted storage", () => {
         from pg_class join pg_namespace on pg_namespace.oid = relnamespace
         where nspname = 'domain' and relkind = 'r'
     `);
-    expect(policies.rows).toHaveLength(12);
+    expect(policies.rows).toHaveLength(16);
     for (const row of policies.rows) expect(row).toEqual({ rls: true, forced: true, owned: false });
     await expect(db.select().from(user)).rejects.toMatchObject({ cause: { code: "42501" } });
     await expect(identity.db.select().from(tenants)).rejects.toMatchObject({ cause: { code: "42501" } });
