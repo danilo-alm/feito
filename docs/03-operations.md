@@ -158,6 +158,14 @@ docker compose "${FEITO_COMPOSE[@]}" --env-file "$FEITO_ENV" exec app \
 curl -sS https://feito.example.org/api/health
 ```
 
+Para erros inesperados da API, procure pelo mesmo `requestId` nos logs de `app`.
+Além do resumo com status e duração, a entrada de erro inclui `errorClass` e
+`error`, com códigos de rede ou SQLSTATE, locais da stack e até três causas
+encadeadas. Mensagens conhecidas de conexão e TLS também são registradas.
+Mensagens arbitrárias, SQL, parâmetros e detalhes do banco são omitidos para
+preservar credenciais e dados pessoais. Esses diagnósticos ficam nos logs do
+servidor; a resposta HTTP continua usando a mensagem pública genérica.
+
 O migrador informa se a falha ocorreu na conexão ou na aplicação das migrações e registra o código do erro quando disponível. A conexão inicial tem limite de 10 segundos. No Supabase, as tabelas do Feito ficam nos schemas `domain`, `identity` e `crypto_ops`.
 
 ### CLIs

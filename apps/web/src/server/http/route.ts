@@ -4,6 +4,7 @@ import { z } from "zod";
 import { CipherError } from "@/server/crypto/envelope";
 import { KeyBudgetError } from "@/server/db/product-crypto";
 import { ApiError } from "@/server/errors";
+import { errorDiagnostics } from "@/server/error-diagnostics";
 import { logger } from "@/server/logger";
 
 const CACHE = "private, no-store";
@@ -117,7 +118,7 @@ export function route<Context extends unknown[]>(
       if (!known) {
         const errorClass = error instanceof CipherError ? "crypto"
           : error instanceof KeyBudgetError ? "key_budget" : "unexpected";
-        logger.error({ requestId, route: path, operation, code, errorClass });
+        logger.error({ requestId, route: path, operation, code, errorClass, error: errorDiagnostics(error) });
       }
     }
 

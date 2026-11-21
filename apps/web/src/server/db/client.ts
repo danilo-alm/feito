@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { databaseUrl } from "@/server/crypto/config";
 import { logger } from "@/server/logger";
+import { errorDiagnostics } from "@/server/error-diagnostics";
 
 export function connectDatabase(name: string, max: number) {
   const pool = new Pool({
@@ -12,7 +13,9 @@ export function connectDatabase(name: string, max: number) {
     statement_timeout: 10_000,
     idle_in_transaction_session_timeout: 15_000,
   });
-  pool.on("error", () => logger.error({ operation: "idle_database_connection", code: "DATABASE_ERROR" }));
+  pool.on("error", (error) => logger.error({
+    operation: "idle_database_connection", code: "DATABASE_ERROR", error: errorDiagnostics(error),
+  }));
   return { db: drizzle(pool), close: () => pool.end() };
 }
 
