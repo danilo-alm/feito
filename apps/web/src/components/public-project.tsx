@@ -1,4 +1,8 @@
 "use client";
+
+import { translate as t } from "@feito/ui/client/locale";
+import { useT } from "@feito/ui/components/language";
+
 import Link from "next/link";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { api, ApiFailure } from "@feito/ui/client/api";
@@ -9,10 +13,12 @@ import { maxOverviewDepth, taskBranch, unnamedColumnTitle } from "@feito/ui/clie
 import type { PublicProjectPage, PublicTask } from "@feito/core/types";
 import { PageTaskCount } from "@feito/ui/components/chrome";
 import { DueIcon, IconCheck, IconEye, IconFlag, IconRepeat, IconSub, IconTag, Logo } from "@feito/ui/components/icons";
+import { TaskDescriptionExcerpt, TaskMarkdown } from "@feito/ui/components/task-markdown";
 import { Dialog, Spinner } from "@feito/ui/components/ui";
 
 /** Página de leitura de um projeto compartilhado por link: sem sessão e sem controles de edição. */
 export function PublicProjectView({ token }: { token: string }) {
+  const t = useT();
   // undefined: o servidor usa project.view.showCompleted; depois vale a escolha do visitante (não é salva).
   const [includeCompleted, setIncludeCompleted] = useState<boolean | undefined>(undefined);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -28,11 +34,11 @@ export function PublicProjectView({ token }: { token: string }) {
     return (
       <PublicFrame>
         <div className="public-missing">
-          <h1>{missing ? "Link indisponível" : "Não foi possível abrir o projeto"}</h1>
+          <h1>{missing ? t("Link indisponível") : t("Não foi possível abrir o projeto")}</h1>
           <p>{missing
-            ? "Este link de projeto foi desativado ou não existe. Peça um link novo a quem compartilhou."
-            : "Verifique a conexão e tente de novo."}</p>
-          {!missing && <button type="button" className="btn" onClick={() => void query.reload()}>Tentar de novo</button>}
+            ? t("Este link de projeto foi desativado ou não existe. Peça um link novo a quem compartilhou.")
+            : t("Verifique a conexão e tente de novo.")}</p>
+          {!missing && <button type="button" className="btn" onClick={() => void query.reload()}>{t("Tentar de novo")}</button>}
         </div>
       </PublicFrame>
     );
@@ -54,7 +60,7 @@ export function PublicProjectView({ token }: { token: string }) {
             <div className="page-meta">
               <PageTaskCount count={page.project.activeCount} />
               <div className="public-tools">
-                <span id="public-completed">Mostrar concluídas</span>
+                <span id="public-completed">{t("Mostrar concluídas")}</span>
                 <button type="button" className={`switch${showCompleted ? " on" : ""}`} role="switch" aria-checked={showCompleted}
                   aria-labelledby="public-completed" onClick={() => setIncludeCompleted(!showCompleted)} />
               </div>
@@ -71,11 +77,12 @@ export function PublicProjectView({ token }: { token: string }) {
 }
 
 function PublicFrame({ children }: { children: ReactNode }) {
+  const t = useT();
   return (
     <div className="public">
       <header className="public-top">
         <Link href="/" className="brand"><Logo />Feito</Link>
-        <span className="public-tag"><IconEye />Projeto compartilhado · só leitura</span>
+        <span className="public-tag"><IconEye />{t("Projeto compartilhado · só leitura")}</span>
       </header>
       <main id="conteudo">{children}</main>
     </div>
@@ -85,7 +92,7 @@ function PublicFrame({ children }: { children: ReactNode }) {
 type LayoutProps = { page: PublicProjectPage; tasks: Map<string, PublicTask>; onOpen: (id: string) => void };
 
 function sectionTitle(page: PublicProjectPage, sectionId: string | null) {
-  return sectionId === null ? page.project.defaultSectionName : page.sections.find((section) => section.id === sectionId)?.name ?? "Seção";
+  return sectionId === null ? page.project.defaultSectionName : page.sections.find((section) => section.id === sectionId)?.name ?? t("Seção");
 }
 
 function roots(page: PublicProjectPage, tasks: Map<string, PublicTask>, sectionId: string | null) {
@@ -95,6 +102,7 @@ function roots(page: PublicProjectPage, tasks: Map<string, PublicTask>, sectionI
 }
 
 function PublicList({ page, tasks, onOpen }: LayoutProps) {
+  const t = useT();
   const block = (root: PublicTask) => Array.from(taskBranch(root, tasks, maxOverviewDepth), ({ task, depth }) => (
     <PublicTaskRow key={task.id} task={task} depth={depth} reference={page.referenceDate} onOpen={onOpen} />
   ));
@@ -106,12 +114,12 @@ function PublicList({ page, tasks, onOpen }: LayoutProps) {
           const title = sectionTitle(page, group.sectionId);
           if (!title && !active.length && !done.length) return null;
           return (
-            <section key={group.sectionId ?? "none"} className="list-group" aria-label={title ?? "Tarefas do projeto"}>
+            <section key={group.sectionId ?? "none"} className="list-group" aria-label={title ?? t("Tarefas do projeto")}>
               {title && <div className="sec-h">{title}<span className="count">{active.length}</span></div>}
               {active.flatMap(block)}
               {done.length > 0 && (
                 <>
-                  <div className="sec-h" style={{ color: "var(--muted)", fontSize: 13, paddingTop: 12 }}>Concluídas<span className="count">{done.length}</span></div>
+                  <div className="sec-h" style={{ color: "var(--muted)", fontSize: 13, paddingTop: 12 }}>{t("Concluídas")}<span className="count">{done.length}</span></div>
                   {done.flatMap(block)}
                 </>
               )}
@@ -119,7 +127,7 @@ function PublicList({ page, tasks, onOpen }: LayoutProps) {
           );
         })}
         {page.tasks.length === 0 && (
-          <div className="empty"><strong>Nenhuma tarefa por aqui</strong>Este projeto ainda não tem tarefas visíveis.</div>
+          <div className="empty"><strong>{t("Nenhuma tarefa por aqui")}</strong>{t("Este projeto ainda não tem tarefas visíveis.")}</div>
         )}
       </div>
     </div>
@@ -127,6 +135,7 @@ function PublicList({ page, tasks, onOpen }: LayoutProps) {
 }
 
 function PublicBoard({ page, tasks, onOpen }: LayoutProps) {
+  const t = useT();
   const block = (root: PublicTask) => Array.from(taskBranch(root, tasks, maxOverviewDepth), ({ task, depth }) => (
     <PublicTaskRow key={task.id} task={task} depth={depth} reference={page.referenceDate} onOpen={onOpen} card />
   ));
@@ -137,14 +146,14 @@ function PublicBoard({ page, tasks, onOpen }: LayoutProps) {
         const name = sectionTitle(page, group.sectionId);
         const title = name ?? unnamedColumnTitle;
         return (
-          <section key={group.sectionId ?? "none"} className="column" aria-label={`Coluna ${title}`}>
+          <section key={group.sectionId ?? "none"} className="column" aria-label={t("Coluna {0}", [title])}>
             <div className="col-h" style={{ color: name === null ? "var(--muted)" : undefined }}>
               {title}<span className="count">{active.length}</span>
             </div>
             {active.flatMap(block)}
             {done.length > 0 && (
               <>
-                <div className="sub" style={{ padding: "10px 6px 6px", fontWeight: 600 }}>Concluídas · {done.length}</div>
+                <div className="sub" style={{ padding: "10px 6px 6px", fontWeight: 600 }}>{t("Concluídas ·")}{" "}{done.length}</div>
                 {done.flatMap(block)}
               </>
             )}
@@ -165,6 +174,7 @@ function Ring({ task }: { task: PublicTask }) {
 }
 
 function PublicMeta({ task, reference, showMoreSubtasks }: { task: PublicTask; reference: string; showMoreSubtasks?: boolean }) {
+  const t = useT();
   const due = dueLabel(task.dueDate, task.dueTime, reference);
   return (
     <span className={`t-meta p${task.priority}`}>
@@ -172,12 +182,12 @@ function PublicMeta({ task, reference, showMoreSubtasks }: { task: PublicTask; r
         ? <span>{completedLabel(task.completedAt, reference)}</span>
         : due && (
           <span className={`m-date tone-${dueTone(task.dueDate!, reference, task.overdue)}`}>
-            <DueIcon tone={dueTone(task.dueDate!, reference, task.overdue)} day={dayOfMonth(task.dueDate!)} />{due}{task.overdue && <span className="sr-only"> (atrasada)</span>}
+            <DueIcon tone={dueTone(task.dueDate!, reference, task.overdue)} day={dayOfMonth(task.dueDate!)} />{due}{task.overdue && <span className="sr-only"> {" "}{t("(atrasada)")}</span>}
           </span>
         )}
-      {task.recurrence && <span><IconRepeat />{FREQUENCY_LABEL[task.recurrence.frequency]}</span>}
-      {showMoreSubtasks ? <span className="m-task-details"><IconSub />Ver subtarefas</span> : task.subtasks.total > 0 && (
-        <span aria-label={`${task.subtasks.completed} de ${task.subtasks.total} subtarefas concluídas`}>
+      {task.recurrence && <span><IconRepeat />{t(FREQUENCY_LABEL[task.recurrence.frequency])}</span>}
+      {showMoreSubtasks ? <span className="m-task-details"><IconSub />{t("Ver subtarefas")}</span> : task.subtasks.total > 0 && (
+        <span aria-label={t("{0} de {1} subtarefas concluídas", [task.subtasks.completed, task.subtasks.total])}>
           <IconSub />{task.subtasks.completed}/{task.subtasks.total}
         </span>
       )}
@@ -198,7 +208,7 @@ function PublicTaskRow({ task, depth, reference, onOpen, card }: {
       <div className="t-body">
         <button type="button" className="t-click" onClick={() => onOpen(task.id)}>
           <span className="t-title">{task.title}</span>
-          {task.descriptionExcerpt && <span className="t-desc">{task.descriptionExcerpt}</span>}
+          {task.descriptionExcerpt && <TaskDescriptionExcerpt>{task.descriptionExcerpt}</TaskDescriptionExcerpt>}
           <PublicMeta task={task} reference={reference} showMoreSubtasks={depth === maxOverviewDepth && task.childIds.length > 0} />
         </button>
       </div>
@@ -209,6 +219,7 @@ function PublicTaskRow({ task, depth, reference, onOpen, card }: {
 function PublicTaskDetail({ task, tasks, reference, onOpen }: {
   task: PublicTask; tasks: Map<string, PublicTask>; reference: string; onOpen: (id: string) => void;
 }) {
+  const t = useT();
   const parent = task.parentId ? tasks.get(task.parentId) : undefined;
   const children = task.childIds.map((id) => tasks.get(id)).filter((child): child is PublicTask => !!child);
   return (
@@ -216,22 +227,22 @@ function PublicTaskDetail({ task, tasks, reference, onOpen }: {
       {parent && (
         <button type="button" className="btn ghost" style={{ alignSelf: "flex-start", height: 30, padding: "0 8px", marginLeft: -8 }}
           onClick={() => onOpen(parent.id)}>
-          <IconSub />em {parent.title}
+          <IconSub />{t("em")}{" "}{parent.title}
         </button>
       )}
       <div className="public-meta"><PublicMeta task={task} reference={reference} /></div>
       {task.description
-        ? <p className="public-desc">{task.description}</p>
-        : <p className="hint">Sem descrição.</p>}
+        ? <TaskMarkdown>{task.description}</TaskMarkdown>
+        : <p className="hint">{t("Sem descrição.")}</p>}
       {children.length > 0 && (
         <div>
-          <div className="lbl" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Subtarefas</div>
+          <div className="lbl" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{t("Subtarefas")}</div>
           <ul className="public-sub">
             {children.map((child) => (
               <li key={child.id} className={child.status === "completed" ? "done" : undefined}>
                 <Ring task={child} />
                 <button type="button" className="t-click" onClick={() => onOpen(child.id)}>
-                  {child.status === "completed" && <span className="sr-only">Concluída: </span>}
+                  {child.status === "completed" && <span className="sr-only">{t("Concluída:")}{" "}</span>}
                   <span>{child.title}</span>
                 </button>
               </li>

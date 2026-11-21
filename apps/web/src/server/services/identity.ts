@@ -81,6 +81,10 @@ export async function withSession<T>(
       eq(session.id, active.session.id), eq(session.userId, current.id), gt(session.expiresAt, sql`now()`),
     ));
     if (!valid) throw unauthenticated();
+    const expectedAccount = headers.get("X-Feito-Account");
+    if (expectedAccount !== null && expectedAccount !== current.id) {
+      throw new ApiError(409, "DESKTOP_ACCOUNT_CHANGED", "A solicitação pertence a outra conta.");
+    }
     if (current.mustChangePassword && !options.allowProvisional) {
       throw new ApiError(403, "PASSWORD_CHANGE_REQUIRED", "Altere a senha para continuar.");
     }

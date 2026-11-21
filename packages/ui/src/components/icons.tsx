@@ -89,6 +89,15 @@ export const IconDuplicate = make(<><rect x="8" y="8" width="12" height="12" rx=
 export const IconExternal = make(<path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />);
 export const IconEye = make(<><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>);
 export const IconLink = make(<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" />);
+export const IconHeading = make(<path d="M5 5v14M17 5v14M5 12h12" />);
+export const IconBold = make(<path d="M6 4h7a4 4 0 0 1 0 8H6V4zm0 8h8a4 4 0 0 1 0 8H6v-8z" />);
+export const IconItalic = make(<path d="M10 4h9M5 20h9M15 4 9 20" />);
+export const IconStrike = make(<path d="M18 6c-1-2-3-2-5-2-6 0-7 6-2 8M6 18c1 2 3 2 5 2 6 0 7-6 2-8M3 12h18" />);
+export const IconBulletList = make(<><path d="M9 6h12M9 12h12M9 18h12" /><circle cx="4" cy="6" r=".6" /><circle cx="4" cy="12" r=".6" /><circle cx="4" cy="18" r=".6" /></>);
+export const IconNumberList = make(<path d="M10 6h11M10 12h11M10 18h11M3 4h1v5M3 9h3M2 15c0-3 4-3 4-1 0 1-4 4-4 5h4" />);
+export const IconTaskList = make(<><rect x="3" y="4" width="5" height="5" rx="1" /><path d="m3.8 16.5 1.4 1.4 2.6-2.8M11 6.5h10M11 16.5h10" /></>);
+export const IconQuote = make(<><path d="M4 6h6v7H4zM14 6h6v7h-6zM10 13c0 4-2 5-4 5M20 13c0 4-2 5-4 5" /></>);
+export const IconCode = make(<path d="m7 7-5 5 5 5M17 7l5 5-5 5M14 4l-4 16" />);
 export const IconLogout = make(<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />);
 export const IconMail = make(<><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>);
 

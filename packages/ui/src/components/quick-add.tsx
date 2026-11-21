@@ -1,4 +1,7 @@
 "use client";
+
+import { useT } from "./language";
+
 import { usePathname } from "../navigation";
 import { useMemo, useRef } from "react";
 import { getQueryData } from "../client/store";
@@ -17,6 +20,7 @@ function inferDefaults(pathname: string, reference: string): QuickAddDefaults {
 }
 
 export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | null; onClose: () => void }) {
+  const t = useT();
   const app = useApp();
   const pathname = usePathname();
   const open = defaults !== null;
@@ -39,7 +43,7 @@ export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | n
   const parentTitle = parentId ? getQueryData<{ title: string }>(`task:${parentId}`)?.title : undefined;
 
   return (
-    <Dialog open={open} onClose={onClose} title="Adicionar tarefa" hideHeader initialFocus={titleRef} width={640}>
+    <Dialog open={open} onClose={onClose} title={t("Adicionar tarefa")} hideHeader initialFocus={titleRef} width={640}>
       {session && (
         <TaskEditor
           key={session.key}
@@ -49,21 +53,20 @@ export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | n
           parentTitle={parentId ? parentTitle ?? "tarefa" : undefined}
           lockDestination={!!parentId}
           canRepeat={!parentId}
-          submitLabel="Adicionar tarefa"
+          submitLabel={t("Adicionar tarefa")}
           resetOnSubmit
           onCancel={onClose}
           hint={(
             <span className="hint desktop-only" style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 4 }}>
-              <span className="kbd">Enter</span>adiciona
-            </span>
+              <span className="kbd">Enter</span>{t("adiciona")}</span>
           )}
           onSubmit={async (draft) => {
             const samePlace = draft.projectId === session.draft.projectId && draft.sectionId === session.draft.sectionId;
             const create = (afterId?: string) => app.run(() => createFromDraft(draft, {
               parentId, ...(samePlace ? { beforeId: session.initial.beforeId, afterId } : {}),
             }, app.taskContext), {
-              success: `Tarefa adicionada em ${parentId ? `“${parentTitle ?? "tarefa"}”`
-                : destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))}`,
+              success: t("Tarefa adicionada em {0}", [parentId ? `“${parentTitle ?? t("tarefa")}”`
+                : destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))]),
             });
             if (!samePlace || !session.initial.afterId) return !!await create();
             const attempt = session.after.then(async (afterId) => ({ afterId, created: await create(afterId) }));

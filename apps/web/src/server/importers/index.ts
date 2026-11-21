@@ -1,9 +1,2 @@
 import "server-only";
-import type { ImportSourceId } from "@feito/core/domain/import-sources";
-import type { Importer } from "./plan";
-import { importTodoist } from "./todoist";
-
-// Para uma nova fonte: registre-a em src/domain/import-sources.ts e mapeie o importador aqui.
-export const importers: Record<ImportSourceId, Importer> = {
-  todoist: importTodoist,
-};
+export * from "@feito/core/portability/importers/index";

@@ -17,6 +17,9 @@ export type QueryProjection = (data: QueryData) => void;
 type Layer = { predict: QueryProjection };
 type Confirmation = { revision: number; apply: QueryProjection };
 
+let scope = 0;
+export const cacheScope = () => scope;
+
 const cache = new Map<string, Entry>();
 const pending = new Set<Layer>();
 const confirmed: Confirmation[] = [];
@@ -218,6 +221,8 @@ export function invalidate(match: (key: string) => boolean = () => true, { retai
 }
 
 export function clearCache() {
+  scope++;
+  for (const entry of cache.values()) entry.seq++;
   cache.clear();
   pending.clear();
   confirmed.length = 0;

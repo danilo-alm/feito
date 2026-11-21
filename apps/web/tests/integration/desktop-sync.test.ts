@@ -120,13 +120,17 @@ test("usa a data offline da conclusão recorrente e preserva o ID da próxima oc
 test("sincroniza preferências independentes com recibo e mantém a edição recente do site", async () => {
   const client = await accountFixture();
   const initial = await pull(client);
-  const offline = command("PATCH", "/preferences", { theme: "dark", timezone: "UTC" });
+  const offline = command("PATCH", "/preferences", { theme: "dark", timezone: "UTC", locale: "en" });
   await payload(await client("PATCH", "/preferences", { theme: "light" }));
   expect(await push(client, offline)).toEqual({ outcome: "applied" });
   expect(await push(client, offline)).toEqual({ outcome: "applied" });
   const latest = await pull(client, initial.cursor);
   expect(latest.cursor).toBe(initial.cursor + 2);
-  expect(latest.workspace?.preferences).toEqual({ theme: "light", timezone: "UTC" });
+  expect(latest.workspace?.preferences).toEqual({ theme: "light", timezone: "UTC", locale: "en" });
+  const staleLocale = command("PATCH", "/preferences", { locale: "pt-BR" });
+  await payload(await client("PATCH", "/preferences", { locale: "en" }));
+  expect(await push(client, staleLocale)).toMatchObject({ outcome: "ignored" });
+  expect((await pull(client)).workspace?.preferences.locale).toBe("en");
 });
 
 test("entrega alterações e exclusões do site por cursor e refaz a base após uma lacuna", async () => {

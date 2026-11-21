@@ -18,6 +18,9 @@ export default {
     return [{
       source: "/api/:path*",
       headers: [{ key: "Cache-Control", value: "private, no-store" }],
+    }, {
+      source: "/service-worker.js",
+      headers: [{ key: "Cache-Control", value: "no-cache" }],
     }];
   },
 } satisfies NextConfig;

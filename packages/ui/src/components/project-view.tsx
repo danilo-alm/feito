@@ -1,4 +1,7 @@
 "use client";
+import { useT } from "./language";
+import { inSentence } from "../client/locale";
+
 import {
   DndContext, DragOverlay, MouseSensor, TouchSensor, pointerWithin, rectIntersection, useDraggable, useDroppable, useSensor,
   useSensors, type CollisionDetection, type DragMoveEvent, type DragStartEvent,
@@ -82,6 +85,7 @@ const collision: CollisionDetection = (args) => {
 type DragState = { activeId: string; byMouse: boolean; over: DropOver | null; plan: Plan | null };
 
 export function ProjectView({ projectId, sharing }: { projectId: string; sharing?: ProjectSharing }) {
+  const t = useT();
   const app = useApp();
   const projectDetails = useProjectDetailsDialog();
   const [sectionToEdit, setSectionToEdit] = useState<Section | null>(null);
@@ -180,8 +184,8 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     query.mutate((current) => current && { ...current, project: { ...current.project, view: { ...current.project.view, ...patch } } });
     await app.run(() => api.projects.setView(projectId, patch), {
       revalidate: (cached) => cached === key,
-      success: patch.layout ? `${LAYOUT_LABEL[patch.layout]} — mesma organização do projeto`
-        : patch.sortMode ? (patch.sortMode === "manual" ? "Ordem manual recuperada" : `Ordenado por ${SORT_LABEL[patch.sortMode].toLowerCase()}`)
+      success: patch.layout ? t("{0} — mesma organização do projeto", [t(LAYOUT_LABEL[patch.layout])])
+        : patch.sortMode ? (patch.sortMode === "manual" ? t("Ordem manual recuperada") : t("Ordenado por {0}", [inSentence(t(SORT_LABEL[patch.sortMode]))]))
           : undefined,
     });
   };
@@ -233,12 +237,12 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     setDrag(null);
     if (!state) return;
     if (!state.over) {
-      toast("Arraste cancelado — a tarefa voltou ao lugar");
+      toast(t("Arraste cancelado — a tarefa voltou ao lugar"));
       return;
     }
     if (!state.plan) return;
     if (!state.plan.valid) {
-      toast(`Destino inválido: ${state.plan.message.toLowerCase()}. A tarefa voltou ao lugar.`, { bad: true });
+      toast(t("Destino inválido: {0}. A tarefa voltou ao lugar.", [state.plan.message.toLowerCase()]), { bad: true });
       return;
     }
     void execute(state.activeId, state.plan);
@@ -247,7 +251,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     listenPointer(false);
     settleFromOverlay();
     setDrag(null);
-    toast("Arraste cancelado — a tarefa voltou ao lugar");
+    toast(t("Arraste cancelado — a tarefa voltou ao lugar"));
   };
 
   const indicator = drag?.plan?.indicator;
@@ -275,57 +279,57 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     const section = page.sections.find((item) => item.id === sectionId)!;
     const index = page.sections.indexOf(section);
     const move = (anchor: { afterSectionId?: string; beforeSectionId?: string }) =>
-      app.run(() => api.sections.move(section.id, section.revision, anchor), { success: "Seção reordenada", revalidate: (cached) => cached === key });
+      app.run(() => api.sections.move(section.id, section.revision, anchor), { success: t("Seção reordenada"), revalidate: (cached) => cached === key });
     return [
-      { label: "Editar seção", icon: <IconEdit />, onSelect: () => setSectionToEdit(section) },
-      { label: board ? "Mover para a esquerda" : "Mover para cima", icon: <IconArrowUp />, disabled: index === 0,
+      { label: t("Editar seção"), icon: <IconEdit />, onSelect: () => setSectionToEdit(section) },
+      { label: board ? t("Mover para a esquerda") : t("Mover para cima"), icon: <IconArrowUp />, disabled: index === 0,
         onSelect: () => void move({ beforeSectionId: page.sections[index - 1]?.id }) },
-      { label: board ? "Mover para a direita" : "Mover para baixo", icon: <IconArrowDown />, disabled: index === page.sections.length - 1,
+      { label: board ? t("Mover para a direita") : t("Mover para baixo"), icon: <IconArrowDown />, disabled: index === page.sections.length - 1,
         onSelect: () => void move({ afterSectionId: page.sections[index + 1]?.id }) },
       "separator",
-      { label: "Excluir seção…", icon: <IconTrash />, danger: true, onSelect: async () => {
+      { label: t("Excluir seção…"), icon: <IconTrash />, danger: true, onSelect: async () => {
         const ok = await app.confirm({
-          title: `Excluir a seção “${section.name}”?`,
+          title: t("Excluir a seção “{0}”?", [section.name]),
           body: section.taskCount
-            ? `${section.taskCount} ${section.taskCount === 1 ? "tarefa vai" : "tarefas vão"} para o fim de “${sectionName(page, null)}”, com subtarefas, etiquetas e estados preservados.`
-            : "A seção está vazia.",
-          confirmLabel: "Excluir seção", danger: true,
+            ? t("{0} {1} para o fim de “{2}”, com subtarefas, etiquetas e estados preservados.", [section.taskCount, section.taskCount === 1 ? t("tarefa vai") : t("tarefas vão"), sectionName(page, null)])
+            : t("A seção está vazia."),
+          confirmLabel: t("Excluir seção"), danger: true,
         });
-        if (ok) await app.run(() => api.sections.remove(section.id, section.revision), { success: "Seção excluída", revalidate: refreshProjects });
+        if (ok) await app.run(() => api.sections.remove(section.id, section.revision), { success: t("Seção excluída"), revalidate: refreshProjects });
       } },
     ];
   };
 
   const projectMenu = (): MenuItem[] => [
-    ...(archived ? [] : [{ label: "Editar projeto", icon: <IconEdit />, onSelect: () => projectDetails.edit(project) }]),
-    ...(!app.browserTools || archived ? [] : [{ label: "Importar…", icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) }]),
-    ...(app.browserTools ? [{ label: "Exportar…", icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) }] : []),
+    ...(archived ? [] : [{ label: t("Editar projeto"), icon: <IconEdit />, onSelect: () => projectDetails.edit(project) }]),
+    ...(!app.browserTools || archived ? [] : [{ label: t("Importar…"), icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) }]),
+    ...(app.browserTools ? [{ label: t("Exportar…"), icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) }] : []),
     archived
-      ? { label: "Reativar projeto", icon: <IconArchive />, onSelect: () => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado", revalidate: refreshProjects }) }
-      : { label: "Arquivar projeto", icon: <IconArchive />, onSelect: async () => {
+      ? { label: t("Reativar projeto"), icon: <IconArchive />, onSelect: () => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: t("Projeto reativado"), revalidate: refreshProjects }) }
+      : { label: t("Arquivar projeto"), icon: <IconArchive />, onSelect: async () => {
         const ok = await app.confirm({
-          title: `Arquivar “${project.name}”?`,
-          body: "O projeto sai das listas, da busca e da agenda, com tarefas e estados guardados. Você pode reativar em Ajustes.",
-          confirmLabel: "Arquivar",
+          title: t("Arquivar “{0}”?", [project.name]),
+          body: t("O projeto sai das listas, da busca e da agenda, com tarefas e estados guardados. Você pode reativar em Ajustes."),
+          confirmLabel: t("Arquivar"),
         });
-        if (ok && await app.run(() => api.projects.archive(project.id, project.revision), { success: "Projeto arquivado", revalidate: refreshProjects })) router.push("/hoje");
+        if (ok && await app.run(() => api.projects.archive(project.id, project.revision), { success: t("Projeto arquivado"), revalidate: refreshProjects })) router.push("/hoje");
       } },
     "separator",
-    { label: "Excluir projeto…", icon: <IconTrash />, danger: true, onSelect: async () => {
+    { label: t("Excluir projeto…"), icon: <IconTrash />, danger: true, onSelect: async () => {
       const ok = await app.confirm({
-        title: `Excluir “${project.name}”?`,
-        body: "Só projetos sem tarefas, ativas ou concluídas, podem ser excluídos. Seções vazias vão junto.",
-        confirmLabel: "Excluir projeto", danger: true,
+        title: t("Excluir “{0}”?", [project.name]),
+        body: t("Só projetos sem tarefas, ativas ou concluídas, podem ser excluídos. Seções vazias vão junto."),
+        confirmLabel: t("Excluir projeto"), danger: true,
       });
       if (!ok) return;
       try {
         await api.projects.remove(project.id, project.revision);
-        toast("Projeto excluído");
+        toast(t("Projeto excluído"));
         await invalidate(refreshProjects);
         router.push("/hoje");
       } catch (error) {
         toast(error instanceof ApiFailure && error.code === "PROJECT_NOT_EMPTY"
-          ? "O projeto ainda tem tarefas. Arquive-o ou mova as tarefas antes." : errorMessage(error), { bad: true });
+          ? t("O projeto ainda tem tarefas. Arquive-o ou mova as tarefas antes.") : errorMessage(error), { bad: true });
       }
     } },
   ];
@@ -349,11 +353,11 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     />
   );
 
-  const crumb = project.isInbox ? "Captura e triagem" : <>Meus projetos <span aria-hidden="true">/</span></>;
+  const crumb = project.isInbox ? t("Captura e triagem") : <>{t("Meus projetos")}{" "}<span aria-hidden="true">/</span></>;
   const compactTitle = showCompactTitle && (
-    <span className="compact-title" aria-hidden={!titleAboveView} data-tooltip={project.name} onContextMenu={contextMenu.onContextMenu}>
+    <span className="compact-title" aria-hidden={!titleAboveView} data-tooltip={project.isInbox ? t("Caixa de entrada") : project.name} onContextMenu={contextMenu.onContextMenu}>
       <Glyph icon={project.icon} style={{ color: project.color ? colorValue(project.color) : tagColor(project.id) }} />
-      <span>{project.name}</span>
+      <span>{project.isInbox ? t("Caixa de entrada") : project.name}</span>
     </span>
   );
   const tools = (visible: boolean) => (
@@ -361,7 +365,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
       {!project.isInbox && <ShareMenu projectId={project.id} archived={archived} sharing={sharing} />}
       {!archived && <ViewMenu page={page} onChange={(patch) => void changeView(patch)} />}
       {!project.isInbox && (
-        <MenuButton label="Mais ações" tooltip="Mais ações" title={project.name} items={projectMenu} contextMenu={visible ? contextMenu : undefined}><IconMore /></MenuButton>
+        <MenuButton label={t("Mais ações")} tooltip={t("Mais ações")} title={project.isInbox ? t("Caixa de entrada") : project.name} items={projectMenu} contextMenu={visible ? contextMenu : undefined}><IconMore /></MenuButton>
       )}
     </>
   );
@@ -369,16 +373,16 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
   return (
     <>
       <PageHeader crumb={crumb} tools={tools(!mobile)} mobileTools={tools(mobile)} compactTitle={compactTitle}
-        mobileTitle={project.isInbox ? project.name : undefined} back={project.isInbox ? undefined : "/navegar"} />
+        mobileTitle={project.isInbox ? t("Caixa de entrada") : undefined} back={project.isInbox ? undefined : "/navegar"} />
       {importDialog}
       {exportDialog}
       {projectDetails.dialog}
-      <Dialog open={sectionToEdit !== null} onClose={() => setSectionToEdit(null)} title="Editar seção">
+      <Dialog open={sectionToEdit !== null} onClose={() => setSectionToEdit(null)} title={t("Editar seção")}>
         {sectionToEdit && <div className="dialog-b">
-          <NamedDetailsForm key={sectionToEdit.id} kind="seção" initial={sectionToEdit} inDialog submitLabel="Salvar"
+          <NamedDetailsForm key={sectionToEdit.id} kind="seção" initial={sectionToEdit} inDialog submitLabel={t("Salvar")}
             onCancel={() => setSectionToEdit(null)} onSave={async (details) => {
               if (details.name === sectionToEdit.name && details.description === sectionToEdit.description
-                || await app.run(() => api.sections.edit(sectionToEdit.id, sectionToEdit.revision, details), { success: "Seção atualizada", revalidate: refreshProjects })) {
+                || await app.run(() => api.sections.edit(sectionToEdit.id, sectionToEdit.revision, details), { success: t("Seção atualizada"), revalidate: refreshProjects })) {
                 setSectionToEdit(null);
               }
             }} />
@@ -396,21 +400,18 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
             </div>
             <Collapse open={archived} appear={false}>
               <div className="banner warn">
-                Projeto arquivado: só leitura. Reative para editar.
-                <button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
-                  onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: "Projeto reativado", revalidate: refreshProjects })}>Reativar</button>
+                {t("Projeto arquivado: só leitura. Reative para editar.")}<button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
+                  onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: t("Projeto reativado"), revalidate: refreshProjects })}>{t("Reativar")}</button>
               </div>
             </Collapse>
             <Collapse open={!manual && !archived} appear={false}>
               <div className="banner warn">
                 <IconBan style={{ width: 16, height: 16, color: "var(--p2)" }} />
                 <span style={{ flex: 1 }}>
-                  Ordenação por {SORT_LABEL[view.sortMode].toLowerCase()}: reordenar por posição está desativado.
-                  {board ? " Ainda dá para arrastar entre colunas e criar subtarefas." : " Use o menu ⋯ para mudar de seção."}
+                  {t("Ordenação por")}{" "}{inSentence(t(SORT_LABEL[view.sortMode]))}{t(": reordenar por posição está desativado.")}{board ? t(" Ainda dá para arrastar entre colunas e criar subtarefas.") : t(" Use o menu ⋯ para mudar de seção.")}
                 </span>
                 <button type="button" className="btn ghost" style={{ height: 30, color: "var(--brand-text)" }} onClick={() => void changeView({ sortMode: "manual" })}>
-                  Voltar a Manual
-                </button>
+                  {t("Voltar a Manual")}</button>
               </div>
             </Collapse>
           </div>
@@ -418,7 +419,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
         <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragMove={onDragMove}
           autoScroll={{ threshold: { x: 0.1, y: 0.1 }, acceleration: 8 }}
           onDragEnd={onDragEnd} onDragCancel={onDragCancel}
-          accessibility={{ screenReaderInstructions: { draggable: "Para mover sem arrastar, use Alt e as setas ou o menu de ações da tarefa." } }}>
+          accessibility={{ screenReaderInstructions: { draggable: t("Para mover sem arrastar, use Alt e as setas ou o menu de ações da tarefa.") } }}>
           {board
             ? <BoardLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator}
               mobile={mobile} sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />
@@ -441,9 +442,10 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
 
 /** Selo "Público" ao lado da contagem enquanto o link de compartilhamento está ativo. */
 function PublicBadge({ projectId, origin }: { projectId: string; origin?: string }) {
+  const t = useT();
   const share = useProjectShare(projectId, true, origin);
   if (!share.data?.enabled) return null;
-  return <span className="pub-badge"><IconGlobe />Público</span>;
+  return <span className="pub-badge"><IconGlobe />{t("Público")}</span>;
 }
 
 /** Onde a tarefa criada por "Adicionar tarefa acima/abaixo" entra: mesmo grupo, ao lado da tarefa. */
@@ -476,6 +478,7 @@ function DraggableTask({
   insert?: (side: InsertSide) => void;
   grip: boolean;
 }) {
+  const t = useT();
   // Em edição a linha vira formulário: arrastar a partir dos campos selecionaria texto e moveria a tarefa.
   const editing = useEditorOpen(editKey(task));
   const temporary = isTemporaryTask(task.id);
@@ -490,7 +493,7 @@ function DraggableTask({
   const line = indicator?.type === "line" && indicator.id === task.id ? indicator : null;
   const preview = indicator?.type === "nest" && indicator.depth <= maxOverviewDepth && indicator.previewAfterId === task.id ? indicator : null;
   const classes = [dragging ? "drag-src" : "", nest ? "nest-target" : "", bad ? "invalid" : ""].filter(Boolean).join(" ");
-  const tag = nest ? <span className="nest-tag"><IconSub />Tornar subtarefa</span>
+  const tag = nest ? <span className="nest-tag"><IconSub />{t("Tornar subtarefa")}</span>
     : bad ? <span className="bad-tag"><IconBan />{indicator.message}</span> : null;
   const insStyle = { "--task-depth": line?.depth } as CSSProperties;
   return (
@@ -572,6 +575,7 @@ function renderTaskBlock(
 type ProjectHeadingField = keyof NamedDetails;
 
 function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]; titleRef: Ref<HTMLDivElement> }) {
+  const t = useT();
   const app = useApp();
   const [editing, setEditing] = useState<{ field: ProjectHeadingField; initial: string; value: string } | null>(null);
   const descriptionInput = useAutoGrow(editing?.field === "description" ? editing.value : "");
@@ -588,7 +592,7 @@ function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]
 
   if (project.isInbox || project.status === "archived") {
     return <>
-      <div ref={titleRef}><h1 className="title">{project.name}</h1></div>
+      <div ref={titleRef}><h1 className="title">{project.isInbox ? t("Caixa de entrada") : project.name}</h1></div>
       {!project.isInbox && project.description && <p className="project-description">{project.description}</p>}
     </>;
   }
@@ -650,21 +654,21 @@ function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]
         <h1 className={editing?.field === "name" ? "sr-only" : "title"}>
           {editing?.field === "name" ? name : (
             <button type="button" className="project-heading-field" ref={titleButton} onClick={() => openEditor("name")}
-              aria-description="Editar título do projeto">
+              aria-description={t("Editar título do projeto")}>
               {name}
             </button>
           )}
         </h1>
         {editing?.field === "name" && <input {...editorProps} className="project-heading-field project-heading-input title"
-          aria-label="Nome do projeto" maxLength={120} />}
+          aria-label={t("Nome do projeto")} maxLength={120} />}
       </div>
       {editing?.field === "description" ? (
         <textarea {...editorProps} ref={descriptionInput} className="project-heading-field project-heading-input project-description"
-          aria-label="Descrição do projeto" placeholder="Adicionar uma descrição" rows={1} maxLength={10_000} />
+          aria-label={t("Descrição do projeto")} placeholder={t("Adicionar uma descrição")} rows={1} maxLength={10_000} />
       ) : (
         <button type="button" className="project-heading-field project-description" ref={descriptionButton}
-          onClick={() => openEditor("description")} aria-label={description ? "Editar descrição do projeto" : undefined}>
-          {description || "Adicionar uma descrição"}
+          onClick={() => openEditor("description")} aria-label={description ? t("Editar descrição do projeto") : undefined}>
+          {description || t("Adicionar uma descrição")}
         </button>
       )}
     </div>
@@ -674,11 +678,12 @@ function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]
 function SectionTitle({ sectionId, name, archived, renameSection }: {
   sectionId: string | null; name: string | null; archived: boolean; renameSection: LayoutProps["renameSection"];
 }) {
+  const t = useT();
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef(false);
-  const title = name ?? unnamedColumnTitle;
+  const title = name ?? t(unnamedColumnTitle);
 
   useEffect(() => {
     if (draft !== null || !returnFocus.current) return;
@@ -689,7 +694,7 @@ function SectionTitle({ sectionId, name, archived, renameSection }: {
   if (archived) return <span>{title}</span>;
   if (draft === null) {
     return <button type="button" className="section-title" ref={button} onClick={() => setDraft(name ?? "")}
-      aria-description="Editar nome da seção">{title}</button>;
+      aria-description={t("Editar nome da seção")}>{title}</button>;
   }
 
   const commit = async () => {
@@ -703,8 +708,8 @@ function SectionTitle({ sectionId, name, archived, renameSection }: {
     setDraft(null);
   };
 
-  return <input className="section-title section-title-input" aria-label="Nome da seção" autoFocus
-    maxLength={120} value={draft} readOnly={saving} placeholder={name === null ? unnamedColumnTitle : undefined}
+  return <input className="section-title section-title-input" aria-label={t("Nome da seção")} autoFocus
+    maxLength={120} value={draft} readOnly={saving} placeholder={name === null ? t(unnamedColumnTitle) : undefined}
     onChange={(event) => setDraft(event.target.value)} onBlur={() => {
       returnFocus.current = false;
       void commit();
@@ -726,22 +731,24 @@ function SectionHeader({ sectionId, name, count, archived, renameSection, sectio
   Pick<LayoutProps, "archived" | "renameSection" | "sectionMenu"> & {
     sectionId: string | null; name: string | null; count: number; board?: boolean;
   }) {
+  const t = useT();
   const showMenu = sectionId !== null && !archived;
   const contextMenu = useContextMenu(showMenu);
-  const title = name ?? unnamedColumnTitle;
+  const title = name ?? t(unnamedColumnTitle);
   return (
     <div className={board ? "col-h" : "sec-h"} data-flip={board ? undefined : `sec:${sectionId ?? "none"}`}
       style={name === null ? { color: "var(--muted)" } : undefined} onContextMenu={contextMenu.onContextMenu}>
       <SectionTitle sectionId={sectionId} name={name} archived={archived} renameSection={renameSection} />
       <span className="count">{count}</span>
       {showMenu && (
-        <MenuButton label={`Ações da seção ${title}`} title={title} items={() => sectionMenu(sectionId)} contextMenu={contextMenu}><IconMore /></MenuButton>
+        <MenuButton label={t("Ações da seção {0}", [title])} title={title} items={() => sectionMenu(sectionId)} contextMenu={contextMenu}><IconMore /></MenuButton>
       )}
     </div>
   );
 }
 
 function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu, renameSection, archived }: LayoutProps & { dragging: boolean }) {
+  const t = useT();
   const app = useApp();
   const [adding, setAdding] = useState<string | null | undefined>(undefined);
   const { project } = page;
@@ -753,7 +760,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
 
   const createSection = async (afterSectionId: string | null, details: NamedDetails) => {
     const anchor = afterSectionId ? { afterSectionId } : page.sections[0] ? { beforeSectionId: page.sections[0].id } : {};
-    if (await app.run(() => api.sections.create(project.id, details, anchor), { success: `Seção “${details.name}” criada`, revalidate: (cached) => cached === `project:${project.id}` })) {
+    if (await app.run(() => api.sections.create(project.id, details, anchor), { success: t("Seção “{0}” criada", [details.name]), revalidate: (cached) => cached === `project:${project.id}` })) {
       setAdding(undefined);
     }
   };
@@ -768,10 +775,10 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
           const title = section?.name ?? project.defaultSectionName;
           if (group.sectionId === null && !title && !project.isInbox && !dragging && page.sections.length
             && !active.length && !done.length) {
-            return <GroupDrop key="none" sectionId={null} className="list-group" label="Tarefas do projeto"><span /></GroupDrop>;
+            return <GroupDrop key="none" sectionId={null} className="list-group" label={t("Tarefas do projeto")}><span /></GroupDrop>;
           }
           return (
-            <GroupDrop key={group.sectionId ?? "none"} sectionId={group.sectionId} label={title ?? (project.isInbox ? project.name : "Tarefas do projeto")}
+            <GroupDrop key={group.sectionId ?? "none"} sectionId={group.sectionId} label={title ?? (project.isInbox ? t("Caixa de entrada") : t("Tarefas do projeto"))}
               className={`list-group${over ? " over" : ""}`}>
               {!project.isInbox && title ? (
                 <SectionHeader sectionId={group.sectionId} name={title} count={activeCounts.get(group.sectionId) ?? 0}
@@ -783,24 +790,23 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
                 <AddTaskSlot slot={`add:${project.id}:${group.sectionId ?? "none"}`} defaults={{ projectId: project.id, sectionId: group.sectionId }}>
                   {(start) => (
                     <button type="button" className="add-task" data-flip={`add:${group.sectionId ?? "none"}`} onClick={start}>
-                      <span className="plus"><IconPlus /></span>Adicionar tarefa
-                    </button>
+                      <span className="plus"><IconPlus /></span>{t("Adicionar tarefa")}</button>
                   )}
                 </AddTaskSlot>
               )}
               {done.length > 0 && (
                 <>
-                  <div className="sec-h" data-flip={`done:${group.sectionId ?? "none"}`} style={{ color: "var(--muted)", fontSize: 13, paddingTop: 12 }}>Concluídas<span className="count">{done.length}</span></div>
+                  <div className="sec-h" data-flip={`done:${group.sectionId ?? "none"}`} style={{ color: "var(--muted)", fontSize: 13, paddingTop: 12 }}>{t("Concluídas")}<span className="count">{done.length}</span></div>
                   {done.flatMap(block)}
                 </>
               )}
               {!project.isInbox && !archived && (
                 adding === group.sectionId
-                  ? <NamedDetailsForm kind="seção" submitLabel="Adicionar seção" onCancel={() => setAdding(undefined)}
+                  ? <NamedDetailsForm kind="seção" submitLabel={t("Adicionar seção")} onCancel={() => setAdding(undefined)}
                     onSave={(details) => createSection(group.sectionId, details)} />
                   : (
                     <div className="add-sec-zone desktop-only" data-flip={`add-sec:${group.sectionId ?? "none"}`}>
-                      <button type="button" className="add-sec" onClick={() => setAdding(group.sectionId)}>Adicionar seção</button>
+                      <button type="button" className="add-sec" onClick={() => setAdding(group.sectionId)}>{t("Adicionar seção")}</button>
                     </div>
                   )
               )}
@@ -810,15 +816,15 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
         {!project.isInbox && !archived && (
           <div className="mobile-only" style={{ paddingTop: 12 }}>
             {adding === "end"
-              ? <NamedDetailsForm kind="seção" submitLabel="Adicionar seção" onCancel={() => setAdding(undefined)}
+              ? <NamedDetailsForm kind="seção" submitLabel={t("Adicionar seção")} onCancel={() => setAdding(undefined)}
                 onSave={(details) => createSection(page.sections.at(-1)?.id ?? null, details)} />
-              : <button type="button" className="add-sec-m" onClick={() => setAdding("end")}><IconPlus className="plus" />Adicionar seção</button>}
+              : <button type="button" className="add-sec-m" onClick={() => setAdding("end")}><IconPlus className="plus" />{t("Adicionar seção")}</button>}
           </div>
         )}
         {page.tasks.length === 0 && (
           <div className="empty">
-            <strong>{project.isInbox ? "Caixa de entrada vazia" : "Nenhuma tarefa ainda"}</strong>
-            {project.isInbox ? "Capture qualquer coisa com Q ou com o botão +." : "Adicione tarefas e organize em seções."}
+            <strong>{project.isInbox ? t("Caixa de entrada vazia") : t("Nenhuma tarefa ainda")}</strong>
+            {project.isInbox ? t("Capture qualquer coisa com Q ou com o botão +.") : t("Adicione tarefas e organize em seções.")}
           </div>
         )}
       </div>
@@ -827,6 +833,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
 }
 
 function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSection, archived, mobile }: LayoutProps & { mobile: boolean }) {
+  const t = useT();
   const app = useApp();
   const [adding, setAdding] = useState(false);
   const { project } = page;
@@ -843,19 +850,19 @@ function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSe
     });
   };
   const createSection = async (details: NamedDetails) => {
-    if (await app.run(() => api.sections.create(project.id, details), { success: `Seção “${details.name}” criada`, revalidate: (cached) => cached === `project:${project.id}` })) {
+    if (await app.run(() => api.sections.create(project.id, details), { success: t("Seção “{0}” criada", [details.name]), revalidate: (cached) => cached === `project:${project.id}` })) {
       setAdding(false);
     }
   };
   return (
     <>
       {mobile && (
-        <div className="col-tabs" role="tablist" aria-label="Colunas">
+        <div className="col-tabs" role="tablist" aria-label={t("Colunas")}>
           {page.groups.map((group) => {
             const { active } = rowsOf(page, tasks, group.sectionId);
             return (
               <button key={group.sectionId ?? "none"} type="button" role="tab" aria-selected={false} className="pill" onClick={() => scrollTo(group.sectionId)}>
-                {columnName(group.sectionId) ?? unnamedColumnTitle} · {active.length}
+                {columnName(group.sectionId) ?? t(unnamedColumnTitle)} · {active.length}
               </button>
             );
           })}
@@ -865,30 +872,29 @@ function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSe
         {page.groups.map((group) => {
           const { active, done } = rowsOf(page, tasks, group.sectionId);
           const name = columnName(group.sectionId);
-          const title = name ?? unnamedColumnTitle;
+          const title = name ?? t(unnamedColumnTitle);
           const description = page.sections.find((section) => section.id === group.sectionId)?.description;
           const target = indicator?.type === "group" && indicator.sectionId === group.sectionId;
           return (
             <Fragment key={group.sectionId ?? "none"}>
-              <GroupDrop sectionId={group.sectionId} as="section" label={`Coluna ${title}`} id={`col-${group.sectionId ?? "none"}`}
+              <GroupDrop sectionId={group.sectionId} as="section" label={t("Coluna {0}", [title])} id={`col-${group.sectionId ?? "none"}`}
                 className={`column${target ? " target" : ""}`}>
                 <SectionHeader board sectionId={group.sectionId} name={name} count={active.length}
                   archived={archived} renameSection={renameSection} sectionMenu={sectionMenu} />
                 {description && <p className="section-description">{description}</p>}
                 {active.flatMap(block)}
-                {target && <div className="slot column-drop">Soltar aqui muda para {title}</div>}
+                {target && <div className="slot column-drop">{t("Soltar aqui muda para")}{" "}{title}</div>}
                 {!archived && (
                   <AddTaskSlot slot={`add:${project.id}:${group.sectionId ?? "none"}`} defaults={{ projectId: project.id, sectionId: group.sectionId }}>
                     {(start) => (
                       <button type="button" className="col-add" data-flip={`col-add:${group.sectionId ?? "none"}`} onClick={start}>
-                        <IconPlus className="plus" />Adicionar tarefa
-                      </button>
+                        <IconPlus className="plus" />{t("Adicionar tarefa")}</button>
                     )}
                   </AddTaskSlot>
                 )}
                 {done.length > 0 && (
                   <>
-                    <div className="sub" data-flip={`col-done:${group.sectionId ?? "none"}`} style={{ padding: "10px 6px 6px", fontWeight: 600 }}>Concluídas · {done.length}</div>
+                    <div className="sub" data-flip={`col-done:${group.sectionId ?? "none"}`} style={{ padding: "10px 6px 6px", fontWeight: 600 }}>{t("Concluídas ·")}{" "}{done.length}</div>
                     {done.flatMap(block)}
                   </>
                 )}
@@ -898,12 +904,11 @@ function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSe
         })}
         {!archived && (adding ? (
           <div className="col-new-editor">
-            <NamedDetailsForm kind="seção" submitLabel="Adicionar seção" onCancel={() => setAdding(false)} onSave={createSection} />
+            <NamedDetailsForm kind="seção" submitLabel={t("Adicionar seção")} onCancel={() => setAdding(false)} onSave={createSection} />
           </div>
         ) : (
           <button type="button" className="col-new" onClick={() => setAdding(true)}>
-            <IconPlus style={{ color: "var(--brand-text)" }} />Adicionar seção
-          </button>
+            <IconPlus style={{ color: "var(--brand-text)" }} />{t("Adicionar seção")}</button>
         ))}
       </div>
     </>

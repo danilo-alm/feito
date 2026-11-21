@@ -1,4 +1,5 @@
 "use client";
+
 import { nextOccurrenceDate } from "@feito/core/domain/recurrence";
 import { taskDescriptionExcerpt } from "@feito/core/domain/task-description";
 import { taskAncestors } from "@feito/core/domain/task-tree";
@@ -255,6 +256,11 @@ type WriteQueue = { settled: Promise<unknown>; latest?: TaskItem };
 const writes = new Map<TaskItem["id"], WriteQueue>();
 const projectMoves = new Map<string, Promise<unknown>>();
 
+export function clearTaskMutationQueues() {
+  writes.clear();
+  projectMoves.clear();
+}
+
 function perform<T>(
   context: MutationContext,
   fallback: TaskItem | undefined,
@@ -285,6 +291,7 @@ function perform<T>(
       refresh.has(key) || (!!fallback && key === `task:${fallback.id}`) || affectedTaskQuery(key, base.get(key), extra));
     try {
       const response = await send(latest, (changes, remaining) => {
+        if (!layer.active()) throw new ApiFailure(409, "WORKSPACE_CHANGED", "O espaço de trabalho mudou.");
         layer.confirm({ revision: changes.revision, apply: (data) => applyTaskChanges(data, changes) }, project(remaining));
       });
       ticket.latest = taskOf?.(response.result) ?? latest;

@@ -1,11 +1,14 @@
 "use client";
+import { LanguageProvider, useT } from "./language";
+
 import { createContext, useCallback, useContext, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "../navigation";
+import { setLocale } from "../client/locale";
 import { api, ApiFailure, configureApi, errorMessage } from "../client/api";
 import { registerTagOrder } from "../client/colors";
 import { dismissFailedDrafts, useFailedDrafts, type FailedDraft } from "../client/composer";
 import { closeEditor, type InsertDefaults } from "../client/editor-store";
-import { clearCache, invalidate, useQuery } from "../client/store";
+import { cacheScope, clearCache, invalidate, useQuery } from "../client/store";
 import { isTemporaryTask, type MutationContext } from "../client/task-mutations";
 import type { Me, Navigation, Theme } from "@feito/core/types";
 import { motionMs, useFlip } from "./motion";
@@ -14,9 +17,9 @@ import { ContextMenusProvider, Dialog, Spinner, ToastProvider, useToast, type To
 
 // ---------- Tema ----------
 
-export function applyTheme(theme: Theme) {
+export function applyTheme(theme: Theme, persist = true) {
   try {
-    localStorage.setItem("feito:theme", theme);
+    if (persist) localStorage.setItem("feito:theme", theme);
   } catch {
     // Preferência visual opcional; o servidor continua com o valor salvo.
   }
@@ -24,16 +27,16 @@ export function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", dark);
 }
 
-function useThemeSync(theme: Theme | undefined) {
+function useThemeSync(theme: Theme | undefined, persist: boolean) {
   useEffect(() => {
     if (!theme) return;
-    applyTheme(theme);
+    applyTheme(theme, persist);
     if (theme !== "system") return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => applyTheme("system");
+    const onChange = () => applyTheme("system", persist);
     media.addEventListener("change", onChange);
     return () => media.removeEventListener("change", onChange);
-  }, [theme]);
+  }, [theme, persist]);
 }
 
 // ---------- Contexto ----------
@@ -41,7 +44,6 @@ function useThemeSync(theme: Theme | undefined) {
 export type QuickAddDefaults = InsertDefaults;
 export const PROJECT_SHORTCUT_KEYS = "123456789";
 const PROJECT_SHORTCUT_DELAY_MS = 200;
-
 
 type ConfirmOptions = { title: string; body?: ReactNode; confirmLabel: string; danger?: boolean };
 type PromptOptions = { title: string; label: string; initial?: string; confirmLabel: string };
@@ -97,26 +99,30 @@ function visibleTaskOrder(id: string) {
 
 export function AppProviders({ children, contextMenus = false }: { children: ReactNode; contextMenus?: boolean }) {
   return (
-    <ContextMenusProvider value={contextMenus}>
+    <LanguageProvider><ContextMenusProvider value={contextMenus}>
       <ToastProvider>{children}</ToastProvider>
       <TooltipLayer />
-    </ContextMenusProvider>
+    </ContextMenusProvider></LanguageProvider>
   );
 }
 
 export function AppShell({
-  children, renderOverlays, renderChrome, browserTools = true,
+  children, renderOverlays, renderChrome, browserTools = true, manageAuthentication = true, persistTheme = true,
 }: {
   children: ReactNode;
   browserTools?: boolean;
+  manageAuthentication?: boolean;
+  persistTheme?: boolean;
   renderOverlays: (state: Overlay, close: (key: keyof Overlay) => void) => ReactNode;
   renderChrome: (nav: Navigation | undefined) => ReactNode;
 }) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const toast = useToast();
 
   useEffect(() => {
+    if (!manageAuthentication) return;
     configureApi({
       onAuthFailure: (code) => {
         clearCache();
@@ -124,12 +130,15 @@ export function AppShell({
         router.replace(code === "PASSWORD_CHANGE_REQUIRED" ? "/trocar-senha" : `/entrar?voltar=${encodeURIComponent(returnTo)}`);
       },
     });
-  }, [router, pathname]);
+  }, [router, pathname, manageAuthentication]);
 
   const me = useQuery<Me>("me", api.me);
   const nav = useQuery<Navigation>(me.data ? "nav" : null, api.navigation);
   if (nav.data) registerTagOrder(nav.data.projects, nav.data.labels.map((label) => label.id));
-  useThemeSync(me.data?.preferences.theme);
+  useThemeSync(me.data?.preferences.theme, persistTheme);
+  useEffect(() => {
+    if (me.data) setLocale(me.data.preferences.locale ?? "pt-BR");
+  }, [me.data?.preferences.locale, !!me.data]);
 
   useEffect(() => {
     if (me.data?.mustChangePassword) router.replace("/trocar-senha");
@@ -147,7 +156,6 @@ export function AppShell({
       window.clearInterval(timer);
     };
   }, []);
-
 
   // O editor em linha pertence à tela em que foi aberto.
   useEffect(() => closeEditor(), [pathname]);
@@ -222,9 +230,12 @@ export function AppShell({
   const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => setConfirmState({ ...options, resolve })), []);
   const prompt = useCallback((options: PromptOptions) => new Promise<string | null>((resolve) => setPromptState({ ...options, resolve })), []);
 
+  const scope = cacheScope();
   const run = useCallback(async <T,>(action: () => Promise<T>, options: RunOptions<T> & { revalidate?: Revalidate } = {}) => {
+    if (scope !== cacheScope()) return undefined;
     try {
       const value = await action();
+      if (scope !== cacheScope()) return undefined;
       const notice = typeof options.success === "function" ? options.success(value) : options.success;
       if (typeof notice === "string") {
         if (notice) toast(notice);
@@ -233,17 +244,17 @@ export function AppShell({
       }
       return value;
     } catch (error) {
-      if (error instanceof ApiFailure && (error.code === "UNAUTHENTICATED" || error.code === "PASSWORD_CHANGE_REQUIRED")) return undefined;
+      if (scope !== cacheScope() || (error instanceof ApiFailure && ["UNAUTHENTICATED", "PASSWORD_CHANGE_REQUIRED", "WORKSPACE_CHANGED"].includes(error.code))) return undefined;
       if (error instanceof ApiFailure && error.code === "REVISION_CONFLICT") {
-        toast("Este item mudou em outra aba. A tela foi atualizada.", { bad: true });
+        toast(t("Este item mudou em outra aba. A tela foi atualizada."), { bad: true });
       } else if (!options.silent) {
         toast(errorMessage(error), { bad: true });
       }
       return undefined;
     } finally {
-      if (options.revalidate) void invalidate(options.revalidate);
+      if (scope === cacheScope() && options.revalidate) void invalidate(options.revalidate);
     }
-  }, [toast]);
+  }, [toast, scope, t]);
 
   const value = useMemo<AppContextValue | null>(() => me.data ? {
     me: me.data,
@@ -265,13 +276,13 @@ export function AppShell({
     if (me.error && !(me.error instanceof ApiFailure && me.error.status === 401)) {
       return (
         <div className="empty" style={{ paddingTop: 120 }}>
-          <strong>Não foi possível carregar o Feito.</strong>
+          <strong>{t("Não foi possível carregar o Feito.")}</strong>
           {errorMessage(me.error)}
-          <div style={{ marginTop: 16 }}><button className="btn" onClick={() => void me.reload()}>Tentar de novo</button></div>
+          <div style={{ marginTop: 16 }}><button className="btn" onClick={() => void me.reload()}>{t("Tentar de novo")}</button></div>
         </div>
       );
     }
-    return <Spinner label="Carregando o Feito" />;
+    return <Spinner label={t("Carregando o Feito")} />;
   }
 
   return (
@@ -307,6 +318,7 @@ function Main({ children }: { children: ReactNode }) {
 }
 
 function ConfirmDialog({ state, onDone }: { state: ConfirmOptions | null; onDone: (value: boolean) => void }) {
+  const t = useT();
   const cancel = useRef<HTMLButtonElement>(null);
   return (
     <Dialog
@@ -316,7 +328,7 @@ function ConfirmDialog({ state, onDone }: { state: ConfirmOptions | null; onDone
       initialFocus={cancel}
       footer={(
         <>
-          <button ref={cancel} type="button" className="btn ghost" onClick={() => onDone(false)}>Cancelar</button>
+          <button ref={cancel} type="button" className="btn ghost" onClick={() => onDone(false)}>{t("Cancelar")}</button>
           <button type="button" className={`btn ${state?.danger ? "danger" : "primary"}`} onClick={() => onDone(true)}>
             {state?.confirmLabel}
           </button>
@@ -329,6 +341,7 @@ function ConfirmDialog({ state, onDone }: { state: ConfirmOptions | null; onDone
 }
 
 function PromptDialog({ state, onDone }: { state: PromptOptions | null; onDone: (value: string | null) => void }) {
+  const t = useT();
   const [value, setValue] = useState("");
   useEffect(() => setValue(state?.initial ?? ""), [state]);
   return (
@@ -342,7 +355,7 @@ function PromptDialog({ state, onDone }: { state: PromptOptions | null; onDone: 
           </div>
         </div>
         <div className="dialog-f">
-          <button type="button" className="btn ghost" onClick={() => onDone(null)}>Cancelar</button>
+          <button type="button" className="btn ghost" onClick={() => onDone(null)}>{t("Cancelar")}</button>
           <button type="submit" className="btn primary" disabled={!value.trim()}>{state?.confirmLabel}</button>
         </div>
       </form>
@@ -352,6 +365,7 @@ function PromptDialog({ state, onDone }: { state: PromptOptions | null; onDone: 
 
 /** Tarefas que não foram adicionadas e cujo texto não pôde voltar ao campo (veja client/composer.ts). */
 function FailedDraftsDialog() {
+  const t = useT();
   const drafts = useFailedDrafts();
   const close = useRef<HTMLButtonElement>(null);
   const count = drafts.length;
@@ -359,15 +373,14 @@ function FailedDraftsDialog() {
     <Dialog
       open={count > 0}
       onClose={dismissFailedDrafts}
-      title={count === 1 ? "Tarefa não adicionada" : "Tarefas não adicionadas"}
+      title={count === 1 ? t("Tarefa não adicionada") : t("Tarefas não adicionadas")}
       initialFocus={close}
-      footer={<button ref={close} type="button" className="btn primary" onClick={dismissFailedDrafts}>Fechar</button>}
+      footer={<button ref={close} type="button" className="btn primary" onClick={dismissFailedDrafts}>{t("Fechar")}</button>}
     >
       <div className="dialog-b">
         <p style={{ color: "var(--muted)" }}>
-          {count === 1 ? "Não foi possível adicionar esta tarefa." : "Não foi possível adicionar estas tarefas."}
-          {" "}Copie o texto antes de fechar para tentar de novo.
-        </p>
+          {count === 1 ? t("Não foi possível adicionar esta tarefa.") : t("Não foi possível adicionar estas tarefas.")}
+          {" "}{t("Copie o texto antes de fechar para tentar de novo.")}</p>
         <ul className="failed-drafts">
           {drafts.map((draft) => <FailedDraftItem key={draft.id} draft={draft} />)}
         </ul>
@@ -377,6 +390,7 @@ function FailedDraftsDialog() {
 }
 
 function FailedDraftItem({ draft }: { draft: FailedDraft }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const text = draft.description.trim() ? `${draft.title}\n\n${draft.description}` : draft.title;
   return (
@@ -385,7 +399,7 @@ function FailedDraftItem({ draft }: { draft: FailedDraft }) {
         <strong>{draft.title}</strong>
         {draft.description.trim() && <p>{draft.description}</p>}
       </div>
-      <button type="button" className="btn" aria-label={`Copiar “${draft.title}”`} onClick={async () => {
+      <button type="button" className="btn" aria-label={t("Copiar “{0}”", [draft.title])} onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
           setCopied(true);
@@ -394,7 +408,7 @@ function FailedDraftItem({ draft }: { draft: FailedDraft }) {
           setCopied(false);
         }
       }}>
-        {copied ? "Copiado" : "Copiar"}
+        {copied ? t("Copiado") : t("Copiar")}
       </button>
     </li>
   );

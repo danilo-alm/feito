@@ -1,4 +1,6 @@
 "use client";
+import { useT } from "./language";
+
 import { useEffect, useRef, useState } from "react";
 import { api, ApiFailure, errorMessage } from "../client/api";
 import { useQuery } from "../client/store";
@@ -36,6 +38,7 @@ export function ShareMenu({ projectId, archived, sharing }: {
   archived: boolean;
   sharing?: ProjectSharing;
 }) {
+  const t = useT();
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const mobile = useIsMobile();
@@ -46,7 +49,7 @@ export function ShareMenu({ projectId, archived, sharing }: {
 
   const body = unavailable
     ? <div className="share" style={{ padding: mobile ? "8px 16px 24px" : "16px 18px" }}>
-        {!mobile && <h2 className="share-h">Compartilhar</h2>}
+        {!mobile && <h2 className="share-h">{t("Compartilhar")}</h2>}
         <p className="share-status">{unavailable}</p>
       </div>
     : <ShareBody projectId={projectId} archived={archived} share={share} mobile={mobile} sharing={sharing} onClose={close} />;
@@ -54,18 +57,18 @@ export function ShareMenu({ projectId, archived, sharing }: {
   return (
     <>
       <button ref={setAnchor} type="button" className={`icon-btn tool-btn${open ? " on" : ""}${shared ? " shared" : ""}`}
-        data-share-unavailable={unavailable ? "" : undefined} data-tooltip={unavailable ?? "Compartilhar"} aria-description={unavailable}
-        aria-label={shared ? "Compartilhar: link público ativo" : "Compartilhar"} aria-haspopup="dialog" aria-expanded={open}
+        data-share-unavailable={unavailable ? "" : undefined} data-tooltip={unavailable ?? t("Compartilhar")} aria-description={unavailable}
+        aria-label={shared ? t("Compartilhar: link público ativo") : t("Compartilhar")} aria-haspopup="dialog" aria-expanded={open}
         onClick={() => {
           if (!open && sharing?.origin && !share.loading) void share.reload();
           setOpen(!open);
         }}>
         <IconShare />
-        <span className="tool-label">Compartilhar</span>
+        <span className="tool-label">{t("Compartilhar")}</span>
       </button>
       {mobile
-        ? <Dialog open={open} onClose={close} title="Compartilhar">{body}</Dialog>
-        : <Popover anchor={anchor} open={open} onClose={close} label="Compartilhar" align="end" width={380}>{body}</Popover>}
+        ? <Dialog open={open} onClose={close} title={t("Compartilhar")}>{body}</Dialog>
+        : <Popover anchor={anchor} open={open} onClose={close} label={t("Compartilhar")} align="end" width={380}>{body}</Popover>}
     </>
   );
 }
@@ -78,6 +81,7 @@ function ShareBody({ projectId, archived, share, mobile, sharing, onClose }: {
   sharing?: ProjectSharing;
   onClose: () => void;
 }) {
+  const t = useT();
   const toast = useToast();
   const field = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -99,15 +103,15 @@ function ShareBody({ projectId, archived, share, mobile, sharing, onClose }: {
       if (shared) {
         await api.projects.disableShare(projectId);
         share.mutate(() => ({ enabled: false, token: null }));
-        toast("Link desativado. Quem tinha o link perde o acesso.");
+        toast(t("Link desativado. Quem tinha o link perde o acesso."));
       } else {
         const next = await api.projects.enableShare(projectId);
         share.mutate(() => next);
-        toast("Link público ativado");
+        toast(t("Link público ativado"));
       }
     } catch (error) {
       toast(error instanceof ApiFailure && error.code === "PROJECT_ARCHIVED"
-        ? "Projetos arquivados não podem ser compartilhados." : errorMessage(error), { bad: true });
+        ? t("Projetos arquivados não podem ser compartilhados.") : errorMessage(error), { bad: true });
       void share.reload();
     } finally {
       setBusy(false);
@@ -121,22 +125,22 @@ function ShareBody({ projectId, archived, share, mobile, sharing, onClose }: {
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => setCopied(false), 1800);
     } else {
-      toast("Não foi possível copiar. O link está selecionado para copiar manualmente.", { bad: true });
+      toast(t("Não foi possível copiar. O link está selecionado para copiar manualmente."), { bad: true });
     }
   };
 
-  const status = archived ? "Reative o projeto para compartilhar."
+  const status = archived ? t("Reative o projeto para compartilhar.")
     : share.error && !share.loading ? errorMessage(share.error)
-      : !share.data ? "Carregando…"
-      : shared ? "Ativado. Qualquer pessoa com o link pode ver este projeto." : "Desativado. Só você vê este projeto.";
+      : !share.data ? t("Carregando…")
+      : shared ? t("Ativado. Qualquer pessoa com o link pode ver este projeto.") : t("Desativado. Só você vê este projeto.");
 
   return (
     <div className="share" style={{ padding: mobile ? "8px 16px 24px" : "16px 18px 14px" }}>
-      {!mobile && <h2 className="share-h">Compartilhar</h2>}
+      {!mobile && <h2 className="share-h">{t("Compartilhar")}</h2>}
       <div className="share-row">
         <span className={`share-ico${shared ? " on" : ""}`} aria-hidden="true"><IconGlobe /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div id="share-public-label" style={{ fontWeight: 600 }}>Link público</div>
+          <div id="share-public-label" style={{ fontWeight: 600 }}>{t("Link público")}</div>
           <div className="share-status" aria-live="polite">{status}</div>
         </div>
         <button type="button" className={`switch${shared ? " on" : ""}`} role="switch" aria-checked={shared}
@@ -145,13 +149,13 @@ function ShareBody({ projectId, archived, share, mobile, sharing, onClose }: {
       </div>
 
       {!archived && !!share.error && !share.loading && (
-        <button type="button" className="btn" onClick={() => void share.reload()}>Tentar de novo</button>
+        <button type="button" className="btn" onClick={() => void share.reload()}>{t("Tentar de novo")}</button>
       )}
 
       {shared && (
         <div className="share-link">
           <div className="share-copy">
-            <label htmlFor="share-url" className="sr-only">Link do projeto</label>
+            <label htmlFor="share-url" className="sr-only">{t("Link do projeto")}</label>
             <input ref={field} id="share-url" className="input share-url" readOnly value={url}
               onFocus={(event) => event.currentTarget.select()} />
             {!mobile && <CopyButton copied={copied} onClick={() => void copy()} />}
@@ -160,21 +164,20 @@ function ShareBody({ projectId, archived, share, mobile, sharing, onClose }: {
             <div className="share-actions">
               {canNativeShare && (
                 <button type="button" className="btn lg" onClick={() => void navigator.share({ url }).catch(() => undefined)}>
-                  <IconShare />Enviar…
-                </button>
+                  <IconShare />{t("Enviar…")}</button>
               )}
               <CopyButton copied={copied} onClick={() => void copy()} large />
             </div>
           ) : null}
           {openPublicPage ? (
             <button type="button" className="share-open" onClick={() => {
-              void openPublicPage(token).then(onClose, () => toast("Não foi possível abrir a página pública no navegador.", { bad: true }));
+              void openPublicPage(token).then(onClose, () => toast(t("Não foi possível abrir a página pública no navegador."), { bad: true }));
             }}>
-              Abrir página pública<IconExternal />
+              {t("Abrir página pública")}<IconExternal />
             </button>
           ) : !mobile && (
             <a className="share-open" href={publicProjectPath(token)} target="_blank" rel="noopener noreferrer" onClick={onClose}>
-              Abrir página pública<IconExternal />
+              {t("Abrir página pública")}<IconExternal />
             </a>
           )}
         </div>
@@ -182,18 +185,19 @@ function ShareBody({ projectId, archived, share, mobile, sharing, onClose }: {
 
       <div className="msep" style={{ margin: mobile ? "0 -16px" : "0 -18px" }} />
       <ul className="share-notes">
-        <li><IconEye />Só leitura: quem abre vê seções, tarefas, descrições e etiquetas, sem entrar na sua conta.</li>
-        <li><IconLink />Desativar invalida o link na hora. Ao ativar de novo, um link novo é gerado. Arquivar o projeto também desativa.</li>
+        <li><IconEye />{t("Só leitura: quem abre vê seções, tarefas, descrições e etiquetas, sem entrar na sua conta.")}</li>
+        <li><IconLink />{t("Desativar invalida o link na hora. Ao ativar de novo, um link novo é gerado. Arquivar o projeto também desativa.")}</li>
       </ul>
     </div>
   );
 }
 
 function CopyButton({ copied, onClick, large }: { copied: boolean; onClick: () => void; large?: boolean }) {
+  const t = useT();
   return (
     <button type="button" className={`btn share-copy-btn${large ? " lg" : ""}${copied ? " copied" : " primary"}`} onClick={onClick}>
       {copied ? <IconCheck /> : <IconDuplicate />}
-      <span aria-live="polite">{copied ? "Copiado" : "Copiar link"}</span>
+      <span aria-live="polite">{copied ? t("Copiado") : t("Copiar link")}</span>
     </button>
   );
 }

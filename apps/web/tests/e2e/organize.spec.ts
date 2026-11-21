@@ -21,7 +21,7 @@ test.describe("organizar um projeto", () => {
     await editor.getByRole("button", { name: "Salvar" }).click();
 
     await expect(page.getByRole("status").getByText("Tarefa atualizada")).toBeVisible();
-    expect(await api("GET", `/tasks/${task.id}`)).toMatchObject({
+    await expect.poll(() => api("GET", `/tasks/${task.id}`)).toMatchObject({
       title: "Título atualizado", projectId: inbox.projectId, revision: task.revision + 1,
     });
   });
@@ -90,10 +90,8 @@ test.describe("organizar um projeto", () => {
     await page.getByRole("button", { name: /^Mostrar/ }).click();
     const menu = page.getByRole("dialog", { name: "Visualização" });
     await expect(menu.getByRole("radio", { name: "Calendário" })).toBeDisabled();
-    const viewSaved = page.waitForResponse((response) => response.request().method() === "PATCH"
-      && new URL(response.url()).pathname === `/api/v1/projects/${seed.id}/view`);
     await menu.getByRole("radio", { name: "Painel" }).click();
-    expect((await viewSaved).ok()).toBe(true);
+    await expect.poll(async () => (await api<{ project: { view: { layout: string } } }>("GET", `/projects/${seed.id}`)).project.view.layout).toBe("board");
     await page.keyboard.press("Escape");
     await expect(page.getByRole("region", { name: "Coluna Comprar" })).toBeVisible();
     await expect(page.locator("section.column")).toHaveCount(4);

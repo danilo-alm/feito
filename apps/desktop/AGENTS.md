@@ -14,8 +14,8 @@ Use **Node.js 24**, **pnpm 10** e **Rust estável**. Consulte [package.json](pac
 | --- | --- |
 | Entrada, navegação e estilos do desktop | [main.tsx](src/main.tsx), [src/platform/](src/platform/), [desktop.css](src/desktop.css) |
 | Ajustes e gerenciamento dos espaços | [settings.tsx](src/settings.tsx), [spaces.tsx](src/spaces.tsx) |
-| Comandos e projeções do modo local | [local.ts](src/data/local.ts), [src/data/local/](src/data/local/) |
-| Estado dos espaços, fila e sincronização | [desktop.ts](src/data/desktop.ts), [native.ts](src/data/native.ts) |
+| Comandos e projeções do modo local | [Executor compartilhado](../../packages/core/src/product/local-executor.ts), [projeções locais](../../packages/core/src/product/local-workspace.ts) |
+| Estado dos espaços, fila e sincronização | [desktop.ts](src/data/desktop.ts), [native.ts](src/data/native.ts), [réplica compartilhada](../../packages/core/src/product/replica.ts) |
 | Janela, capacidades e configuração Tauri | [main.rs](src-tauri/src/main.rs), [desktop.json](src-tauri/capabilities/desktop.json), [tauri.conf.json](src-tauri/tauri.conf.json) |
 | Banco SQLite, criptografia e transporte HTTPS | [workspace.rs](src-tauri/src/workspace.rs), [server.rs](src-tauri/src/server.rs) |
 | Testes, automação e distribuição | [local.test.ts](src/data/local.test.ts), [desktop.test.ts](src/data/desktop.test.ts), [desktop.yml](../../.github/workflows/desktop.yml) |

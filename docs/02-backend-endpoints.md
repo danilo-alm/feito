@@ -10,6 +10,7 @@ Contrato HTTP proposto em 17 de novembro de 2026 para o MVP descrito em [Arquite
 | --- | --- |
 | Base e formato | Prefixo `/api/v1`. Corpo e resposta em JSON UTF-8 com chaves em `camelCase`. Exceções: download da exportação e corpo bruto da importação. |
 | Autenticação | Cookie de sessão opaco emitido pelo login (`HttpOnly`, `Secure`, `SameSite=Lax`). Exigem sessão válida e conta ativa as rotas privadas. `POST /auth/login`, `GET /api/health`, `GET /api/health/live` e `GET /api/v1/public/projects/{token}` aceitam acesso sem sessão. Rotas privadas sem sessão devolvem `401 UNAUTHENTICATED`. |
+| Identidade vinculada | Em requisições com sessão, o cabeçalho opcional `X-Feito-Account` informa o ID esperado da conta. Se o cookie autenticar uma conta diferente, a requisição recebe `409 DESKTOP_ACCOUNT_CHANGED`. |
 | Senha provisória | Enquanto a conta tiver `mustChangePassword`, só respondem `GET /auth/session`, `GET /me`, `POST /auth/password` e `POST /auth/logout`. As demais devolvem `403 PASSWORD_CHANGE_REQUIRED`. |
 | Origem | Métodos que alteram estado (`POST`, `PATCH`, `PUT`, `DELETE`) exigem `Origin` igual à origem configurada da instalação. Caso contrário: `403 FORBIDDEN_ORIGIN`. |
 | Tenant | As rotas privadas obtêm o tenant da sessão. A leitura pública resolve o tenant e o projeto pelo token do compartilhamento. IDs de outra conta, inexistentes ou de entidades excluídas respondem `404 NOT_FOUND`, sem distinguir os casos. |
@@ -137,7 +138,7 @@ type ProjectSummary = {
 
 type Label = { id: string; revision: number; name: string; activeCount: number };
 
-type Preferences = { timezone: string; theme: "light" | "dark" | "system" };
+type Preferences = { timezone: string; theme: "light" | "dark" | "system"; locale?: "pt-BR" | "en" };
 ```
 
 ## 3. Endpoints
@@ -166,7 +167,7 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 | --- | --- | --- | --- |
 | `GET /api/v1/me` | 1 | Vazio. | `200 { user, mustChangePassword, preferences, inboxProjectId, referenceDate }`. Provisiona de forma idempotente tenant, DEK, preferências e Caixa de entrada no primeiro acesso. |
 | `GET /api/v1/navigation` | 2 | Vazio. | `200 { inbox: { projectId, activeCount }, todayCount, projects: ProjectSummary[], archivedCount, labels: Label[], referenceDate }`. Alimenta a barra lateral e a navegação do celular. `todayCount` soma atrasadas e de hoje. Projetos ativos na ordem de criação. |
-| `PATCH /api/v1/preferences` | 1 | `{ timezone?, theme? }` | `200 Preferences`. `timezone` precisa ser um identificador IANA válido. Trocar o fuso muda o cálculo de Hoje sem alterar datas e horas gravadas. |
+| `PATCH /api/v1/preferences` | 1 | `{ timezone?, theme?, locale? }` | `200 Preferences`. `timezone` precisa ser um identificador IANA válido. Trocar o fuso muda o cálculo de Hoje sem alterar datas e horas gravadas. `locale` seleciona o idioma da interface; quando ausente em dados antigos, vale `pt-BR`. É sincronizado e exportado com as preferências. |
 
 ### 3.3 Projetos
 
@@ -518,24 +519,24 @@ type SourceImportPreview = {
 | --- | --- | --- |
 | `GET /api/v1/projects/{id}/export?format=todoist` | `format` obrigatório; opções do modelo como `?<opção>=true\|false`. Parâmetro desconhecido ou repetido: `422 VALIDATION_FAILED`. | `200` com o arquivo e `Content-Disposition: attachment` (nome do projeto, com `filename*` em UTF-8). |
 
-Os modelos ficam em [`src/domain/export-formats.ts`](../src/domain/export-formats.ts) (nome, descrição e opções para a interface) e [`src/server/exporters`](../src/server/exporters) (um gerador por modelo). Na interface, “Exportar…” nos menus do projeto pergunta o modelo; hoje só existe `todoist`.
+Os modelos ficam em [`export-formats.ts`](../packages/core/src/domain/export-formats.ts) (nome, descrição e opções para a interface) e [`portability/exporters`](../packages/core/src/portability/exporters) (um gerador por modelo). Na interface, “Exportar…” nos menus do projeto pergunta o modelo; hoje só existe `todoist`.
 
 **Todoist** (`text/csv`, UTF-8 com BOM). O arquivo usa o mesmo cabeçalho de 20 colunas da exportação oficial, com `meta view_style`, seções e tarefas ativas na ordem manual. `INDENT` preserva a profundidade de cada tarefa a partir de `1` para a raiz. Datas e recorrências são escritas em inglês, como `Nov 20 2026 at 09:30` e `every monday at 07:00`. Etiquetas viram `@nome` no conteúdo, com espaços trocados por `_`. A opção `relativeDates=true` escreve `today`, `tomorrow` e `in N days` para datas de hoje em diante.
 
-### 3.12 Sincronização desktop
+### 3.12 Sincronização desktop e navegador
 
 As duas operações em `/api/v1/desktop-sync` exigem a sessão da conta. O envio exige o `Origin` da instalação, assim como as gravações do site.
 
 - **GET** devolve `{ cursor, user, workspace }`. A primeira leitura devolve a base da conta com projetos, seções, tarefas, etiquetas, vínculos, ocorrências concluídas e preferências. Quando `cursor` corresponde à revisão atual, `workspace` é nulo. Com `incremental=1` e um cursor anterior ainda coberto pelo diário, a resposta traz `changes` e `workspace: null`. Projetos, seções, tarefas e etiquetas usam `{ upsert, remove }`. Cada par em `taskLabels` ou `occurrences` substitui os vínculos ou o histórico da tarefa correspondente, incluindo listas vazias. Uma lacuna, excesso de alterações ou cursor antigo aciona uma nova base completa.
-- **POST** recebe `{ id, userId?, authoredAt, method, path, body?, generatedIds? }`. `id` é o UUID persistido junto à operação local. O desktop envia o `userId` esperado para prevenir gravação em outra conta após nova autenticação. `path` é relativo a `/api/v1`. `generatedIds` preserva os IDs criados offline. O servidor aceita as mutações de tarefas, projetos, seções, etiquetas e preferências previstas no serviço e responde `{ outcome: "applied" }` ou `{ outcome: "ignored", message }`. Repetir a mesma operação retorna o recibo original. Reusar o ID com outro conteúdo retorna conflito.
+- **POST** recebe `{ id, userId?, authoredAt, method, path, body?, generatedIds? }`. `id` é o UUID persistido junto à operação local. O desktop e o navegador enviam o `userId` esperado para prevenir gravação em outra conta após nova autenticação. `path` é relativo a `/api/v1`. `generatedIds` preserva os IDs criados offline. O servidor aceita as mutações de tarefas, projetos, seções, etiquetas e preferências previstas no serviço e responde `{ outcome: "applied" }` ou `{ outcome: "ignored", message }`. Repetir a mesma operação retorna o recibo original. Reusar o ID com outro conteúdo retorna conflito.
 
 O diário guarda referências às entidades afetadas nas últimas 512 revisões. O limite por leitura incremental é de 1.000 referências. O servidor monta os dados canônicos e as exclusões usando o mesmo snapshot que fornece o cursor.
 
-Edições de tarefa e preferências recebem ordenação por campo ou grupo de campos. Em um empate de milissegundo, o site prevalece sobre o desktop e dois dispositivos desktop são ordenados pelo UUID da operação. Horários mais de cinco minutos adiantados são recusados. Exclusões não são revertidas por edições pendentes. Revisões das entidades ainda protegem operações estruturais de projeto, seção e etiqueta. A recorrência confirma a ocorrência específica e usa a data civil do instante da ação no fuso da conta para calcular a próxima.
+Edições de tarefa e preferências recebem ordenação por campo ou grupo de campos. Em um empate de milissegundo, as gravações diretas na API prevalecem sobre as operações sincronizadas. Entre operações sincronizadas, a ordem usa o UUID da operação. Horários mais de cinco minutos adiantados são recusados. Exclusões não são revertidas por edições pendentes. Revisões das entidades ainda protegem operações estruturais de projeto, seção e etiqueta. A recorrência confirma a ocorrência específica e usa a data civil do instante da ação no fuso da conta para calcular a próxima.
 
 ### 3.13 Avisos de revisão
 
-`GET /api/v1/product-events` usa a sessão da conta e responde com `text/event-stream`. O evento `revision` contém o número da revisão atual na abertura e quando ela muda após uma gravação confirmada. Uma conexão pode agrupar várias alterações em um único aviso. O site refaz as consultas visíveis e o desktop usa o cursor salvo em `/api/v1/desktop-sync`.
+`GET /api/v1/product-events` usa a sessão da conta e responde com `text/event-stream`. O evento `revision` contém o número da revisão atual na abertura e quando ela muda após uma gravação confirmada. Uma conexão pode agrupar várias alterações em um único aviso. O navegador e o desktop consultam `/api/v1/desktop-sync` usando o cursor salvo para aplicar as mudanças à cópia local.
 
 A resposta envia comentários de keepalive a cada 15 segundos e é renovada após cinco minutos. Ao reconectar, o cliente recebe a revisão atual para recuperar mudanças feitas durante a interrupção. Se o canal estiver indisponível, as consultas periódicas continuam funcionando.
 

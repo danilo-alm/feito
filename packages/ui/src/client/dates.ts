@@ -1,4 +1,30 @@
+import { getLocale, intlLocale, translate as t } from "./locale";
+import type { Locale } from "@feito/core/types";
+
 // Datas civis (YYYY-MM-DD) exibidas em relação ao dia de referência do servidor.
+// Os dois portugueses usam os nomes abaixo; os demais idiomas usam `Intl` em UTC, sem deslocar o dia.
+
+type Formats = Record<"weekday" | "narrowWeekday" | "month" | "longDate" | "monthTitle" | "dayMonth", Intl.DateTimeFormat>;
+const formatCache = new Map<Locale, Formats>();
+function formats(locale: Locale = getLocale()): Formats {
+  let cached = formatCache.get(locale);
+  if (!cached) {
+    const tag = intlLocale(locale);
+    const format = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(tag, { timeZone: "UTC", ...options });
+    cached = {
+      weekday: format({ weekday: "short" }),
+      narrowWeekday: format({ weekday: "narrow" }),
+      month: format({ month: "short" }),
+      longDate: format({ weekday: "long", day: "numeric", month: "long" }),
+      monthTitle: format({ month: "long", year: "numeric" }),
+      dayMonth: format({ day: "numeric", month: "short" }),
+    };
+    formatCache.set(locale, cached);
+  }
+  return cached;
+}
+const portuguese = (locale: Locale = getLocale()) => locale === "pt-BR" || locale === "pt-PT";
+const capitalize = (text: string) => text.charAt(0).toLocaleUpperCase(intlLocale()) + text.slice(1);
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const WEEKDAYS_LONG = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
@@ -31,11 +57,13 @@ export function daysBetween(from: string, to: string) {
 /** "Hoje", "Amanhã", "Ontem" ou "Sex 20 nov" (com ano quando difere). */
 export function dateLabel(date: string, reference: string) {
   const diff = daysBetween(reference, date);
-  if (diff === 0) return "Hoje";
-  if (diff === 1) return "Amanhã";
-  if (diff === -1) return "Ontem";
+  if (diff === 0) return t("Hoje");
+  if (diff === 1) return t("Amanhã");
+  if (diff === -1) return t("Ontem");
   const { year, month, day } = parts(date);
-  const base = `${WEEKDAYS[weekday(date)]} ${day} ${MONTHS[month - 1]}`;
+  const base = portuguese()
+    ? `${WEEKDAYS[weekday(date)]} ${day} ${MONTHS[month - 1]}`
+    : `${weekdayShort(date)} ${day} ${localMonth(date)}`;
   return year === parts(reference).year ? base : `${base} ${year}`;
 }
 
@@ -47,21 +75,23 @@ export function dueLabel(date: string | null, time: string | null, reference: st
 /** "Terça, 17 de novembro" */
 export function longDate(date: string) {
   const { month, day } = parts(date);
+  if (!portuguese()) return capitalize(formats().longDate.format(utc(date)));
   return `${WEEKDAYS_LONG[weekday(date)]}, ${day} de ${MONTHS_LONG[month - 1]}`;
 }
 
 /** "Qua 18 nov" */
 export function shortDate(date: string) {
   const { month, day } = parts(date);
-  return `${WEEKDAYS[weekday(date)]} ${day} ${MONTHS[month - 1]}`;
+  return portuguese() ? `${WEEKDAYS[weekday(date)]} ${day} ${MONTHS[month - 1]}` : `${weekdayShort(date)} ${day} ${localMonth(date)}`;
 }
 
 export function dayParts(date: string) {
-  return { weekday: WEEKDAYS[weekday(date)].toLowerCase(), day: parts(date).day };
+  return { weekday: weekdayShort(date).toLowerCase(), day: parts(date).day };
 }
 
 export function monthTitle(date: string) {
   const { year, month } = parts(date);
+  if (!portuguese()) return capitalize(formats().monthTitle.format(utc(date)));
   return `${MONTHS_LONG[month - 1][0].toUpperCase()}${MONTHS_LONG[month - 1].slice(1)} de ${year}`;
 }
 
@@ -69,6 +99,8 @@ export function monthTitle(date: string) {
 export function rangeLabel(start: string, end: string) {
   const a = parts(start);
   const b = parts(end);
+  if (getLocale() === "en") return a.month === b.month ? `${a.day} – ${b.day} ${localMonth(end)}` : `${a.day} ${localMonth(start)} – ${b.day} ${localMonth(end)}`;
+  if (!portuguese()) return formats().dayMonth.formatRange(utc(start), utc(end));
   return a.month === b.month ? `${a.day} – ${b.day} ${MONTHS[b.month - 1]}`
     : `${a.day} ${MONTHS[a.month - 1]} – ${b.day} ${MONTHS[b.month - 1]}`;
 }
@@ -92,11 +124,17 @@ export function completedLabel(instant: string, reference: string, timezone?: st
   const date = new Date(instant);
   const local = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" })
     .format(date);
-  const time = new Intl.DateTimeFormat("pt-BR", { timeZone: timezone, hour: "2-digit", minute: "2-digit" }).format(date);
+  const time = new Intl.DateTimeFormat(intlLocale(), { timeZone: timezone, hour: "2-digit", minute: "2-digit" }).format(date);
   const diff = daysBetween(reference, local);
-  if (diff === 0) return `Concluída hoje, ${time}`;
-  if (diff === -1) return `Concluída ontem, ${time}`;
-  return `Concluída em ${dateLabel(local, reference).toLowerCase()}`;
+  if (diff === 0) return t("Concluída hoje, {0}", [time]);
+  if (diff === -1) return t("Concluída ontem, {0}", [time]);
+  return t("Concluída em {0}", [dateInSentence(dateLabel(local, reference))]);
+}
+
+/** Rótulo de data no meio da frase. Inglês e alemão mantêm as maiúsculas de dias e meses. */
+export function dateInSentence(label: string) {
+  const locale = getLocale();
+  return locale === "en" || locale === "de" ? label : label.toLocaleLowerCase(intlLocale(locale));
 }
 
 export const FREQUENCY_LABEL = { daily: "Diária", weekly: "Semanal", monthly: "Mensal" } as const;
@@ -117,7 +155,8 @@ function civil(year: number, month: number, day: number) {
  * Interpreta um vencimento digitado: "hoje", "amanhã", "sexta", "fim de semana", "próxima semana",
  * "25/12", "25/12/2027", "25 dez", "dez 25" ou "2027-01-04". Datas sem ano vão para a próxima ocorrência.
  */
-export function parseDueInput(input: string, reference: string): string | null {
+export function parseDueInput(input: string, reference: string, locale: Locale = getLocale()): string | null {
+  if (!portuguese(locale)) input = localizedDueInput(input, locale);
   const text = input.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ")
     .replace(/-feira\b/, "");
   if (!text) return null;
@@ -165,12 +204,19 @@ export function daysInMonth(date: string) {
 /** "Nov 2026" */
 export function monthShort(date: string, withYear = true) {
   const { year, month } = parts(date);
-  const name = `${MONTHS[month - 1][0].toUpperCase()}${MONTHS[month - 1].slice(1)}`;
+  const name = portuguese() ? `${MONTHS[month - 1][0].toUpperCase()}${MONTHS[month - 1].slice(1)}` : capitalize(localMonth(date));
   return withYear ? `${name} ${year}` : name;
 }
 
 export function weekdayShort(date: string) {
-  return WEEKDAYS[weekday(date)];
+  return portuguese() ? WEEKDAYS[weekday(date)] : capitalize(formats().weekday.format(utc(date)));
+}
+
+const WEEK_HEAD = ["D", "S", "T", "Q", "Q", "S", "S"];
+/** Iniciais dos dias da semana, de domingo a sábado, para o cabeçalho do calendário. */
+export function weekHead() {
+  if (portuguese()) return WEEK_HEAD;
+  return Array.from({ length: 7 }, (_, day) => formats().narrowWeekday.format(Date.UTC(2026, 10, 15 + day)).toLocaleUpperCase(intlLocale()));
 }
 
 export type DueTone = "late" | "today" | "tomorrow" | "weekend" | "later" | "past";
@@ -185,4 +231,114 @@ export function dueTone(date: string, reference: string, overdue = false): DueTo
   const day = weekday(date);
   if (diff <= 7 && (day === 0 || day === 6)) return "weekend";
   return "later";
+}
+
+function localMonth(date: string) {
+  return formats().month.format(utc(date));
+}
+
+// Cada idioma é traduzido para as palavras do analisador em português, sem acentos.
+// Mantém a semântica de data civil e o formato numérico dia/mês em todos os idiomas.
+type Lexicon = {
+  phrases: Record<string, string>;
+  inDays: RegExp;
+  next?: RegExp;
+  words: Record<string, string>;
+};
+const WEEKDAY_PT = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
+const MONTH_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+function names(weekdays: string[][], months: string[][]) {
+  const words: Record<string, string> = {};
+  weekdays.forEach((forms, day) => { for (const form of forms) words[form] = WEEKDAY_PT[day]; });
+  months.forEach((forms, month) => { for (const form of forms) words[form] = MONTH_PT[month]; });
+  return words;
+}
+const LEXICONS: Record<Exclude<Locale, "pt-BR" | "pt-PT">, Lexicon> = {
+  en: {
+    phrases: {
+      today: "hoje", tomorrow: "amanha", "day after tomorrow": "depois de amanha",
+      weekend: "fim de semana", "this weekend": "fim de semana", "next week": "proxima semana",
+    },
+    inDays: /^(?:in )?(\d{1,3}) days?$/,
+    next: /^next (\S+)$/,
+    words: names(
+      [["sun", "sunday"], ["mon", "monday"], ["tue", "tuesday"], ["wed", "wednesday"], ["thu", "thursday"], ["fri", "friday"], ["sat", "saturday"]],
+      [["jan", "january"], ["feb", "february"], ["mar", "march"], ["apr", "april"], ["may"], ["jun", "june"], ["jul", "july"],
+        ["aug", "august"], ["sep", "sept", "september"], ["oct", "october"], ["nov", "november"], ["dec", "december"]],
+    ),
+  },
+  es: {
+    phrases: {
+      hoy: "hoje", manana: "amanha", "pasado manana": "depois de amanha",
+      "fin de semana": "fim de semana", "este fin de semana": "fim de semana",
+      "proxima semana": "proxima semana", "la proxima semana": "proxima semana", "semana que viene": "proxima semana",
+      "la semana que viene": "proxima semana",
+    },
+    inDays: /^(?:en |dentro de )?(\d{1,3}) dias?$/,
+    next: /^(?:el )?proximo (\S+)$/,
+    words: names(
+      [["dom", "domingo"], ["lun", "lunes"], ["martes"], ["mie", "miercoles"], ["jue", "jueves"], ["vie", "viernes"], ["sab", "sabado"]],
+      [["ene", "enero"], ["feb", "febrero"], ["mar", "marzo"], ["abr", "abril"], ["may", "mayo"], ["jun", "junio"], ["jul", "julio"],
+        ["ago", "agosto"], ["sep", "sept", "set", "septiembre", "setiembre"], ["oct", "octubre"], ["nov", "noviembre"], ["dic", "diciembre"]],
+    ),
+  },
+  fr: {
+    phrases: {
+      "aujourd'hui": "hoje", demain: "amanha", "apres-demain": "depois de amanha", "apres demain": "depois de amanha",
+      "week-end": "fim de semana", weekend: "fim de semana", "ce week-end": "fim de semana", "ce weekend": "fim de semana",
+      "semaine prochaine": "proxima semana", "la semaine prochaine": "proxima semana",
+    },
+    inDays: /^(?:dans )?(\d{1,3}) jours?$/,
+    next: /^(\S+) prochain$/,
+    words: names(
+      [["dim", "dimanche"], ["lun", "lundi"], ["mar", "mardi"], ["mer", "mercredi"], ["jeu", "jeudi"], ["ven", "vendredi"], ["sam", "samedi"]],
+      [["janv", "janvier"], ["fevr", "fevrier"], ["mars"], ["avr", "avril"], ["mai"], ["juin"], ["juil", "juillet"],
+        ["aout"], ["sept", "septembre"], ["oct", "octobre"], ["nov", "novembre"], ["dec", "decembre"]],
+    ),
+  },
+  it: {
+    phrases: {
+      oggi: "hoje", domani: "amanha", dopodomani: "depois de amanha",
+      weekend: "fim de semana", "fine settimana": "fim de semana", "questo fine settimana": "fim de semana",
+      "questo weekend": "fim de semana", "prossima settimana": "proxima semana", "la prossima settimana": "proxima semana",
+      "settimana prossima": "proxima semana",
+    },
+    inDays: /^(?:tra |fra )?(\d{1,3}) giorni?$/,
+    next: /^(?:il |la )?prossim[oa] (\S+)$/,
+    words: names(
+      [["dom", "domenica"], ["lun", "lunedi"], ["martedi"], ["mer", "mercoledi"], ["gio", "giovedi"], ["ven", "venerdi"], ["sab", "sabato"]],
+      [["gen", "gennaio"], ["feb", "febbraio"], ["mar", "marzo"], ["apr", "aprile"], ["mag", "maggio"], ["giu", "giugno"], ["lug", "luglio"],
+        ["ago", "agosto"], ["set", "sett", "settembre"], ["ott", "ottobre"], ["nov", "novembre"], ["dic", "dicembre"]],
+    ),
+  },
+  de: {
+    phrases: {
+      heute: "hoje", morgen: "amanha", ubermorgen: "depois de amanha",
+      wochenende: "fim de semana", "am wochenende": "fim de semana", "dieses wochenende": "fim de semana",
+      "nachste woche": "proxima semana", "kommende woche": "proxima semana",
+    },
+    inDays: /^(?:in )?(\d{1,3}) tag(?:en)?$/,
+    next: /^(?:nachste[nrs]?|kommende[nrs]?) (\S+)$/,
+    words: names(
+      [["so", "sonntag"], ["mo", "montag"], ["di", "dienstag"], ["mi", "mittwoch"], ["do", "donnerstag"], ["fr", "freitag"], ["sa", "samstag", "sonnabend"]],
+      [["jan", "januar"], ["feb", "februar"], ["mar", "marz"], ["apr", "april"], ["mai"], ["jun", "juni"], ["jul", "juli"],
+        ["aug", "august"], ["sep", "sept", "september"], ["okt", "oktober"], ["nov", "november"], ["dez", "dezember"]],
+    ),
+  },
+};
+
+function localizedDueInput(input: string, locale: Locale) {
+  const lexicon = LEXICONS[locale as keyof typeof LEXICONS];
+  if (!lexicon) return input;
+  let text = input.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[’`]/g, "'")
+    .replace(/\s+/g, " ")
+    // "25th", "1er", "25." e "1º" viram só o número; datas numéricas como "25.12." perdem o ponto final.
+    .replace(/\b(\d{1,2})(?:st|nd|rd|th|er|e)\b/g, "$1").replace(/^(\d{1,2})\. (?=\D)/, "$1 ").replace(/(\d)\.$/, "$1");
+  if (lexicon.phrases[text]) return lexicon.phrases[text];
+  const days = lexicon.inDays.exec(text);
+  if (days) return `em ${days[1]} dias`;
+  const next = lexicon.next?.exec(text);
+  if (next && lexicon.words[next[1]] && WEEKDAY_PT.includes(lexicon.words[next[1]])) return `proxima ${lexicon.words[next[1]]}`;
+  text = text.replace(/[a-z]+/g, (word) => Object.hasOwn(lexicon.words, word) ? lexicon.words[word] : word);
+  return text.replace(/^(\d{1,2}) (?:de|di) /, "$1 ").replace(/ (?:de|di) (\d{4})$/, " $1");
 }

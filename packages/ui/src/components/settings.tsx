@@ -1,12 +1,16 @@
 "use client";
+import { useT } from "./language";
+
+import { LanguagePicker } from "./language-picker";
 import { Link } from "../navigation";
 import { type ReactNode } from "react";
 import { api } from "../client/api";
 import { setQueryData, useQuery } from "../client/store";
-import type { Me, ProjectSummary, Theme } from "@feito/core/types";
-import { applyTheme, refreshProjects, useApp } from "./app";
+import { setSyncIndicatorHidden, useSyncIndicatorHidden } from "../client/sync-indicator";
+import type { Me, ProjectSummary, Preferences } from "@feito/core/types";
+import { refreshProjects, useApp } from "./app";
 import {
-  IconChevronRight, IconClock, IconHash, IconMonitor, IconMoon, IconSun,
+  IconChevronRight, IconClock, IconHash, IconMonitor, IconMoon, IconRepeat, IconSun,
 } from "./icons";
 import { TimezonePicker } from "./timezone-picker";
 import { ReadFallback } from "./ui";
@@ -61,18 +65,18 @@ export function SettingsLinkRow({ href, onClick, trailing, ...content }: RowCont
     : <button type="button" className="set-row set-link" onClick={onClick}>{inner}</button>;
 }
 
-const THEMES: { value: Theme; label: string; icon: ReactNode }[] = [
+const THEMES: { value: Preferences["theme"]; label: string; icon: ReactNode }[] = [
   { value: "light", label: "Claro", icon: <IconSun /> },
   { value: "dark", label: "Escuro", icon: <IconMoon /> },
   { value: "system", label: "Sistema", icon: <IconMonitor /> },
 ];
 
 function useSavePreferences() {
+  const t = useT();
   const app = useApp();
-  return async (patch: { theme?: Theme; timezone?: string }) => {
-    if (patch.theme) applyTheme(patch.theme);
+  return async (patch: Partial<Preferences>) => {
     const saved = await app.run(() => api.preferences(patch), {
-      success: patch.timezone ? "Fuso horário atualizado" : undefined,
+      success: patch.timezone ? t("Fuso horário atualizado") : undefined,
       revalidate: patch.timezone ? (key) => key === "me" || refreshProjects(key) : undefined,
     });
     if (saved) setQueryData<Me>("me", (me) => me && { ...me, preferences: saved });
@@ -80,35 +84,48 @@ function useSavePreferences() {
 }
 
 export function AppearanceSettings() {
+  const t = useT();
   const app = useApp();
   const save = useSavePreferences();
+  const syncIndicatorHidden = useSyncIndicatorHidden();
   return (
-    <SettingsGroup id="aparencia" title="Aparência">
+    <SettingsGroup id="aparencia" title={t("Aparência")}>
       <div className="set-card">
-        <SettingsRow icon={<IconMonitor />} label="Tema" hint="Claro, escuro ou igual ao sistema." control={
-          <div className="seg compact" role="radiogroup" aria-label="Tema">
+        <SettingsRow icon={<IconMonitor />} label={t("Idioma")} labelFor="language" hint={t("Idioma da interface neste espaço.")}
+          control={<LanguagePicker id="language" value={app.me.preferences.locale ?? "pt-BR"}
+            onChange={(locale) => save({ locale })} />} />
+        <SettingsRow icon={<IconMonitor />} label={t("Tema")} hint={t("Claro, escuro ou igual ao sistema.")} control={
+          <div className="seg compact" role="radiogroup" aria-label={t("Tema")}>
             {THEMES.map((theme) => (
               <button key={theme.value} type="button" role="radio" aria-checked={app.me.preferences.theme === theme.value}
                 className={`seg-o${app.me.preferences.theme === theme.value ? " on" : ""}`}
                 onClick={() => void save({ theme: theme.value })}>
-                {theme.icon}{theme.label}
+                {theme.icon}{t(theme.label)}
               </button>
             ))}
           </div>
         } />
+        <SettingsRow icon={<IconRepeat />} label={t("Mostrar indicador de sincronização")} labelFor="sync-indicator"
+          hint={t("Exibe a bolinha com o estado da sincronização neste dispositivo.")}
+          control={
+            <button id="sync-indicator" type="button" role="switch" aria-checked={!syncIndicatorHidden}
+              aria-label={t("Mostrar indicador de sincronização")} className={`switch${syncIndicatorHidden ? "" : " on"}`}
+              onClick={() => setSyncIndicatorHidden(!syncIndicatorHidden)} />
+          } />
       </div>
     </SettingsGroup>
   );
 }
 
 export function AgendaSettings() {
+  const t = useT();
   const app = useApp();
   const save = useSavePreferences();
   return (
     <SettingsGroup id="agenda" title="Agenda">
       <div className="set-card">
-        <SettingsRow icon={<IconClock />} label="Fuso horário do perfil" labelFor="tz"
-          hint="Define o que é “Hoje” e quando uma tarefa fica atrasada."
+        <SettingsRow icon={<IconClock />} label={t("Fuso horário do perfil")} labelFor="tz"
+          hint={t("Define o que é “Hoje” e quando uma tarefa fica atrasada.")}
           control={<TimezonePicker id="tz" value={app.timezone} onChange={(timezone) => void save({ timezone })} />} />
       </div>
     </SettingsGroup>
@@ -116,18 +133,19 @@ export function AgendaSettings() {
 }
 
 export function ArchivedSettings() {
+  const t = useT();
   const app = useApp();
   const archived = useQuery<{ projects: ProjectSummary[] }>("archived", () => api.projects.list("archived"));
   return (
-    <SettingsGroup id="arquivados" title="Projetos arquivados">
+    <SettingsGroup id="arquivados" title={t("Projetos arquivados")}>
       <div className="set-card">
         {!archived.data && <div className="set-row"><ReadFallback error={archived.error} loading={archived.loading} onRetry={archived.reload} /></div>}
-        {archived.data?.projects.length === 0 && <div className="set-row"><span className="hint">Nenhum projeto arquivado.</span></div>}
+        {archived.data?.projects.length === 0 && <div className="set-row"><span className="hint">{t("Nenhum projeto arquivado.")}</span></div>}
         {archived.data?.projects.map((project) => (
           <SettingsRow key={project.id} icon={<IconHash />} label={<Link href={`/projetos/${project.id}`}>{project.name}</Link>} control={
             <button type="button" className="btn" onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), {
-              success: `“${project.name}” reativado`, revalidate: refreshProjects,
-            })}>Reativar</button>
+              success: t("“{0}” reativado", [project.name]), revalidate: refreshProjects,
+            })}>{t("Reativar")}</button>
           } />
         ))}
       </div>

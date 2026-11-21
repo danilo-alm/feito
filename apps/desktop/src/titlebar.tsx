@@ -1,3 +1,4 @@
+import { useT } from "@feito/ui/components/language";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -82,6 +83,7 @@ function IconSidebar() {
 }
 
 function WindowControls({ platform, maximized }: { platform: "windows" | "linux"; maximized: boolean }) {
+  const t = useT();
   const control = (label: string, action: () => Promise<void>, glyph: ReactNode, kind: string) => (
     <button type="button" className={`tb-win tb-win-${kind}`} aria-label={label} data-tooltip={label}
       onClick={() => { if (isTauri()) void action().catch(() => undefined); }}>
@@ -92,17 +94,17 @@ function WindowControls({ platform, maximized }: { platform: "windows" | "linux"
   const windows = platform === "windows";
   return (
     <div className="tb-window">
-      {control("Minimizar", () => win!.minimize(), windows
+      {control(t("Minimizar"), () => win!.minimize(), windows
         ? <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5.5h10" /></svg>
         : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 10.5h7" /></svg>, "min")}
-      {control(maximized ? "Restaurar" : "Maximizar", () => win!.toggleMaximize(), maximized
+      {control(maximized ? t("Restaurar") : t("Maximizar"), () => win!.toggleMaximize(), maximized
         ? (windows
           ? <svg viewBox="0 0 10 10" aria-hidden="true"><rect x="0.5" y="2.5" width="7" height="7" rx="1" /><path d="M2.5 2.5V1.5a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-1" /></svg>
           : <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.25" y="6.25" width="5.5" height="5.5" rx="1" /><path d="M6.25 6.25V4.75a.5.5 0 0 1 .5-.5h4.5a.5.5 0 0 1 .5.5v4.5a.5.5 0 0 1-.5.5h-1.5" /></svg>)
         : (windows
           ? <svg viewBox="0 0 10 10" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9" rx="1" /></svg>
           : <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.75" y="4.75" width="6.5" height="6.5" rx="1" /></svg>), "max")}
-      {control("Fechar", () => win!.close(), windows
+      {control(t("Fechar"), () => win!.close(), windows
         ? <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9" /></svg>
         : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.25 5.25l5.5 5.5M10.75 5.25l-5.5 5.5" /></svg>, "close")}
     </div>
@@ -114,6 +116,7 @@ function WindowControls({ platform, maximized }: { platform: "windows" | "linux"
  * busca e recolhimento do menu lateral, e os botões da janela no Windows e no Linux.
  */
 export function Titlebar({ platform, children }: { platform: TitlebarPlatform; children: ReactNode }) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const history = useHistoryNavigation();
@@ -186,7 +189,7 @@ export function Titlebar({ platform, children }: { platform: TitlebarPlatform; c
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const sidebarLabel = collapsed ? "Mostrar menu lateral" : "Recolher menu lateral";
+  const sidebarLabel = collapsed ? t("Mostrar menu lateral") : t("Recolher menu lateral");
   return (
     <TitlebarContext.Provider value={workspace ? { tools, title, scrolled } : null}>
       <div className="tb" data-tauri-drag-region="deep">
@@ -196,7 +199,7 @@ export function Titlebar({ platform, children }: { platform: TitlebarPlatform; c
           <div className="tb-lead tb-app">
             {workspace && !mac && (
               <button type="button" className="tb-search" aria-keyshortcuts="/" onClick={() => router.push("/busca")}>
-                <IconSearch />Buscar<span className="kbd">/</span>
+                <IconSearch />{t("Buscar")}<span className="kbd">/</span>
               </button>
             )}
             {workspace && (
@@ -208,9 +211,9 @@ export function Titlebar({ platform, children }: { platform: TitlebarPlatform; c
           </div>
           <div className="tb-main">
             <div className="tb-nav tb-app">
-              <button type="button" className="tb-btn" aria-label="Voltar" data-tooltip={`Voltar (${backKey})`} aria-disabled={!history.canGoBack}
+              <button type="button" className="tb-btn" aria-label={t("Voltar")} data-tooltip={t("Voltar ({0})", [backKey])} aria-disabled={!history.canGoBack}
                 aria-keyshortcuts={mac ? "Meta+[" : "Alt+ArrowLeft"} onClick={() => history.back()}><IconChevronLeft /></button>
-              <button type="button" className="tb-btn" aria-label="Avançar" data-tooltip={`Avançar (${forwardKey})`} aria-disabled={!history.canGoForward}
+              <button type="button" className="tb-btn" aria-label={t("Avançar")} data-tooltip={t("Avançar ({0})", [forwardKey])} aria-disabled={!history.canGoForward}
                 aria-keyshortcuts={mac ? "Meta+]" : "Alt+ArrowRight"} onClick={() => history.forward()}><IconChevronRight /></button>
             </div>
             <div className="tb-title" ref={setTitle} />

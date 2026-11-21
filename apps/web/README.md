@@ -9,6 +9,14 @@ O Feito web roda com Docker Compose a partir das imagens públicas no GitHub Con
 
 Os comandos abaixo funcionam em Bash, Zsh e Fish e devem ser executados na raiz do repositório.
 
+## Uso no navegador
+
+As descrições das tarefas aceitam Markdown: títulos, negrito, itálico, listas, links, citações, código e tabelas. Clique na descrição para editar a fonte; ao sair do campo, o texto volta a aparecer formatado. No detalhe, a descrição é salva ao sair do campo; na criação e na edição em linha, confirme o formulário. Listas com caixas de seleção são exibidas como parte do texto; clique na descrição para alterar seus marcadores. A formatação também aparece no desktop e nos detalhes de projetos compartilhados.
+
+Na tela **Entrar**, escolha **Usar neste navegador, sem conta** ou entre na sua conta Feito. O espaço sem conta fica separado da cópia sincronizada da conta. Depois que **Ajustes → Acesso offline** indicar que a preparação terminou, o Feito pode ser reaberto sem conexão. A preparação inicial usa a rede e funciona no build de produção.
+
+O navegador guarda a cópia e as alterações pendentes no IndexedDB. Na conta, as alterações sincronizam quando a conexão volta. A sessão expirada pede um novo login e preserva a fila. A ação **Sair** apaga a cópia dessa conta e pede confirmação se houver pendências. Use **Ajustes → Dados** para exportar um backup do espaço aberto. [Implementação dos espaços no navegador](../../docs/06-browser-local-first-implementation.md#implementa%C3%A7%C3%A3o).
+
 ## Requisitos
 
 - Docker com o plugin Docker Compose, Git e OpenSSL.
@@ -25,6 +33,8 @@ O script `new-env.sh` gera senhas, segredos e as chaves de criptografia num arqu
 
 - No seu computador: `https://localhost:3000`.
 - Num servidor: o domínio, por exemplo `https://feito.example.org`.
+
+O arquivo gerado vem com `FEITO_PRODUCT_CACHE_MODE=single-process`, que ativa o cache em RAM para Hoje, Em breve e projetos em instalações com um único processo do Feito. Se mais de um processo atende à instalação ou grava dados do Feito, use `FEITO_PRODUCT_CACHE_MODE=revision`. Para ativar o cache em uma instalação existente de processo único, adicione `FEITO_PRODUCT_CACHE_MODE=single-process` ao arquivo de ambiente e repita o comando `up -d --wait` do caminho escolhido. As condições de operação e o procedimento após alterações administrativas estão no [guia do cache](../../docs/03-operations.md#cache-interno-de-leituras-do-produto).
 
 > [!IMPORTANT]
 > Guarde uma cópia segura de `~/.config/feito/feito.env`. Sem as chaves desse arquivo, um backup do banco não pode ser decifrado. Reutilize o mesmo arquivo em todas as atualizações.

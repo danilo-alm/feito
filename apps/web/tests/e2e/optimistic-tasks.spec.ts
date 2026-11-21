@@ -1,38 +1,80 @@
 import type { Page, Route } from "@playwright/test";
-import type { TaskDetail, TaskMutation } from "@feito/core/types";
+import type { TaskDetail } from "@feito/core/types";
 import { expect, row, test } from "./fixtures";
 
-async function holdRequest(
-  page: Page,
-  method: string,
-  path: string,
-  respond: (route: Route) => Promise<void> = (route) => route.continue(),
-) {
-  const received = Promise.withResolvers<void>();
+// Os testes de abertura offline cobrem o service worker. Aqui controlamos o transporte da fila.
+test.use({ serviceWorkers: "block" });
+
+const syncPath = "/api/v1/desktop-sync";
+const savedId = /^[a-f0-9-]{36}$/;
+
+type Push = { method: string; path: string; body?: { id?: string; title?: string } };
+
+function syncPush(route: Route): Push | undefined {
+  if (route.request().method() === "POST") return route.request().postDataJSON() as Push;
+}
+
+async function holdPush(page: Page, method: string, path: string) {
+  const received = Promise.withResolvers<Push>();
   const release = Promise.withResolvers<void>();
-  await page.route((url) => url.pathname === `/api/v1${path}`, async (route) => {
-    if (route.request().method() !== method) return route.fallback();
-    received.resolve();
+  await page.route((url) => url.pathname === syncPath, async (route) => {
+    const push = syncPush(route);
+    if (!push || push.method !== method || push.path !== path) return route.fallback();
+    received.resolve(push);
     await release.promise;
-    await respond(route);
+    await route.continue();
   });
   return { received: received.promise, release: () => release.resolve() };
 }
 
-function waitForCreatedTask(page: Page) {
-  return page.waitForResponse((response) => response.request().method() === "POST"
-    && new URL(response.url()).pathname === "/api/v1/tasks");
+type WriteGate = { arrived: boolean; release: () => void };
+type TestWindow = Window & { feitoWriteGate?: WriteGate };
+
+async function holdWrite(page: Page, method: string, path: string, fail = false) {
+  await page.evaluate(({ method, path, fail }) => {
+    const put = IDBObjectStore.prototype.put;
+    let released = false;
+    const gate: WriteGate = {
+      arrived: false,
+      release() {
+        released = true;
+        IDBObjectStore.prototype.put = put;
+      },
+    };
+    (window as TestWindow).feitoWriteGate = gate;
+    IDBObjectStore.prototype.put = function (value: { pending?: Push[] }, key?: IDBValidKey) {
+      const request = put.call(this, value, key);
+      const operation = value.pending?.at(-1);
+      if (operation?.method !== method || operation.path !== path || gate.arrived || key === undefined) return request;
+      gate.arrived = true;
+      // O IndexedDB pode concluir a transação ao voltar ao event loop. Mantenha uma leitura
+      // real pendente até o teste liberar a confirmação ou o abort da gravação.
+      const waitForRelease = () => {
+        if (released) {
+          if (fail) this.transaction.abort();
+        } else {
+          this.count().addEventListener("success", waitForRelease, { once: true });
+        }
+      };
+      waitForRelease();
+      return request;
+    };
+  }, { method, path, fail });
+  return {
+    received: () => expect.poll(() => page.evaluate(() => (window as TestWindow).feitoWriteGate?.arrived)).toBe(true),
+    release: () => page.evaluate(() => (window as TestWindow).feitoWriteGate?.release()),
+  };
 }
 
-test("Enter insere a tarefa na seção e troca o ID após a resposta, sem depender da leitura do projeto", async ({ page, api }) => {
+test("Enter insere a tarefa na seção e mantém seu ID local ao sincronizar", async ({ page, api }) => {
   const { id: projectId } = await api<{ id: string }>("POST", "/projects", { name: "Projeto da criação imediata" });
   const { id: sectionId } = await api<{ id: string }>("POST", `/projects/${projectId}/sections`, { name: "Preparar" });
   await page.goto(`/projetos/${projectId}`);
   const section = page.getByRole("region", { name: "Preparar", exact: true });
   await expect(section.locator(".count")).toHaveText("0");
 
-  const projectRead = await holdRequest(page, "GET", `/projects/${projectId}`);
-  const create = await holdRequest(page, "POST", "/tasks");
+  const push = await holdPush(page, "POST", "/tasks");
+  const write = await holdWrite(page, "POST", "/tasks");
   const title = "Separar materiais";
   const task = row(page, title);
   await section.getByRole("button", { name: "Adicionar tarefa" }).click();
@@ -41,34 +83,33 @@ test("Enter insere a tarefa na seção e troca o ID após a resposta, sem depend
 
   try {
     await input.press("Enter");
-    await create.received;
+    await write.received();
     await expect(input).toHaveValue("");
     await expect(section.locator(task)).toBeVisible();
     await expect(section.locator(".count")).toHaveText("1");
-    const temporaryId = await task.getAttribute("data-task-id");
-    expect(temporaryId).toBeTruthy();
+    await expect(task).toHaveAttribute("data-task-id", /^pending:/);
 
-    const response = waitForCreatedTask(page);
-    create.release();
-    const savedResponse = await response;
-    expect(savedResponse.status()).toBe(201);
-    const { result: saved }: TaskMutation<TaskDetail> = await savedResponse.json();
-    expect(saved).toMatchObject({ title, projectId, sectionId, parentId: null });
-    expect(saved.id).not.toBe(temporaryId);
-    await expect(section.locator(task)).toHaveAttribute("data-task-id", saved.id);
+    await write.release();
+    await expect(task).toHaveAttribute("data-task-id", savedId);
+    const id = (await task.getAttribute("data-task-id"))!;
+    const operation = await push.received;
+    expect(operation.body).toMatchObject({ id, title, projectId, sectionId });
+    expect((await page.request.get(`/api/v1/tasks/${id}`)).status()).toBe(404);
+    push.release();
+    await expect.poll(async () => (await page.request.get(`/api/v1/tasks/${id}`)).status()).toBe(200);
+    expect(await api("GET", `/tasks/${id}`)).toMatchObject({ id, title, projectId, sectionId, parentId: null });
     await expect(task).toHaveCount(1);
   } finally {
-    create.release();
-    projectRead.release();
+    await write.release();
+    push.release();
   }
 });
 
-test("limpa o campo ao enviar e devolve o texto quando a criação falha", async ({ page, api }) => {
+test("limpa o campo ao enviar e devolve o texto quando a gravação local falha", async ({ page, api }) => {
   const { id: projectId } = await api<{ id: string }>("POST", "/projects", { name: "Projeto da criação recuperada" });
   await page.goto(`/projetos/${projectId}`);
-  const failure = (route: Route) => route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "Servidor indisponível." } } });
-  const create = await holdRequest(page, "POST", "/tasks", failure);
   await page.getByRole("button", { name: "Adicionar tarefa", exact: true }).first().click();
+  const write = await holdWrite(page, "POST", "/tasks", true);
   const input = page.getByRole("textbox", { name: "Título da tarefa" });
   const description = page.getByRole("textbox", { name: "Descrição" });
   await input.fill("Revisar orçamento");
@@ -76,35 +117,37 @@ test("limpa o campo ao enviar e devolve o texto quando a criação falha", async
 
   try {
     await input.press("Enter");
-    await create.received;
+    await write.received();
     await expect(input).toHaveValue("");
     await expect(description).toHaveValue("");
     await expect(row(page, "Revisar orçamento")).toBeVisible();
-    create.release();
+    await write.release();
     await expect(row(page, "Revisar orçamento")).toBeHidden();
     await expect(input).toHaveValue("Revisar orçamento");
     await expect(description).toHaveValue("Conferir as três cotações");
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Projeto da criação recuperada" })).toBeVisible();
+    await expect(row(page, "Revisar orçamento")).toHaveCount(0);
   } finally {
-    create.release();
+    await write.release();
   }
 });
 
 test("mostra o texto da criação que falhou quando o campo já tem texto novo", async ({ page, api }) => {
   const { id: projectId } = await api<{ id: string }>("POST", "/projects", { name: "Projeto da criação listada" });
   await page.goto(`/projetos/${projectId}`);
-  const failure = (route: Route) => route.fulfill({ status: 503, json: { error: { code: "UNAVAILABLE", message: "Servidor indisponível." } } });
-  const create = await holdRequest(page, "POST", "/tasks", failure);
   await page.getByRole("button", { name: "Adicionar tarefa", exact: true }).first().click();
+  const write = await holdWrite(page, "POST", "/tasks", true);
   const input = page.getByRole("textbox", { name: "Título da tarefa" });
   await input.fill("Ligar para o fornecedor");
   await page.getByRole("textbox", { name: "Descrição" }).fill("Pedir o prazo de entrega");
 
   try {
     await input.press("Enter");
-    await create.received;
+    await write.received();
     await expect(input).toHaveValue("");
     await input.fill("Outra ideia");
-    create.release();
+    await write.release();
     const recovery = page.getByRole("dialog", { name: "Tarefa não adicionada" });
     await expect(recovery).toBeVisible();
     await expect(recovery.getByText("Ligar para o fornecedor")).toBeVisible();
@@ -113,11 +156,11 @@ test("mostra o texto da criação que falhou quando o campo já tem texto novo",
     await recovery.getByRole("button", { name: "Fechar", exact: true }).click();
     await expect(recovery).toBeHidden();
   } finally {
-    create.release();
+    await write.release();
   }
 });
 
-test("captura rápida aparece em Hoje e uma conclusão rejeitada preserva outra já confirmada", async ({ page, api, isMobile }) => {
+test("captura rápida aparece em Hoje e o rollback de uma conclusão preserva a outra", async ({ page, api, isMobile }) => {
   const { referenceDate } = await api<{ referenceDate: string }>("GET", "/views/today");
   const first = await api<TaskDetail>("POST", "/tasks", { title: "Conferir materiais", dueDate: referenceDate });
   await page.goto("/hoje");
@@ -125,7 +168,6 @@ test("captura rápida aparece em Hoje e uma conclusão rejeitada preserva outra 
   await expect(firstRow).toBeVisible();
   const todayCount = page.getByRole("region", { name: /^Hoje · / }).locator(".count");
   const initialCount = Number(await todayCount.textContent());
-  const create = await holdRequest(page, "POST", "/tasks");
   if (isMobile) await page.getByRole("button", { name: "Adicionar tarefa", exact: true }).click();
   else await page.keyboard.press("q");
   const title = "Buscar ferramentas";
@@ -133,57 +175,36 @@ test("captura rápida aparece em Hoje e uma conclusão rejeitada preserva outra 
   const quickAdd = page.getByRole("dialog", { name: "Adicionar tarefa" });
   const quickTitle = quickAdd.getByRole("textbox", { name: "Título da tarefa" });
   await quickTitle.fill(title);
-  let second: TaskDetail;
-  try {
-    await quickTitle.press("Enter");
-    await create.received;
-    await expect(secondRow).toBeVisible();
-    await expect(todayCount).toHaveText(String(initialCount + 1));
-    const response = waitForCreatedTask(page);
-    create.release();
-    const savedResponse = await response;
-    expect(savedResponse.status()).toBe(201);
-    const payload: TaskMutation<TaskDetail> = await savedResponse.json();
-    second = payload.result;
-  } finally {
-    create.release();
-  }
-  expect(second.dueDate).toBe(referenceDate);
-  await expect(secondRow).toHaveAttribute("data-task-id", second.id);
+  await quickTitle.press("Enter");
+  await expect(secondRow).toHaveAttribute("data-task-id", savedId);
+  await expect(todayCount).toHaveText(String(initialCount + 1));
+  const secondId = (await secondRow.getAttribute("data-task-id"))!;
+  await expect.poll(async () => (await page.request.get(`/api/v1/tasks/${secondId}`)).status()).toBe(200);
+  expect(await api("GET", `/tasks/${secondId}`)).toMatchObject({ dueDate: referenceDate });
   await page.keyboard.press("Escape");
 
-  const conflict = "A tarefa mudou em outra aba.";
-  const firstCompletion = await holdRequest(page, "POST", `/tasks/${first.id}/complete`, (route) => route.fulfill({
-    status: 409, json: { error: { code: "REVISION_CONFLICT", message: conflict } },
-  }));
-  const secondCompletion = await holdRequest(page, "POST", `/tasks/${second.id}/complete`);
-  const complete = (title: string) => row(page, title).getByRole("button", { name: new RegExp(`^Concluir “${title}”`) }).click();
+  const write = await holdWrite(page, "POST", `/tasks/${first.id}/complete`, true);
+  const complete = (label: string) => row(page, label).getByRole("button", { name: new RegExp(`^Concluir “${label}”`) }).click();
   try {
     await complete(first.title);
-    await firstCompletion.received;
+    await write.received();
     await expect(firstRow).toBeHidden();
     await expect(secondRow).toBeVisible();
 
-    await complete(second.title);
-    await secondCompletion.received;
+    await complete(title);
     await expect(secondRow).toBeHidden();
-    secondCompletion.release();
-    await expect(page.getByRole("status").getByRole("button", { name: "Desfazer", exact: true })).toBeVisible();
-
-    firstCompletion.release();
-    await expect(page.getByRole("status").getByText(/mudou em outra aba/)).toBeVisible();
+    await write.release();
     await expect(firstRow).toBeVisible();
     await expect(secondRow).toBeHidden();
     await expect(todayCount).toHaveText(String(initialCount));
     expect(await api("GET", `/tasks/${first.id}`)).toMatchObject({ status: "active" });
-    expect(await api("GET", `/tasks/${second.id}`)).toMatchObject({ status: "completed" });
+    await expect.poll(() => api<TaskDetail>("GET", `/tasks/${secondId}`).then(({ status }) => status)).toBe("completed");
   } finally {
-    firstCompletion.release();
-    secondCompletion.release();
+    await write.release();
   }
 });
 
-test("reagendamento remove de Hoje e inclui em Em breve com a mesma edição pendente", async ({ page, api }) => {
+test("reagendamento remove de Hoje e inclui em Em breve antes da sincronização", async ({ page, api }) => {
   const { referenceDate } = await api<{ referenceDate: string }>("GET", "/views/today");
   const task = await api<TaskDetail>("POST", "/tasks", { title: "Separar as ferramentas", dueDate: referenceDate });
   const tomorrow = page.getByRole("region", { name: /^Amanhã · / });
@@ -194,30 +215,27 @@ test("reagendamento remove de Hoje e inclui em Em breve com a mesma edição pen
   const taskRow = row(page, task.title);
   await taskRow.getByRole("button", { name: new RegExp(`^${task.title}`) }).click();
   const detail = page.getByRole("dialog", { name: task.title, exact: true });
-  const change = await holdRequest(page, "PATCH", `/tasks/${task.id}`);
-  const upcomingRead = await holdRequest(page, "GET", "/views/upcoming");
+  const push = await holdPush(page, "PATCH", `/tasks/${task.id}`);
   try {
     await detail.getByRole("button", { name: "Hoje", exact: true }).click();
     await page.getByRole("dialog", { name: "Data", exact: true }).getByRole("button", { name: /Amanhã/ }).click();
-    await change.received;
+    await push.received;
     await expect(detail.getByRole("button", { name: "Amanhã", exact: true })).toBeVisible();
     await detail.getByRole("button", { name: "Fechar (Esc)" }).click();
     await expect(taskRow).toBeHidden();
 
     await page.getByRole("link", { name: "Em breve", exact: true }).click();
     await expect(tomorrow.locator(taskRow)).toBeVisible();
-    const saved = page.waitForResponse((response) => response.request().method() === "PATCH"
-      && new URL(response.url()).pathname === `/api/v1/tasks/${task.id}`);
-    change.release();
-    expect((await saved).ok()).toBe(true);
+    expect(await api("GET", `/tasks/${task.id}`)).toMatchObject({ dueDate: referenceDate });
+    push.release();
+    await expect.poll(() => api<TaskDetail>("GET", `/tasks/${task.id}`).then(({ dueDate }) => dueDate)).not.toBe(referenceDate);
     await expect(tomorrow.locator(taskRow)).toBeVisible();
   } finally {
-    change.release();
-    upcomingRead.release();
+    push.release();
   }
 });
 
-test("conclusão recorrente adianta a data e Desfazer restaura a ocorrência antes da resposta", async ({ page, api }) => {
+test("conclusão recorrente adianta a data e Desfazer restaura a ocorrência antes da sincronização", async ({ page, api }) => {
   const { referenceDate } = await api<{ referenceDate: string }>("GET", "/views/today");
   const series = await api<TaskDetail>("POST", "/tasks", {
     title: "Regar as plantas", dueDate: referenceDate, dueTime: "09:30", recurrence: { frequency: "daily" },
@@ -232,8 +250,8 @@ test("conclusão recorrente adianta a data e Desfazer restaura a ocorrência ant
   await todayLink.click();
   const taskRow = row(page, task.title);
   await expect(taskRow).toContainText("06:00");
-  const complete = await holdRequest(page, "POST", `/tasks/${task.id}/complete`);
-  const undo = await holdRequest(page, "POST", `/tasks/${task.id}/undo-completion`);
+  const complete = await holdPush(page, "POST", `/tasks/${task.id}/complete`);
+  const undo = await holdPush(page, "POST", `/tasks/${task.id}/undo-completion`);
   const undoButton = page.getByRole("status").getByRole("button", { name: "Desfazer", exact: true });
 
   try {
@@ -242,25 +260,19 @@ test("conclusão recorrente adianta a data e Desfazer restaura a ocorrência ant
     await expect(taskRow).toBeHidden();
     await page.getByRole("link", { name: "Em breve", exact: true }).click();
     await expect(tomorrow.locator(taskRow)).toContainText("09:30");
-    const refresh = page.waitForResponse((response) => response.ok()
-      && new URL(response.url()).pathname === "/api/v1/views/upcoming");
-    complete.release();
-    await refresh;
-    await expect(undoButton).toBeVisible();
-    const advanced = await api<TaskDetail>("GET", `/tasks/${task.id}`);
-    expect(advanced.occurrenceId).not.toBe(task.occurrenceId);
-    expect(advanced.dueDate).not.toBe(referenceDate);
+    expect(await api("GET", `/tasks/${task.id}`)).toMatchObject({ occurrenceId: task.occurrenceId });
 
     await undoButton.click();
-    await undo.received;
     await expect(taskRow).toBeHidden();
     await todayLink.click();
     await expect(taskRow).toContainText("06:00");
-    const response = page.waitForResponse((result) => result.request().method() === "POST"
-      && new URL(result.url()).pathname === `/api/v1/tasks/${task.id}/undo-completion`);
+    complete.release();
+    await undo.received;
+    const advanced = await api<TaskDetail>("GET", `/tasks/${task.id}`);
+    expect(advanced.occurrenceId).not.toBe(task.occurrenceId);
+    expect(advanced.dueDate).not.toBe(referenceDate);
     undo.release();
-    expect((await response).ok()).toBe(true);
-    expect(await api("GET", `/tasks/${task.id}`)).toMatchObject({
+    await expect.poll(() => api("GET", `/tasks/${task.id}`)).toMatchObject({
       dueDate: referenceDate, dueTime: "06:00", occurrenceId: task.occurrenceId,
     });
     await expect(taskRow).toContainText("06:00");
@@ -270,27 +282,39 @@ test("conclusão recorrente adianta a data e Desfazer restaura a ocorrência ant
   }
 });
 
-test("mostra a subtarefa nova no detalhe da tarefa-pai e a retira quando a rede falha", async ({ page, api }) => {
+test("a subtarefa da fila continua visível após falha de rede e reabertura", async ({ page, context, api }) => {
   const parent = await api<TaskDetail>("POST", "/tasks", { title: "Montar a estante" });
   await page.goto("/entrada");
-  await row(page, parent.title).getByRole("button", { name: parent.title, exact: true }).click();
+  const parentButton = row(page, parent.title).getByRole("button", { name: /^Montar a estante(?: |$)/ });
+  await parentButton.click();
   const detail = page.getByRole("dialog", { name: parent.title, exact: true });
   await detail.getByRole("button", { name: "Adicionar subtarefa" }).click();
   const quickAdd = page.getByRole("dialog", { name: "Adicionar tarefa" });
   const title = "Medir os suportes";
   const input = quickAdd.getByRole("textbox", { name: "Título da tarefa" });
-  const create = await holdRequest(page, "POST", "/tasks", (route) => route.abort("failed"));
+  let attempts = 0;
+  const matchSync = (url: URL) => url.pathname === syncPath;
+  const abort = (route: Route) => {
+    if (syncPush(route)?.body?.title !== title) return route.fallback();
+    attempts++;
+    return route.abort("failed");
+  };
+  await page.route(matchSync, abort);
   await input.fill(title);
+  await input.press("Enter");
+  await expect.poll(() => attempts).toBeGreaterThan(0);
   const child = detail.getByText(title, { exact: true });
-  try {
-    await input.press("Enter");
-    await create.received;
-    await expect(child).toBeVisible();
-    create.release();
-    await expect(page.getByRole("status").getByText(/Sem conexão com o servidor/)).toBeVisible();
-    await expect(child).toHaveCount(0);
-    expect(await api("GET", `/tasks/${parent.id}`)).toMatchObject({ childIds: [] });
-  } finally {
-    create.release();
-  }
+  await expect(child).toBeVisible();
+  expect(await api("GET", `/tasks/${parent.id}`)).toMatchObject({ childIds: [] });
+
+  await page.reload();
+  await parentButton.click();
+  await expect(child).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Sincronização interrompida.*1 alteração pendente/ })).toBeVisible();
+  await page.unroute(matchSync, abort);
+  await context.setOffline(true);
+  await expect(page.getByRole("link", { name: /^Sem conexão.*1 alteração pendente/ })).toBeVisible();
+  await context.setOffline(false);
+  await expect.poll(() => api<TaskDetail>("GET", `/tasks/${parent.id}`).then(({ childIds }) => childIds.length)).toBe(1);
+  await expect(child).toBeVisible();
 });

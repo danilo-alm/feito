@@ -1,4 +1,7 @@
 "use client";
+import { getLocale, translate as t } from "../client/locale";
+import { useT } from "./language";
+
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { IconCheck, IconChevronDown, IconMonitor, IconSearch } from "./icons";
 import { Dialog, Popover, useIsMobile } from "./ui";
@@ -21,7 +24,7 @@ const REGIONS: Record<string, string> = {
 
 const fold = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const zoneKey = (id: string) => id === "Asia/Calcutta" ? "Asia/Kolkata" : id;
-const byOffsetAndCity = (a: Zone, b: Zone) => a.offset - b.offset || a.city.localeCompare(b.city, "pt-BR");
+const byOffsetAndCity = (a: Zone, b: Zone) => a.offset - b.offset || a.city.localeCompare(b.city, getLocale());
 
 function offsetMinutes(id: string, now: Date) {
   try {
@@ -38,7 +41,7 @@ function offsetMinutes(id: string, now: Date) {
 function genericName(id: string, now: Date) {
   for (const style of ["longGeneric", "long"] as const) {
     try {
-      const value = new Intl.DateTimeFormat("pt-BR", { timeZone: id, timeZoneName: style })
+      const value = new Intl.DateTimeFormat(getLocale(), { timeZone: id, timeZoneName: style })
         .formatToParts(now).find((item) => item.type === "timeZoneName")?.value;
       if (value && !/^GMT/.test(value)) return value;
     } catch {
@@ -72,7 +75,7 @@ function describe(id: string, now: Date): Zone {
   const key = zoneKey(id);
   const parts = key.split("/");
   const city = parts[parts.length - 1].replace(/_/g, " ");
-  const region = parts.length > 1 ? [REGIONS[parts[0]] ?? parts[0], ...parts.slice(1, -1).map((p) => p.replace(/_/g, " "))].join(" · ") : "";
+  const region = parts.length > 1 ? [t(REGIONS[parts[0]] ?? parts[0]), ...parts.slice(1, -1).map((p) => p.replace(/_/g, " "))].join(" · ") : "";
   const name = genericName(id, now);
   const offset = offsetMinutes(id, now);
   return {
@@ -86,8 +89,10 @@ function describe(id: string, now: Date): Zone {
 }
 
 let cache: Zone[] | null = null;
+let cacheLocale = getLocale();
 function allZones(extra: string) {
-  if (!cache) {
+  if (!cache || cacheLocale !== getLocale()) {
+    cacheLocale = getLocale();
     let ids: string[];
     try {
       ids = Intl.supportedValuesOf("timeZone");
@@ -113,11 +118,12 @@ function deviceZone() {
 }
 
 export function TimezonePicker({ id, value, onChange }: { id?: string; value: string; onChange: (zone: string) => void }) {
+  const t = useT();
   const mobile = useIsMobile();
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
-  const current = useMemo(() => describe(value, new Date()), [value]);
+  const current = useMemo(() => describe(value, new Date()), [value, t]);
 
   const pick = (zone: string) => {
     setOpen(false);
@@ -138,9 +144,9 @@ export function TimezonePicker({ id, value, onChange }: { id?: string; value: st
         <IconChevronDown />
       </button>
       {mobile ? (
-        <Dialog open={open} onClose={close} title="Fuso horário">{panel}</Dialog>
+        <Dialog open={open} onClose={close} title={t("Fuso horário")}>{panel}</Dialog>
       ) : (
-        <Popover anchor={anchor} open={open} onClose={close} label="Escolher fuso horário" align="end" width={380}>
+        <Popover anchor={anchor} open={open} onClose={close} label={t("Escolher fuso horário")} align="end" width={380}>
           {panel}
         </Popover>
       )}
@@ -149,8 +155,9 @@ export function TimezonePicker({ id, value, onChange }: { id?: string; value: st
 }
 
 function ZoneSearch({ value, onPick, mobile }: { value: string; onPick: (zone: string) => void; mobile: boolean }) {
+  const t = useT();
   const listId = useId();
-  const zones = useMemo(() => allZones(value), [value]);
+  const zones = useMemo(() => allZones(value), [value, t]);
   const device = useMemo(deviceZone, []);
   const deviceInfo = zones.find((zone) => zoneKey(zone.id) === zoneKey(device));
   const selected = (zone: Zone) => zoneKey(zone.id) === zoneKey(value);
@@ -196,8 +203,8 @@ function ZoneSearch({ value, onPick, mobile }: { value: string; onPick: (zone: s
     <div className={`tz-panel${mobile ? " mobile" : ""}`}>
       <div className="tz-search">
         <IconSearch />
-        <input data-autofocus className="tz-input" placeholder="Buscar cidade, país ou UTC−3" value={query}
-          role="combobox" aria-expanded="true" aria-controls={listId} aria-autocomplete="list" aria-label="Buscar fuso horário"
+        <input data-autofocus className="tz-input" placeholder={t("Buscar cidade, país ou UTC−3")} value={query}
+          role="combobox" aria-expanded="true" aria-controls={listId} aria-autocomplete="list" aria-label={t("Buscar fuso horário")}
           aria-activedescendant={visible[active] ? optionId(active) : undefined}
           autoComplete="off" spellCheck={false}
           onChange={(event) => onQuery(event.target.value)} onKeyDown={onKey} />
@@ -206,12 +213,12 @@ function ZoneSearch({ value, onPick, mobile }: { value: string; onPick: (zone: s
         <button type="button" className="mi tz-device" onClick={() => onPick(device)}>
           <IconMonitor />
           <span className="tz-label">
-            <span>Usar o deste dispositivo</span>
+            <span>{t("Usar o deste dispositivo")}</span>
             <span className="tz-meta">{deviceInfo.city} · {deviceInfo.offsetLabel}</span>
           </span>
         </button>
       )}
-      <div ref={listRef} id={listId} className="tz-list" role="listbox" aria-label="Fusos horários">
+      <div ref={listRef} id={listId} className="tz-list" role="listbox" aria-label={t("Fusos horários")}>
         {visible.map((zone, index) => (
           <div key={zone.id} id={optionId(index)} data-index={index} role="option" aria-selected={selected(zone)}
             className={`mi tz-option${index === active ? " hl" : ""}`}
@@ -225,7 +232,7 @@ function ZoneSearch({ value, onPick, mobile }: { value: string; onPick: (zone: s
             <span className="tz-offset">{zone.offsetLabel}</span>
           </div>
         ))}
-        {!visible.length && <p className="hint tz-empty">Nenhum fuso encontrado para “{query.trim()}”.</p>}
+        {!visible.length && <p className="hint tz-empty">{t("Nenhum fuso encontrado para “")}{query.trim()}”.</p>}
       </div>
     </div>
   );

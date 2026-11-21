@@ -1,4 +1,5 @@
 "use client";
+import { useT } from "./components/language";
 
 import { createContext, useContext, useMemo, type ComponentProps, type ComponentType, type ReactNode } from "react";
 
@@ -14,8 +15,9 @@ export function NavigationProvider({ pathname, router, Link, children }: Navigat
 }
 
 function useNavigation() {
+  const t = useT();
   const navigation = useContext(NavigationContext);
-  if (!navigation) throw new Error("Provedor de navegação indisponível.");
+  if (!navigation) throw new Error(t("Provedor de navegação indisponível."));
   return navigation;
 }
 

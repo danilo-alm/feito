@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --experimental-https --hostname 127.0.0.1",
-    "build": "next build",
+    "build": "next build && node scripts/build-offline.mjs",
+    "build:tools": "node scripts/build-tools.mjs",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
     "db:generate": "node --conditions=react-server node_modules/drizzle-kit/bin.cjs generate",
@@ -39,6 +40,7 @@
     "@types/react-dom": "19.3.0",
     "@vitest/coverage-v8": "5.1.0",
     "drizzle-kit": "0.31.11",
+    "esbuild": "0.28.2",
     "tsx": "4.23.15",
     "typescript": "~5.9.3",
     "vitest": "5.1.0"

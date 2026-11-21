@@ -21,6 +21,8 @@ Os instaladores ainda não têm assinatura de distribuição:
 
 ## Uso
 
+As descrições das tarefas aceitam Markdown, incluindo títulos, listas, links, código e tabelas. Clique na descrição formatada para editá-la. Ao sair do campo, a formatação reaparece. No detalhe, o campo é salvo ao perder o foco; ao criar uma tarefa ou editar em linha, confirme o formulário. O mesmo formato funciona no web e nos espaços locais sem conexão.
+
 - Abra o aplicativo para começar no espaço **Somente neste computador**. As tarefas ficam no SQLite, com conteúdo cifrado por uma chave guardada no cofre do sistema.
 - Em **Ajustes → Espaços de trabalho**, escolha **Conectar servidor**, informe a origem HTTPS da instalação e entre com sua conta Feito. A instalação precisa incluir a rota de sincronização e ter as migrações aplicadas. O certificado deve ser confiável para o sistema; numa instalação em `localhost`, [importe a autoridade local](../web/README.md#a-banco-no-docker). Senhas provisórias precisam ser trocadas no site.
 - Os espaços têm dados independentes. O vínculo carrega os dados da conta. As tarefas já criadas no espaço local continuam acessíveis pelos Ajustes. Use **Conectar outro servidor** para adicionar endereços e **Abrir espaço remoto** para alternar entre os espaços vinculados. O app sincroniza somente o espaço aberto e mantém as outras filas guardadas.

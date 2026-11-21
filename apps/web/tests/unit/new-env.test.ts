@@ -33,6 +33,7 @@ describe("new-env.sh", () => {
     const env = parseEnv(readFileSync(file, "utf8"));
 
     expect(env.FEITO_ORIGIN).toBe(origin);
+    expect(env.FEITO_PRODUCT_CACHE_MODE).toBe("single-process");
     for (const [urlKey, role, passwordKey] of databaseAccounts) {
       expect(env[passwordKey]).toMatch(/^[0-9a-f]{64}$/);
       expect(env[urlKey]).toBe(`postgresql://${role}${suffix}:${env[passwordKey]}@${endpoint}`);
@@ -43,6 +44,25 @@ describe("new-env.sh", () => {
   it("accepts a positional origin for existing local setups", () => {
     execFileSync("sh", [script, file, origin]);
     expectDatabaseUrls("127.0.0.1:5432/feito");
+  });
+
+  it("separates related variables into commented sections", () => {
+    execFileSync("sh", [script, file, origin]);
+    const layout = readFileSync(file, "utf8").trimEnd().replace(/^(\w+)=.*$/gm, "$1");
+    expect(layout.split("\n\n")).toEqual([
+      ["# Aplicação e HTTPS", "FEITO_ORIGIN", "FEITO_HTTPS_PORT", "FEITO_PRODUCT_CACHE_MODE"].join("\n"),
+      ["# Segredos da aplicação", "BETTER_AUTH_SECRET", "IMPORT_PREVIEW_SECRET"].join("\n"),
+      ["# Criptografia dos dados", "DATA_KEK_ACTIVE_VERSION", "DATA_KEK_V1"].join("\n"),
+      [
+        "# PostgreSQL e credenciais das roles", "POSTGRES_PORT", "POSTGRES_BOOTSTRAP_PASSWORD",
+        "POSTGRES_MIGRATOR_PASSWORD", "POSTGRES_APP_PASSWORD", "POSTGRES_AUTH_PASSWORD",
+        "POSTGRES_IDENTITY_ADMIN_PASSWORD",
+      ].join("\n"),
+      [
+        "# URLs do PostgreSQL para execução sem Docker ou com compose.prod.tunnel.yaml",
+        ...databaseAccounts.map(([key]) => key),
+      ].join("\n"),
+    ]);
   });
 
   it("generates the four direct URLs from a project reference", () => {

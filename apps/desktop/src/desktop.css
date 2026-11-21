@@ -421,9 +421,13 @@ html:has(.dialog-wrap) .tb-app {
     transition: flex-basis var(--dur-slow) var(--ease-out), padding var(--dur-slow) var(--ease-out), visibility 0s;
   }
 
+  html.desktop-overlay.sidebar-resizing .app > .side {
+    transition: none;
+  }
+
   /* O conteúdo do menu mantém a largura enquanto ele recolhe, em vez de se espremer. */
   .desktop-overlay .app > .side > * {
-    min-width: calc(var(--sidebar-width) - 24px);
+    min-width: calc(var(--sidebar-width) - 37px);
   }
 
   .desktop-overlay[data-sidebar="collapsed"] .app > .side {
@@ -440,75 +444,6 @@ html:has(.dialog-wrap) .tb-app {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-
-/* Formulário de conexão dentro do grupo Espaços de trabalho. */
-.set-form {
-  display: grid;
-  gap: 14px;
-  padding: 4px 16px 18px 62px;
-}
-
-.set-form-pair {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
-  gap: 14px;
-}
-
-@media (max-width: 599px) {
-  .set-form {
-    padding-inline-start: 16px;
-  }
-}
-
-.desktop-sync-status {
-  --sync-dot: var(--late);
-  position: fixed;
-  z-index: 3;
-  inset-inline-end: 8px;
-  inset-block-end: 8px;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-}
-
-.desktop-sync-status[data-sync="current"] {
-  --sync-dot: var(--proj-verde);
-}
-
-.desktop-sync-status[data-sync="syncing"] {
-  --sync-dot: var(--proj-amarelo);
-}
-
-.desktop-sync-status::after {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--sync-dot);
-}
-
-.desktop-sync-label {
-  position: absolute;
-  inset-inline-end: calc(100% + 8px);
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--dur-slow) var(--ease-in-out);
-}
-
-.desktop-sync-status:is(:hover, :focus-visible) .desktop-sync-label {
-  opacity: 1;
-}
-
-@media (max-width: 899px) {
-  .desktop-sync-status {
-    inset-block-end: calc(78px + env(safe-area-inset-bottom));
-  }
 }
 
 .desktop-space-start {

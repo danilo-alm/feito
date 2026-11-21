@@ -1,20 +1,19 @@
-import type { Locator } from "@playwright/test";
-import type { Label, SearchInput, SearchResult, TaskDetail } from "@feito/core/types";
+import type { Label, TaskDetail } from "@feito/core/types";
 import { expect, row, test } from "./fixtures";
 
 test.describe("recuperação e concorrência na interface", () => {
-  test("repete uma leitura de Hoje que falhou", async ({ page, api }) => {
+  test("repete a preparação da cópia local após falha de sincronização", async ({ page, api }) => {
     await page.route("**/api/v1/product-events", (route) => route.abort());
     const { referenceDate } = await api<{ referenceDate: string }>("GET", "/views/today");
     const { title } = await api<TaskDetail>("POST", "/tasks", { title: "Retomar depois da falha", dueDate: referenceDate });
-    await page.route("**/api/v1/views/today", (route) => route.fulfill({
+    await page.route("**/api/v1/desktop-sync*", (route) => route.fulfill({
       status: 503, json: { error: { code: "SERVICE_UNAVAILABLE", message: "Agenda temporariamente indisponível." } },
     }), { times: 1 });
 
     await page.goto("/hoje");
     const alert = page.getByRole("main").getByRole("alert");
     await expect(alert).toHaveText("Agenda temporariamente indisponível.");
-    await page.getByRole("button", { name: "Tentar de novo" }).click();
+    await page.getByRole("button", { name: /Tentar de novo|Tentar novamente|Sincronizar agora/ }).click();
     await expect(row(page, title)).toBeVisible();
     await expect(alert).toHaveCount(0);
   });
@@ -48,6 +47,7 @@ test.describe("recuperação e concorrência na interface", () => {
     await page.goto("/entrada");
     await row(page, task.title).getByRole("button", { name: /^Revisar relatório/ }).click();
     const detail = page.getByRole("dialog", { name: task.title, exact: true });
+    await detail.getByRole("region", { name: "Descrição", exact: true }).click();
     const description = detail.getByRole("textbox", { name: "Descrição", exact: true });
     await description.fill("Meu rascunho");
 
@@ -69,8 +69,9 @@ test.describe("recuperação e concorrência na interface", () => {
     const firstPatch = Promise.withResolvers<void>();
     const resumePatch = Promise.withResolvers<void>();
     let edits = 0;
-    await page.route(`**/api/v1/tasks/${task.id}`, async (route) => {
-      if (route.request().method() === "PATCH" && ++edits === 1) {
+    await page.route("**/api/v1/desktop-sync*", async (route) => {
+      const operation = route.request().method() === "POST" ? route.request().postDataJSON() as { method: string; path: string } : undefined;
+      if (operation?.method === "PATCH" && operation.path === `/tasks/${task.id}` && ++edits === 1) {
         firstPatch.resolve();
         await resumePatch.promise;
       }
@@ -105,52 +106,31 @@ test.describe("recuperação e concorrência na interface", () => {
     }).toEqual([first.id, second.id].sort());
   });
 
-  test("isola as páginas de resultados ao trocar a busca", async ({ page, api }) => {
-    const seed = (title: string) => api<TaskDetail>("POST", "/tasks", { title });
-    const [oldFirst, oldNext, newFirst, newNext] = await Promise.all([
-      seed("Original · primeira página"), seed("Original · outra página"),
-      seed("Nova · primeira página"), seed("Nova · outra página"),
-    ]);
-    const { referenceDate } = await api<{ referenceDate: string }>("GET", "/views/today");
-    const originalPage = Promise.withResolvers<void>();
-    const nextSearch = Promise.withResolvers<void>();
-    const queries: [string | undefined, string | undefined][] = [];
-    await page.route("**/api/v1/search", async (route) => {
-      const { text, cursor } = route.request().postDataJSON() as SearchInput;
-      queries.push([text, cursor]);
-      const match = text === "Original" ? (cursor ? oldNext : oldFirst) : (cursor ? newNext : newFirst);
-      if (text === "Original" && cursor) {
-        originalPage.resolve();
-        await nextSearch.promise;
-      }
-      const result: SearchResult = { referenceDate, results: [match], nextCursor: cursor ? null : `${text}-cursor` };
-      await route.fulfill({ json: result });
-    });
-
-    const result = (task: TaskDetail): Locator => row(page, task.title);
+  test("pagina a busca local e isola os resultados ao trocar o texto", async ({ page, api }) => {
+    const stamp = Date.now().toString();
+    const original = `Original${stamp}`;
+    const next = `Nova${stamp}`;
+    // Mais de uma página real por critério: não há resposta HTTP de busca no modo local.
+    for (let offset = 0; offset < 51; offset += 3) {
+      await Promise.all(Array.from({ length: 3 }, (_, index) => offset + index).flatMap((index) =>
+        [original, next].map((text) => api("POST", "/tasks", { title: `${text} · tarefa ${index}` }))));
+    }
     await page.goto("/busca");
     const input = page.getByRole("searchbox", { name: "Buscar tarefas por título ou descrição" });
     const loadMore = page.getByRole("button", { name: "Carregar mais" });
-    await input.fill("Original");
-    await expect(result(oldFirst)).toBeVisible();
+    const results = (text: string) => page.locator("[data-task-id]", { has: page.locator(".t-title", { hasText: text }) });
+    await input.fill(original);
+    await expect(results(original)).toHaveCount(50);
     await loadMore.click();
-    try {
-      await originalPage.promise;
-      await expect(loadMore).toBeDisabled();
-      await input.fill("Nova");
-      await expect(result(newFirst)).toBeVisible();
-    } finally {
-      nextSearch.resolve();
-    }
-
-    await loadMore.click();
-    await expect(result(newNext)).toBeVisible();
-    await expect(result(oldFirst)).toHaveCount(0);
-    await expect(result(oldNext)).toHaveCount(0);
+    await expect(results(original)).toHaveCount(51);
     await expect(loadMore).toHaveCount(0);
-    expect(queries).toEqual([
-      ["Original", undefined], ["Original", "Original-cursor"],
-      ["Nova", undefined], ["Nova", "Nova-cursor"],
-    ]);
+
+    await input.fill(next);
+    await expect(results(next)).toHaveCount(50);
+    await expect(results(original)).toHaveCount(0);
+    await loadMore.click();
+    await expect(results(next)).toHaveCount(51);
+    await expect(results(original)).toHaveCount(0);
+    await expect(loadMore).toHaveCount(0);
   });
 });

@@ -47,6 +47,15 @@ jobs:
           set -a; . "$RUNNER_TEMP/test.env"; set +a
           pnpm db:migrate
 
+      # A imagem publicada executa os CLIs empacotados, não o código do checkout.
+      - name: Verificar imagem de ferramentas
+        run: |
+          docker build --target tools -t feito-tools:ci .
+          set -a; . "$RUNNER_TEMP/test.env"; set +a
+          url=$(printf '%s' "$MIGRATION_DATABASE_URL" | sed -E 's#@127\.0\.0\.1:[0-9]+/#@postgres:5432/#')
+          docker run --rm --network feito-test_default -e MIGRATION_DATABASE_URL="$url" feito-tools:ci pnpm db:migrate
+          docker run --rm feito-tools:ci node -e "import('@node-rs/argon2').then((m) => m.hash('x'))"
+
       - name: Verificar imagens dos Compose de produção
         run: |
           for file in compose.prod.yaml; do

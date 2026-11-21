@@ -1,3 +1,4 @@
+import { translateMessage, translate as t } from "./locale";
 // Cliente HTTP da API /api/v1. Usado pela interface no navegador e pelos testes de integração.
 import type {
   CompleteResponse, CreateTask, EditTask, Frequency, ImportPreview, ImportResult, Label, LabelTasks, Layout,
@@ -6,6 +7,8 @@ import type {
   SearchInput, SearchResult, Section, Session, SortMode, SourceImportPreview, SourceImportResult, TaskDetail, TaskMutation,
   TodayView, UndoCompletionInput, UndoCompletionResponse, UpcomingView,
 } from "@feito/core/types";
+
+import { cacheScope } from "./store";
 
 export class ApiFailure extends Error {
   constructor(
@@ -83,6 +86,37 @@ const query = (values: Record<string, string | number | boolean | undefined>) =>
   const text = params.toString();
   return text ? `?${text}` : "";
 };
+
+const downloadUrls = new Set<string>();
+
+export function clearDownloadUrls() {
+  for (const url of downloadUrls) URL.revokeObjectURL(url);
+  downloadUrls.clear();
+}
+
+async function download(path: string, fallback: string) {
+  const scope = cacheScope();
+  const response = await send("GET", path);
+  const blob = await response.blob();
+  if (scope !== cacheScope()) throw new ApiFailure(409, "WORKSPACE_CHANGED", "O espaço de trabalho mudou.");
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  const fileName = encoded ? decodeURIComponent(encoded) : /filename="([^"]+)"/i.exec(disposition)?.[1] ?? fallback;
+  const url = URL.createObjectURL(blob);
+  downloadUrls.add(url);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  setTimeout(() => {
+    if (downloadUrls.delete(url)) URL.revokeObjectURL(url);
+  }, 1000);
+}
+
+function projectExportPath(projectId: string, format: string, options: Record<string, boolean>) {
+  return `/projects/${enc(projectId)}/export?${new URLSearchParams({ format, ...Object.fromEntries(
+    Object.entries(options).map(([name, value]) => [name, String(value)])) })}`;
+}
 
 export const api = {
   auth: {
@@ -168,8 +202,10 @@ export const api = {
     exportUrl: () => `${config.base}/export`,
     /** Download de um projeto num modelo de `exportFormats`. */
     projectExportUrl: (projectId: string, format: string, options: Record<string, boolean>) =>
-      `${config.base}/projects/${enc(projectId)}/export?${new URLSearchParams({ format, ...Object.fromEntries(
-        Object.entries(options).map(([name, value]) => [name, String(value)])) })}`,
+      config.base + projectExportPath(projectId, format, options),
+    downloadBackup: () => download("/export", "feito-dados.json"),
+    downloadProject: (projectId: string, format: string, options: Record<string, boolean>, fallback: string) =>
+      download(projectExportPath(projectId, format, options), fallback),
     preview: async (file: Blob, operationId: string) => {
       const response = await send("POST", "/import/preview", {
         body: file, headers: { "Content-Type": "application/json", "X-Operation-Id": operationId },
@@ -228,5 +264,5 @@ export const taskWrites = {
 };
 
 export function errorMessage(error: unknown) {
-  return error instanceof ApiFailure ? error.message : "Não foi possível concluir a operação.";
+  return error instanceof ApiFailure ? translateMessage(error.message) : t("Não foi possível concluir a operação.");
 }

@@ -1,8 +1,11 @@
 "use client";
+import { getLocale, translate as t } from "../client/locale";
+import { useT } from "./language";
+
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import {
   addDays, dateLabel, dayOfMonth, daysBetween, daysInMonth, dueTone, longDate, monthShort, monthStart, nextWeek, parseDueInput, shortDate,
-  weekday, weekdayShort, weekend,
+  weekday, weekdayShort, weekend, weekHead,
 } from "../client/dates";
 import { api } from "../client/api";
 import { useQuery } from "../client/store";
@@ -20,13 +23,14 @@ export const PRIORITY_NAMES: Record<Priority, string> = {
 };
 
 export function PriorityMenu({ value, onPick }: { value: Priority; onPick: (priority: Priority) => void }) {
+  const t = useT();
   return (
-    <div className="menu" role="listbox" aria-label="Prioridade">
+    <div className="menu" role="listbox" aria-label={t("Prioridade")}>
       {([1, 2, 3, 4] as Priority[]).map((priority) => (
         <button key={priority} type="button" role="option" aria-selected={value === priority} className={`mi p${priority}`}
           onClick={() => onPick(priority)}>
           <IconFlag style={{ color: "var(--pc)" }} />
-          <span style={{ flex: 1 }}>P{priority} · {PRIORITY_NAMES[priority]}</span>
+          <span style={{ flex: 1 }}>P{priority} · {t(PRIORITY_NAMES[priority])}</span>
           {value === priority && <IconCheck />}
         </button>
       ))}
@@ -42,12 +46,13 @@ export const FREQUENCIES: { value: Frequency | null; label: string }[] = [
 ];
 
 export function RepeatMenu({ value, onPick }: { value: Frequency | null; onPick: (value: Frequency | null) => void }) {
+  const t = useT();
   return (
-    <div className="menu" role="listbox" aria-label="Repetir">
+    <div className="menu" role="listbox" aria-label={t("Repetir")}>
       {FREQUENCIES.map((option) => (
-        <button key={option.label} type="button" role="option" aria-selected={value === option.value} className="mi"
+        <button key={t(option.label)} type="button" role="option" aria-selected={value === option.value} className="mi"
           onClick={() => onPick(option.value)}>
-          <span style={{ flex: 1 }}>{option.label}</span>
+          <span style={{ flex: 1 }}>{t(option.label)}</span>
           {value === option.value && <IconCheck />}
         </button>
       ))}
@@ -56,6 +61,7 @@ export function RepeatMenu({ value, onPick }: { value: Frequency | null; onPick:
 }
 
 export function TimePicker({ value, onPick }: { value: string | null; onPick: (time: string | null) => void }) {
+  const t = useT();
   const [hour, setHour] = useState<number | null>(() => value ? Number(value.slice(0, 2)) : null);
   const [minute, setMinute] = useState<number | null>(() => value ? Number(value.slice(3, 5)) : null);
 
@@ -68,8 +74,8 @@ export function TimePicker({ value, onPick }: { value: string | null; onPick: (t
     <div className="time-pop">
       <div className="time-columns">
         <div className="time-column">
-          <span className="lbl">Hora</span>
-          <div className="time-options" role="listbox" aria-label="Hora">
+          <span className="lbl">{t("Hora")}</span>
+          <div className="time-options" role="listbox" aria-label={t("Hora")}>
             {Array.from({ length: 24 }, (_, option) => (
               <button key={option} type="button" role="option" aria-selected={hour === option}
                 className={`time-option${hour === option ? " on" : ""}`} data-autofocus={hour === option || undefined}
@@ -78,8 +84,8 @@ export function TimePicker({ value, onPick }: { value: string | null; onPick: (t
           </div>
         </div>
         <div className="time-column">
-          <span className="lbl">Minuto</span>
-          <div className="time-options" role="listbox" aria-label="Minuto">
+          <span className="lbl">{t("Minuto")}</span>
+          <div className="time-options" role="listbox" aria-label={t("Minuto")}>
             {Array.from({ length: 60 }, (_, option) => (
               <button key={option} type="button" role="option" aria-selected={minute === option}
                 className={`time-option${minute === option ? " on" : ""}`} data-autofocus={minute === option || undefined}
@@ -89,28 +95,29 @@ export function TimePicker({ value, onPick }: { value: string | null; onPick: (t
         </div>
       </div>
       <div className="time-actions">
-        {value && <button type="button" className="btn ghost" onClick={() => onPick(null)}>Sem horário</button>}
+        {value && <button type="button" className="btn ghost" onClick={() => onPick(null)}>{t("Sem horário")}</button>}
         <button type="button" className="btn primary" disabled={hour === null || minute === null} style={{ marginLeft: "auto" }}
-          onClick={() => onPick(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`)}>Salvar</button>
+          onClick={() => onPick(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`)}>{t("Salvar")}</button>
       </div>
     </div>
   );
 }
 
 export function LabelPicker({ selected, onChange }: { selected: string[]; onChange: (update: (current: string[]) => string[]) => void }) {
+  const t = useT();
   const id = useId();
   const app = useApp();
   const labels = useQuery<{ labels: Label[] }>("labels", api.labels.list);
   const [text, setText] = useState("");
   const all = labels.data?.labels ?? [];
-  const needle = text.trim().toLocaleLowerCase("pt-BR");
-  const visible = all.filter((label) => !needle || label.name.toLocaleLowerCase("pt-BR").includes(needle));
-  const exact = all.some((label) => label.name.toLocaleLowerCase("pt-BR") === needle);
+  const needle = text.trim().toLocaleLowerCase(getLocale());
+  const visible = all.filter((label) => !needle || label.name.toLocaleLowerCase(getLocale()).includes(needle));
+  const exact = all.some((label) => label.name.toLocaleLowerCase(getLocale()) === needle);
   const toggle = (id: string) => onChange((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   const create = async () => {
     const name = text.trim();
     if (!name) return;
-    const label = await app.run(() => api.labels.create(name), { success: `Etiqueta “${name}” criada`, revalidate: (key) => key === "nav" || key === "labels" });
+    const label = await app.run(() => api.labels.create(name), { success: t("Etiqueta “{0}” criada", [name]), revalidate: (key) => key === "nav" || key === "labels" });
     if (label) {
       onChange((current) => current.includes(label.id) ? current : [...current, label.id]);
       setText("");
@@ -119,11 +126,11 @@ export function LabelPicker({ selected, onChange }: { selected: string[]; onChan
   };
   return (
     <div style={{ padding: 8, width: 260, display: "flex", flexDirection: "column", gap: 6 }}>
-      <label className="sr-only" htmlFor={id}>Buscar ou criar etiqueta</label>
-      <input id={id} className="inline-input" placeholder="Buscar ou criar etiqueta" value={text} data-autofocus
+      <label className="sr-only" htmlFor={id}>{t("Buscar ou criar etiqueta")}</label>
+      <input id={id} className="inline-input" placeholder={t("Buscar ou criar etiqueta")} value={text} data-autofocus
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); if (!exact) void create(); } }} />
-      <div className="menu" style={{ padding: 0, minWidth: 0, maxHeight: 240, overflow: "auto" }} role="listbox" aria-multiselectable="true" aria-label="Etiquetas">
+      <div className="menu" style={{ padding: 0, minWidth: 0, maxHeight: 240, overflow: "auto" }} role="listbox" aria-multiselectable="true" aria-label={t("Etiquetas")}>
         {visible.map((label) => (
           <button key={label.id} type="button" role="option" aria-selected={selected.includes(label.id)} className="mi"
             onClick={() => toggle(label.id)}>
@@ -133,10 +140,10 @@ export function LabelPicker({ selected, onChange }: { selected: string[]; onChan
         ))}
         {needle && !exact && (
           <button type="button" className="mi" onClick={() => void create()}>
-            <IconPlus /><span>Criar “{text.trim()}”</span>
+            <IconPlus /><span>{t("Criar “")}{text.trim()}”</span>
           </button>
         )}
-        {!visible.length && !needle && <p className="hint" style={{ padding: 8 }}>Nenhuma etiqueta ainda. Digite para criar.</p>}
+        {!visible.length && !needle && <p className="hint" style={{ padding: 8 }}>{t("Nenhuma etiqueta ainda. Digite para criar.")}</p>}
       </div>
     </div>
   );
@@ -145,15 +152,16 @@ export function LabelPicker({ selected, onChange }: { selected: string[]; onChan
 export function DestinationPicker({ projectId, sectionId, onPick }: {
   projectId: string; sectionId: string | null; onPick: (projectId: string, sectionId: string | null) => void;
 }) {
+  const t = useT();
   const app = useApp();
   const [expanded, setExpanded] = useState<string | null>(projectId);
   const page = useQuery<ProjectPage>(expanded ? `project:${expanded}` : null, () => api.projects.get(expanded!));
   const inboxId = app.nav?.inbox.projectId ?? app.me.inboxProjectId;
   const projects = app.nav?.projects ?? [];
   return (
-    <div className="menu" style={{ maxHeight: 340, overflow: "auto", width: 280 }} role="listbox" aria-label="Destino">
+    <div className="menu" style={{ maxHeight: 340, overflow: "auto", width: 280 }} role="listbox" aria-label={t("Destino")}>
       <button type="button" role="option" aria-selected={projectId === inboxId} className="mi" onClick={() => onPick(inboxId, null)}>
-        <IconInbox /><span style={{ flex: 1 }}>Caixa de entrada</span>{projectId === inboxId && <IconCheck />}
+        <IconInbox /><span style={{ flex: 1 }}>{t("Caixa de entrada")}</span>{projectId === inboxId && <IconCheck />}
       </button>
       {projects.map((project) => (
         <div key={project.id}>
@@ -162,7 +170,7 @@ export function DestinationPicker({ projectId, sectionId, onPick }: {
             <ProjectGlyph id={project.id} /><span style={{ flex: 1 }}>{project.name}</span>
           </button>
           <Collapse open={expanded === project.id && page.data?.project.id === project.id}>
-            {page.data && [{ id: null, name: page.data.project.defaultSectionName ?? "Sem seção" }, ...page.data.sections].map((section) => (
+            {page.data && [{ id: null, name: page.data.project.defaultSectionName ?? t("Sem seção") }, ...page.data.sections].map((section) => (
               <button key={section.id ?? "none"} type="button" role="option" className="mi" style={{ paddingLeft: 36 }}
                 aria-selected={projectId === project.id && sectionId === section.id}
                 onClick={() => onPick(project.id, section.id)}>
@@ -178,12 +186,11 @@ export function DestinationPicker({ projectId, sectionId, onPick }: {
 }
 
 export function destinationLabel(app: ReturnType<typeof useApp>, projectId: string, sectionName?: string | null) {
-  if (projectId === (app.nav?.inbox.projectId ?? app.me.inboxProjectId)) return "Caixa de entrada";
+  if (projectId === (app.nav?.inbox.projectId ?? app.me.inboxProjectId)) return t("Caixa de entrada");
   const project = app.nav?.projects.find((item) => item.id === projectId);
-  return sectionName ? `${project?.name ?? "Projeto"} / ${sectionName}` : project?.name ?? "Projeto";
+  return sectionName ? `${project?.name ?? t("Projeto")} / ${sectionName}` : project?.name ?? t("Projeto");
 }
 
-const WEEK_HEAD = ["D", "S", "T", "Q", "Q", "S", "S"];
 const CALENDAR_MONTHS = 18;
 
 /**
@@ -193,15 +200,16 @@ const CALENDAR_MONTHS = 18;
 export function DatePicker({ value, reference, onPick, onClose, allowClear = true, autoFocus = false }: {
   value: string | null; reference: string; onPick: (date: string | null) => void; onClose: () => void; allowClear?: boolean; autoFocus?: boolean;
 }) {
+  const t = useT();
   const [text, setText] = useState("");
   const typed = text.trim() ? parseDueInput(text, reference) : null;
   const pick = (date: string | null) => { onPick(date); onClose(); };
 
   const options = [
-    { label: "Hoje", date: reference, icon: <IconCalendarDay day={dayOfMonth(reference)} />, className: "c-today" },
-    { label: "Amanhã", date: addDays(reference, 1), icon: <IconSun />, className: "c-tomorrow" },
-    { label: "Este fim de semana", date: weekend(reference), icon: <IconSofa />, className: "c-weekend" },
-    { label: "Próxima semana", date: nextWeek(reference), icon: <IconNextWeek />, className: "c-week", full: true },
+    { label: t("Hoje"), date: reference, icon: <IconCalendarDay day={dayOfMonth(reference)} />, className: "c-today" },
+    { label: t("Amanhã"), date: addDays(reference, 1), icon: <IconSun />, className: "c-tomorrow" },
+    { label: t("Este fim de semana"), date: weekend(reference), icon: <IconSofa />, className: "c-weekend" },
+    { label: t("Próxima semana"), date: nextWeek(reference), icon: <IconNextWeek />, className: "c-week", full: true },
   ];
 
   return (
@@ -209,29 +217,29 @@ export function DatePicker({ value, reference, onPick, onClose, allowClear = tru
       {/* Portal: eventos React ainda sobem até o formulário do editor; o Enter daqui não pode salvar a tarefa. */}
       <form className="due-input" onKeyDown={(event) => event.stopPropagation()}
         onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); if (typed) pick(typed); }}>
-        <input value={text} onChange={(event) => setText(event.target.value)} placeholder="Digite um vencimento"
-          aria-label="Digite um vencimento" data-autofocus autoFocus={autoFocus} autoComplete="off" spellCheck={false} />
+        <input value={text} onChange={(event) => setText(event.target.value)} placeholder={t("Digite um vencimento")}
+          aria-label={t("Digite um vencimento")} data-autofocus autoFocus={autoFocus} autoComplete="off" spellCheck={false} />
         {text.trim() && (
           typed
             ? <button type="submit" className={`due-typed tone-${dueTone(typed, reference)}`} aria-label={longDate(typed)}>
               <DueIcon tone={dueTone(typed, reference)} day={dayOfMonth(typed)} />
               <span>{`${shortDate(typed)} ${typed.slice(0, 4)}`}</span>
               {Math.abs(daysBetween(reference, typed)) <= 1 && <span className="sub">{dateLabel(typed, reference)}</span>}</button>
-            : <p className="due-typed none">Não reconheci essa data</p>
+            : <p className="due-typed none">{t("Não reconheci essa data")}</p>
         )}
       </form>
       <div className="due-options">
         {options.map((option) => (
-          <button key={option.label} type="button" className={`due-option${value === option.date ? " on" : ""}`}
+          <button key={t(option.label)} type="button" className={`due-option${value === option.date ? " on" : ""}`}
             onClick={() => pick(option.date)}>
             <span className={`due-icon ${option.className}`}>{option.icon}</span>
-            <span className="due-name">{option.label}</span>
+            <span className="due-name">{t(option.label)}</span>
             <span className="sub">{"full" in option ? shortDate(option.date) : weekdayShort(option.date)}</span>
           </button>
         ))}
         {allowClear && (
           <button type="button" className={`due-option${value ? "" : " on"}`} onClick={() => pick(null)}>
-            <span className="due-icon"><IconBan /></span><span className="due-name">Sem vencimento</span>
+            <span className="due-icon"><IconBan /></span><span className="due-name">{t("Sem vencimento")}</span>
           </button>
         )}
       </div>
@@ -241,6 +249,7 @@ export function DatePicker({ value, reference, onPick, onClose, allowClear = tru
 }
 
 function MonthScroller({ value, reference, onPick }: { value: string | null; reference: string; onPick: (date: string) => void }) {
+  const t = useT();
   const first = monthStart(value && value < reference ? value : reference);
   const last = monthStart(value && value > reference ? value : reference, CALENDAR_MONTHS - 1);
   const months: string[] = [];
@@ -277,15 +286,15 @@ function MonthScroller({ value, reference, onPick }: { value: string | null; ref
       <div className="cal-head">
         <strong aria-live="polite">{monthShort(visible)}</strong>
         <div className="cal-nav">
-          <button type="button" className="icon-btn" aria-label="Mês anterior" disabled={index <= 0}
+          <button type="button" className="icon-btn" aria-label={t("Mês anterior")} disabled={index <= 0}
             onClick={() => scrollTo(months[index - 1])}><IconChevronLeft /></button>
-          <button type="button" className="icon-btn cal-today" aria-label="Voltar para hoje" data-tooltip="Hoje"
+          <button type="button" className="icon-btn cal-today" aria-label={t("Voltar para hoje")} data-tooltip={t("Hoje")}
             onClick={() => scrollTo(monthStart(reference))}><span /></button>
-          <button type="button" className="icon-btn" aria-label="Próximo mês" disabled={index >= months.length - 1}
+          <button type="button" className="icon-btn" aria-label={t("Próximo mês")} disabled={index >= months.length - 1}
             onClick={() => scrollTo(months[index + 1])}><IconChevronRight /></button>
         </div>
       </div>
-      <div className="cal-week" aria-hidden="true">{WEEK_HEAD.map((day, i) => <span key={i}>{day}</span>)}</div>
+      <div className="cal-week" aria-hidden="true">{weekHead().map((day, i) => <span key={i}>{day}</span>)}</div>
       <div className="cal-scroll" ref={scroller} onScroll={onScroll}>
         {months.map((month, position) => (
           <section key={month} data-month={month} aria-label={monthShort(month)}>

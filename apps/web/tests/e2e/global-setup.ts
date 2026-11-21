@@ -39,11 +39,14 @@ export default async function globalSetup() {
   create(fresh.email, fresh.password);
   rmSync(AUTH_DIR, { recursive: true, force: true });
   mkdirSync(AUTH_DIR, { recursive: true, mode: 0o700 });
+  const active: Record<string, { email: string; password: string }> = {};
   for (const name of ["desktop", "celular"]) {
     const email = `${name}-${randomUUID()}@feito.test`;
     const provisional = secret();
     create(email, provisional);
-    await activate(base, name, email, provisional, secret());
+    const password = secret();
+    await activate(base, name, email, provisional, password);
+    active[name] = { email, password };
   }
-  writeFileSync(ACCOUNTS_FILE, JSON.stringify({ fresh }), { mode: 0o600 });
+  writeFileSync(ACCOUNTS_FILE, JSON.stringify({ fresh, active }), { mode: 0o600 });
 }

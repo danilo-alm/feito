@@ -1,6 +1,9 @@
 "use client";
+
+import { useT } from "./language";
+
 import { useState, type ReactNode } from "react";
-import { api } from "../client/api";
+import { api, errorMessage } from "../client/api";
 import { exportFormats, type ExportFormat } from "@feito/core/domain/export-formats";
 import { IconCheck, IconDownload } from "./icons";
 import { DialogHead, Monogram, plural } from "./import-panel";
@@ -14,7 +17,10 @@ const defaults = (format: ExportFormat) => Object.fromEntries(format.options.map
 const fileName = (name: string, format: ExportFormat) => `${name.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_")}.${format.extension}`;
 
 function ExportForm({ target, onDone }: { target: Target; onDone: () => void }) {
+  const t = useT();
   const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string>();
   const [formatId, setFormatId] = useState<ExportFormat["id"]>(exportFormats[0].id);
   const format = exportFormats.find((item) => item.id === formatId)!;
   const [options, setOptions] = useState<Record<string, boolean>>(defaults(format));
@@ -27,8 +33,8 @@ function ExportForm({ target, onDone }: { target: Target; onDone: () => void }) 
   return (
     <div className={s.dialogBody}>
       <fieldset style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
-        <legend className={s.label} style={{ padding: 0, marginBottom: 8 }}>Modelo do arquivo</legend>
-        <div className={s.choices} role="radiogroup" aria-label="Modelo do arquivo">
+        <legend className={s.label} style={{ padding: 0, marginBottom: 8 }}>{t("Modelo do arquivo")}</legend>
+        <div className={s.choices} role="radiogroup" aria-label={t("Modelo do arquivo")}>
           {exportFormats.map((item) => (
             <button key={item.id} type="button" role="radio" aria-checked={item.id === formatId}
               className={`${s.choice} ${s.wide}`} onClick={() => pick(item)}>
@@ -36,9 +42,9 @@ function ExportForm({ target, onDone }: { target: Target; onDone: () => void }) 
               <span className={s.choiceText}>
                 <span style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
                   <span className={s.choiceName}>{item.name}</span>
-                  <span className={s.sub} style={{ fontSize: 12 }}>{item.fileKind}</span>
+                  <span className={s.sub} style={{ fontSize: 12 }}>{t(item.fileKind)}</span>
                 </span>
-                <span className={s.sub} style={{ fontSize: 12.5 }}>{item.description}</span>
+                <span className={s.sub} style={{ fontSize: 12.5 }}>{t(item.description)}</span>
               </span>
               <span className={s.tick} aria-hidden="true"><IconCheck /></span>
             </button>
@@ -49,8 +55,8 @@ function ExportForm({ target, onDone }: { target: Target; onDone: () => void }) 
       {format.options.map((option) => (
         <div key={option.id} className={s.option}>
           <div>
-            <span id={`export-${option.id}`} style={{ fontWeight: 600 }}>{option.label}</span>
-            <span className={s.sub} style={{ fontSize: 12.5 }}>{option.hint}</span>
+            <span id={`export-${option.id}`} style={{ fontWeight: 600 }}>{t(option.label)}</span>
+            <span className={s.sub} style={{ fontSize: 12.5 }}>{t(option.hint)}</span>
           </div>
           <button type="button" className={`switch${options[option.id] ? " on" : ""}`} role="switch"
             aria-checked={options[option.id]} aria-labelledby={`export-${option.id}`}
@@ -59,24 +65,31 @@ function ExportForm({ target, onDone }: { target: Target; onDone: () => void }) 
       ))}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <span className={s.label}>O que vai no arquivo</span>
+        <span className={s.label}>{t("O que vai no arquivo")}</span>
         <div className={s.chips}>
           <span className={`${s.chip} ${s.on}`}>
-            {target.activeCount === undefined ? "Tarefas abertas" : plural(target.activeCount, "tarefa aberta", "tarefas abertas")}
+            {target.activeCount === undefined ? t("Tarefas abertas") : plural(target.activeCount, t("tarefa aberta"), t("tarefas abertas"))}
           </span>
-          <span className={`${s.chip} ${s.on}`}>Seções e subtarefas</span>
-          <span className={`${s.chip} ${s.on}`}>Etiquetas e recorrências</span>
-          <span className={`${s.chip} ${s.off}`}><span className="sr-only">Não inclui: </span>Concluídas</span>
+          <span className={`${s.chip} ${s.on}`}>{t("Seções e subtarefas")}</span>
+          <span className={`${s.chip} ${s.on}`}>{t("Etiquetas e recorrências")}</span>
+          <span className={`${s.chip} ${s.off}`}><span className="sr-only">{t("Não inclui:")}{" "}</span>{t("Concluídas")}</span>
         </div>
       </div>
 
+      {failure && <p className="field-error" role="alert">{failure}</p>}
       <div className={`${s.actions} ${s.dialogFoot}`}>
         <span className={s.hint}>{fileName(target.name, format)}</span>
-        <button type="button" className="btn" onClick={onDone}>Cancelar</button>
-        <a className="btn primary" href={api.portability.projectExportUrl(target.id, format.id, options)} download
-          onClick={() => { toast("Exportação iniciada"); onDone(); }}>
-          <IconDownload />Baixar {format.extension.toUpperCase()}
-        </a>
+        <button type="button" className="btn" onClick={onDone}>{t("Cancelar")}</button>
+        <button type="button" className="btn primary" disabled={busy} onClick={() => {
+          setBusy(true);
+          setFailure(undefined);
+          void api.portability.downloadProject(target.id, format.id, options, fileName(target.name, format)).then(() => {
+            toast(t("Exportação iniciada"));
+            onDone();
+          }, (error: unknown) => setFailure(errorMessage(error))).finally(() => setBusy(false));
+        }}>
+          <IconDownload />{t("Baixar")}{" "}{format.extension.toUpperCase()}
+        </button>
       </div>
     </div>
   );
@@ -84,15 +97,16 @@ function ExportForm({ target, onDone }: { target: Target; onDone: () => void }) 
 
 /** Diálogo para exportar um projeto num modelo de `exportFormats`. Devolve o elemento e a função que o abre. */
 export function useExportDialog(): [ReactNode, (target: Target) => void] {
+  const t = useT();
   const [target, setTarget] = useState<Target | null>(null);
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState(0);
   const close = () => setOpen(false);
   const element = (
-    <Dialog open={open} onClose={close} title={target ? `Exportar ${target.name}` : "Exportar"} labelledBy="export-dialog-h" hideHeader width={540}>
+    <Dialog open={open} onClose={close} title={target ? t("Exportar {0}", [target.name]) : t("Exportar")} labelledBy="export-dialog-h" hideHeader width={540}>
       {target && (
         <>
-          <DialogHead eyebrow="Exportar" title={target.name} id="export-dialog-h" onClose={close} />
+          <DialogHead eyebrow={t("Exportar")} title={target.name} id="export-dialog-h" onClose={close} />
           <ExportForm key={`${target.id}:${session}`} target={target} onDone={close} />
         </>
       )}

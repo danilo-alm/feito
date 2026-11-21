@@ -6,6 +6,7 @@ import { POST as login } from "@/app/api/v1/auth/login/route";
 import { POST as logout } from "@/app/api/v1/auth/logout/route";
 import { POST as changePassword } from "@/app/api/v1/auth/password/route";
 import { GET as session } from "@/app/api/v1/auth/session/route";
+import { GET as pullReplica } from "@/app/api/v1/desktop-sync/route";
 import { GET as me } from "@/app/api/v1/me/route";
 import { PATCH as patchPreferences } from "@/app/api/v1/preferences/route";
 import { createAuth } from "@/server/auth/better-auth";
@@ -42,6 +43,7 @@ function request(path: string, init: {
   method?: string;
   body?: unknown;
   cookie?: string;
+  expectedAccount?: string;
   origin?: string | null;
   ip?: string;
   raw?: string;
@@ -50,6 +52,7 @@ function request(path: string, init: {
   const headers = new Headers({ [ipHeader]: init.ip ?? testIp() });
   if (init.origin !== null) headers.set("Origin", init.origin ?? origin);
   if (init.cookie) headers.set("Cookie", init.cookie);
+  if (init.expectedAccount !== undefined) headers.set("X-Feito-Account", init.expectedAccount);
   if (init.body !== undefined || init.raw !== undefined) headers.set("Content-Type", "application/json");
   return new Request(origin + path, {
     method: init.method ?? "GET",
@@ -123,6 +126,35 @@ describe("Phase 1 HTTP contract", () => {
     await expectError(await me(request("/api/v1/me")), 401, "UNAUTHENTICATED");
   });
 
+  it("binds browser replica requests to the account selected before the cookie changes", async () => {
+    const selected = await onboard();
+    const authenticated = await onboard();
+    const wrongAccount = { cookie: authenticated.cookie, expectedAccount: selected.id };
+    await expectError(await session(request("/api/v1/auth/session", wrongAccount)), 409, "DESKTOP_ACCOUNT_CHANGED");
+    await expectError(await pullReplica(request("/api/v1/desktop-sync", wrongAccount)), 409, "DESKTOP_ACCOUNT_CHANGED");
+    await expectError(await me(request("/api/v1/me", wrongAccount)), 409, "DESKTOP_ACCOUNT_CHANGED");
+    await expectError(await patchPreferences(request("/api/v1/preferences", {
+      ...wrongAccount, method: "PATCH", body: { theme: "dark" },
+    })), 409, "DESKTOP_ACCOUNT_CHANGED");
+    const newPassword = randomPassword();
+    await expectError(await changePassword(request("/api/v1/auth/password", {
+      ...wrongAccount, method: "POST", body: { currentPassword: authenticated.password, newPassword },
+    })), 409, "DESKTOP_ACCOUNT_CHANGED");
+
+    // Existing clients may omit the binding; the cookie still determines their account.
+    for (const identity of [selected, authenticated]) {
+      const response = await readMe(identity.cookie);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ user: { id: identity.id }, preferences: { theme: "system" } });
+    }
+    expect((await signIn(authenticated.email, authenticated.password)).status).toBe(200);
+    await expectError(await signIn(authenticated.email, newPassword), 401, "INVALID_CREDENTIALS");
+    const correctAccount = { cookie: authenticated.cookie, expectedAccount: authenticated.id };
+    const replica = await pullReplica(request("/api/v1/desktop-sync", correctAccount));
+    expect(replica.status).toBe(200);
+    expect(await replica.json()).toMatchObject({ user: { id: authenticated.id } });
+  });
+
   it("validates the exact origin, malformed/oversized JSON and input fields", async () => {
     for (const origin of [null, "https://outside.example"]) {
       await expectError(await login(request("/api/v1/auth/login", { method: "POST", origin })),
@@ -176,7 +208,7 @@ describe("Phase 1 HTTP contract", () => {
     expect(a).toEqual({
       user: { id: identity.id, email: identity.email },
       mustChangePassword: true,
-      preferences: { timezone: "America/Maceio", theme: "system" },
+      preferences: { timezone: "America/Maceio", theme: "system", locale: "pt-BR" },
       referenceDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       inboxProjectId: expect.any(String),
     });
@@ -421,5 +453,25 @@ describe("PostgreSQL roles, RLS and encrypted storage", () => {
     expect(await (await readMe(target.cookie)).json()).toMatchObject({ preferences: { theme: "dark" } });
     const [usage] = await withTenant(db, target.tenantId, (tx) => tx.select().from(dekUsage).where(where));
     expect(usage.invocations).toBe(MAX_INVOCATIONS);
+  });
+});
+
+
+describe("preferência de idioma sincronizada", () => {
+  it("persiste o idioma criptografado, isola contas e o inclui na réplica", async () => {
+    const identity = await fixture();
+    const other = await fixture();
+    const cookie = cookieFrom(await signIn(identity.email, identity.password));
+    const otherCookie = cookieFrom(await signIn(other.email, other.password));
+    await passwordChange(cookie, identity.password, randomPassword());
+    await passwordChange(otherCookie, other.password, randomPassword());
+    expect((await patch(cookie, { locale: "en" })).status).toBe(200);
+    expect((await patch(cookie, { theme: "dark" })).status).toBe(200);
+    expect(await (await readMe(cookie)).json()).toMatchObject({ preferences: { locale: "en", theme: "dark" } });
+    expect(await (await readMe(otherCookie)).json()).toMatchObject({ preferences: { locale: "pt-BR" } });
+    const replica = await pullReplica(request("/api/v1/desktop-sync", { cookie }));
+    expect(replica.status).toBe(200);
+    expect(await replica.json()).toMatchObject({ workspace: { preferences: { locale: "en" } } });
+    await expectError(await patch(cookie, { locale: "es" }), 422, "VALIDATION_FAILED");
   });
 });

@@ -112,7 +112,7 @@ export async function persistPreferences(
     const clocks = metadata?.clocks ?? {};
     const clock = desktopClock(desktopOperation?.authoredAt ?? new Date().toISOString(), desktopOperation?.id);
     const accepted = { ...patch };
-    for (const field of ["theme", "timezone"] as const) {
+    for (const field of ["theme", "timezone", "locale"] as const) {
       if (accepted[field] === undefined) continue;
       if (clock > (clocks[field] ?? "")) clocks[field] = clock;
       else if (desktopOperation) delete accepted[field];

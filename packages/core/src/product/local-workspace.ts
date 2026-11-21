@@ -1,13 +1,13 @@
 import { Temporal } from "@js-temporal/polyfill";
-import type { Preferences } from "@feito/core/types";
-import { defaultPreferences, referenceDate } from "@feito/core/domain/preferences";
+import type { Preferences } from "../types";
+import { defaultPreferences, referenceDate } from "../domain/preferences";
 import {
   inboxName, isActive, type CompletedOccurrence, type Label, type OccurrenceReference,
   type Product, type Project, type Section, type Task,
-} from "@feito/core/domain/product";
-import type { MutationHistory, ProductCalendar, ProductProjection, ProductSummary, TaskView, TaskViewScope } from "@feito/core/product/port";
-import { notFound } from "@feito/core/product/errors";
-import { defaultsForView } from "@feito/core/validation/product";
+} from "../domain/product";
+import type { MutationHistory, ProductCalendar, ProductProjection, ProductSummary, TaskView, TaskViewScope } from "./port";
+import { notFound } from "./errors";
+import { defaultsForView } from "../validation/product";
 
 export type Workspace = {
   preferences: Preferences;
@@ -24,7 +24,7 @@ export function newWorkspace(): Workspace {
   return {
     preferences,
     projects: [{
-      id: crypto.randomUUID(), revision: 1, isInbox: true,
+      id: globalThis.crypto.randomUUID(), revision: 1, isInbox: true,
       data: {
         name: inboxName, description: "", color: null, icon: "hash", archived: false,
         view: { ...defaultsForView }, createdAt: Temporal.Now.instant().toString(),
@@ -51,6 +51,7 @@ export type ProductAccess = {
   workspace: Workspace;
   revision: number;
   authoredAt?: string;
+  allocateId: (slot: number) => string;
 };
 
 function occurrenceMatches(record: OccurrenceReference, reference: OccurrenceReference) {

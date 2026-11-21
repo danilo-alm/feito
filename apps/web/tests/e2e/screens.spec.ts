@@ -82,6 +82,7 @@ test.describe("telas do dia a dia", () => {
 
     await api("PATCH", `/projects/${project.id}/view`, { layout: "board" });
     await page.reload();
+    await expect(page.locator(".board")).toBeVisible();
     await expect(row(page, "Nível 5")).toBeVisible();
     await expect(row(page, "Nível 6")).toHaveCount(0);
     const offset = (title: string) => row(page, title).evaluate((element) => parseFloat(getComputedStyle(element).marginInlineStart));
@@ -97,6 +98,7 @@ test.describe("telas do dia a dia", () => {
     await create.getByRole("button", { name: "Criar projeto" }).click();
     await page.waitForURL("**/projetos/*");
     const projectId = new URL(page.url()).pathname.split("/").at(-1);
+    await expect.poll(async () => (await page.request.get(`/api/v1/projects/${projectId}`)).status()).toBe(200);
     await api("POST", "/tasks", { projectId, title: "Medir a sala" });
     await page.reload();
     const title = page.getByRole("heading", { name: "Reforma", level: 1 }).getByRole("button");
@@ -118,10 +120,8 @@ test.describe("telas do dia a dia", () => {
     await expect(name).toHaveCSS("width", taskWidth);
     await expect(name).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await name.fill("Reforma do apartamento");
-    const titleSave = page.waitForResponse((response) =>
-      response.request().method() === "PATCH" && new URL(response.url()).pathname.startsWith("/api/v1/projects/"));
     await name.press("Enter");
-    expect((await titleSave).ok()).toBe(true);
+    await expect.poll(async () => (await api<{ project: { name: string } }>("GET", `/projects/${projectId}`)).project.name).toBe("Reforma do apartamento");
     const renamed = page.getByRole("heading", { name: "Reforma do apartamento", level: 1 });
     await expect(renamed).toBeVisible();
     await api("PATCH", `/projects/${projectId}/view`, { layout: "board" });
@@ -152,10 +152,8 @@ test.describe("telas do dia a dia", () => {
     await expect(descriptionField).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await descriptionField.fill("Comprar materiais.");
     await expect(page.locator(".project-heading-fields").getByRole("button", { name: /^(Salvar|Cancelar)$/ })).toHaveCount(0);
-    const descriptionSave = page.waitForResponse((response) =>
-      response.request().method() === "PATCH" && new URL(response.url()).pathname.startsWith("/api/v1/projects/"));
     await descriptionField.press("Tab");
-    expect((await descriptionSave).ok()).toBe(true);
+    await expect.poll(async () => (await api<{ project: { description: string } }>("GET", `/projects/${projectId}`)).project.description).toBe("Comprar materiais.");
     await expect(page.getByRole("button", { name: "Editar descrição do projeto" })).toHaveText("Comprar materiais.");
     await page.reload();
     await expect(renamed).toBeVisible();
@@ -239,7 +237,7 @@ test.describe("telas do dia a dia", () => {
     await page.goto(`/projetos/${seed.id}`);
     await row(page, "Definir orçamento da reforma").getByText("Teto de R$ 8 mil", { exact: true }).click();
     const detail = page.getByRole("dialog", { name: /^Definir orçamento/ });
-    await expect(detail.getByLabel("Descrição", { exact: true })).toHaveValue("Teto de R$ 8 mil");
+    await expect(detail.getByRole("region", { name: "Descrição", exact: true })).toHaveText("Teto de R$ 8 mil");
     await detail.getByLabel("Título").fill("Definir orçamento final");
     await detail.getByLabel("Título").press("Enter");
     await detail.getByRole("button", { name: "Prioridade: Prioridade 1" }).click();
@@ -299,12 +297,13 @@ test.describe("telas do dia a dia", () => {
 
     await page.goto("/ajustes");
     await page.getByRole("radio", { name: "Escuro" }).click();
+    await expect(page.getByRole("radio", { name: "Escuro" })).toHaveAttribute("aria-checked", "true");
     await expect(page.locator("html")).toHaveClass(/dark/);
     await page.reload();
     await expect(page.locator("html")).toHaveClass(/dark/);
     await page.getByRole("radio", { name: "Sistema" }).click();
     const download = page.waitForEvent("download");
-    await page.getByRole("link", { name: "Exportar" }).click();
+    await page.getByRole("button", { name: "Exportar", exact: true }).click();
     expect((await download).suggestedFilename()).toMatch(/^feito-dados-\d{4}-\d{2}-\d{2}\.json$/);
   });
 

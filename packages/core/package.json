@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     "./domain/*": "./src/domain/*.ts",
+    "./portability/*": "./src/portability/*.ts",
     "./product/*": "./src/product/*.ts",
     "./types": "./src/types.ts",
     "./validation/*": "./src/validation/*.ts"

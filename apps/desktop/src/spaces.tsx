@@ -1,26 +1,31 @@
+import { translateMessage, translate as t } from "@feito/ui/client/locale";
+import { useT } from "@feito/ui/components/language";
 import { useState, type FormEvent } from "react";
 import { desktop } from "./data/native";
 import type { DesktopStatus } from "./data/desktop";
-import { IconChevronDown, IconChevronRight, IconGlobe, IconMonitor, IconPlus, IconTrash } from "@feito/ui/components/icons";
+import { IconChevronRight, IconEdit, IconGlobe, IconLogout, IconMonitor, IconPlus, IconRepeat, IconTrash } from "@feito/ui/components/icons";
 import { SettingsGroup, SettingsLinkRow, SettingsRow } from "@feito/ui/components/settings";
+import { Dialog } from "@feito/ui/components/ui";
 
 export function syncLabel(status: DesktopStatus) {
   const count = status.server?.pending ?? 0;
-  if (status.sync === "login") return "Entre para sincronizar";
-  if (status.sync === "offline") return count ? `Sem conexão · ${count} na fila` : "Sem conexão com o servidor";
-  if (status.sync === "syncing") return "Sincronizando…";
-  if (status.sync === "error") return "Sincronização interrompida";
-  return status.sync === "current" ? "Sincronizado" : "Somente neste computador";
+  if (status.sync === "login") return t("Entre para sincronizar");
+  if (status.sync === "offline") return count ? t("Sem conexão · {0} na fila", [count]) : t("Sem conexão com o servidor");
+  if (status.sync === "syncing") return t("Sincronizando…");
+  if (status.sync === "error") return t("Sincronização interrompida");
+  return status.sync === "current" ? t("Sincronizado") : t("Somente neste computador");
 }
 
 type Confirm = (options: { title: string; body: string; confirmLabel: string; danger: true }) => Promise<boolean>;
 
 export function SpaceManager({ status, confirm }: { status: DesktopStatus; confirm?: Confirm }) {
+  const t = useT();
   const [origin, setOrigin] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingOrigin, setEditingOrigin] = useState<string>();
   const [error, setError] = useState<string>();
 
   const perform = async (action: () => Promise<void>) => {
@@ -29,13 +34,14 @@ export function SpaceManager({ status, confirm }: { status: DesktopStatus; confi
     try {
       await action();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : typeof failure === "string" ? failure : "Não foi possível concluir a ação.");
+      setError(failure instanceof Error ? failure.message : typeof failure === "string" ? failure : t("Não foi possível concluir a ação."));
     } finally {
       setBusy(false);
     }
   };
 
   const openForm = (server?: DesktopStatus["server"]) => {
+    setEditingOrigin(server?.origin);
     setOrigin(server?.origin ?? "");
     setEmail(server?.email ?? "");
     setPassword("");
@@ -45,116 +51,131 @@ export function SpaceManager({ status, confirm }: { status: DesktopStatus; confi
 
   const closeForm = () => {
     setShowForm(false);
+    setEditingOrigin(undefined);
     setPassword("");
     setError(undefined);
   };
 
   const connect = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
     const submittedPassword = password;
     setPassword("");
     void perform(async () => {
-      await desktop.connect(origin, email, submittedPassword);
-      setShowForm(false);
+      if (editingOrigin) await desktop.updateConnection(editingOrigin, origin, email, submittedPassword);
+      else await desktop.connect(origin, email, submittedPassword);
+      closeForm();
     });
   };
 
   const deleteLocal = () => void perform(async () => {
     if (await confirm?.({
-      title: "Excluir o espaço local?",
-      body: "Todas as tarefas, projetos e etiquetas deste espaço serão excluídos permanentemente deste computador.",
-      confirmLabel: "Excluir espaço local",
+      title: t("Excluir o espaço local?"),
+      body: t("Todas as tarefas, projetos e etiquetas deste espaço serão excluídos permanentemente deste computador."),
+      confirmLabel: t("Excluir espaço local"),
       danger: true,
     })) await desktop.deleteLocal();
   });
 
   const discardRejected = (id: string) => void perform(async () => {
     if (await confirm?.({
-      title: "Descartar a alteração rejeitada?",
-      body: "O Feito vai restaurar o valor do servidor e continuar com as próximas alterações da fila.",
-      confirmLabel: "Descartar alteração",
+      title: t("Descartar a alteração rejeitada?"),
+      body: t("O Feito vai restaurar o valor do servidor e continuar com as próximas alterações da fila."),
+      confirmLabel: t("Descartar alteração"),
       danger: true,
     })) await desktop.discardRejected(id);
   });
 
-
   const host = (origin: string) => origin.replace(/^https:\/\//, "");
 
   return (
-    <SettingsGroup id="espacos" title="Espaços de trabalho">
+    <SettingsGroup id="espacos" title={t("Espaços de trabalho")}>
       <div className="set-card">
         <SettingsRow icon={<IconMonitor />} tone={status.active === "local" ? "brand" : undefined}
-          label={<>Espaço local{status.active === "local" && <span className="set-pill">Em uso</span>}</>}
-          hint={status.hasLocal ? "Tarefas guardadas somente neste computador." : "Nenhum espaço local criado."}
+          label={<>{t("Espaço local")}{status.active === "local" && <span className="set-pill">{t("Em uso")}</span>}</>}
+          hint={status.hasLocal ? t("Tarefas guardadas somente neste computador.") : t("Nenhum espaço local criado.")}
           control={!status.hasLocal ? (
-            <button className="btn" type="button" disabled={busy} onClick={() => void perform(desktop.createLocal)}>Criar espaço local</button>
+            <button className="btn" type="button" disabled={busy} onClick={() => void perform(desktop.createLocal)}>{t("Criar espaço local")}</button>
           ) : status.active !== "local" && (
-            <button className="btn" type="button" disabled={busy} onClick={() => void perform(() => desktop.switchSpace("local"))}>Abrir</button>
+            <button className="btn" type="button" disabled={busy} onClick={() => void perform(() => desktop.switchSpace("local"))}>{t("Abrir")}</button>
           )} />
         {status.servers.map((server) => {
           const active = status.active === "server" && status.server?.origin === server.origin;
-          const queued = server.pending > 0 ? ` · ${server.pending} na fila` : "";
+          const queued = server.pending > 0 ? t(" · {0} na fila", [server.pending]) : "";
           return active ? (
             <SettingsRow key={server.origin} icon={<IconGlobe />} tone="brand"
-              label={<>{host(server.origin)}<span className="set-pill">Em uso</span></>}
+              label={<>{host(server.origin)}<span className="set-pill">{t("Em uso")}</span></>}
               hint={<>{server.email} · <span role="status">{syncLabel(status)}{status.sync !== "offline" ? queued : ""}</span></>}
-              control={status.sync === "login" ? (
-                <button className="btn" type="button" disabled={busy} onClick={() => openForm(server)}>Entrar novamente</button>
+              control={<>
+                <button className="icon-btn" type="button" disabled={busy} aria-label={t("Editar conexão")} data-tooltip={t("Editar conexão")}
+                  onClick={() => openForm(server)}><IconEdit /></button>
+                {status.sync === "login" ? (
+                <button className="btn" type="button" disabled={busy} onClick={() => openForm(server)}>{t("Entrar novamente")}</button>
               ) : <>
-                <button className="btn" type="button" disabled={busy || status.sync === "syncing"}
-                  onClick={() => void perform(desktop.sync)}>Sincronizar agora</button>
-                <button className="btn ghost" type="button" disabled={busy} onClick={() => void perform(desktop.signOut)}>Encerrar sessão</button>
+                <button className="icon-btn" type="button" disabled={busy || status.sync === "syncing"}
+                  aria-label={t("Sincronizar agora")} data-tooltip={t("Sincronizar agora")}
+                  onClick={() => void perform(desktop.sync)}><IconRepeat /></button>
+                <button className="icon-btn" type="button" disabled={busy} aria-label={t("Encerrar sessão")} data-tooltip={t("Encerrar sessão")}
+                  onClick={() => void perform(desktop.signOut)}><IconLogout /></button>
+              </>}
               </>}
               extra={(status.blocked || (status.error && status.sync !== "login") || server.notice) && (
                 <div className="set-status">
-                  {status.error && status.sync !== "login" && <span>{status.error}</span>}
-                  {server.notice && <span role="status">{server.notice}</span>}
+                  {status.error && status.sync !== "login" && <span>{status.error && translateMessage(status.error)}</span>}
+                  {server.notice && <span role="status">{server.notice && translateMessage(server.notice)}</span>}
                   {status.blocked && <div><button className="btn ghost danger" type="button" disabled={busy}
-                    onClick={() => discardRejected(status.blocked!)}>Descartar alteração rejeitada</button></div>}
+                    onClick={() => discardRejected(status.blocked!)}>{t("Descartar alteração rejeitada")}</button></div>}
                 </div>
               )} />
           ) : (
             <SettingsRow key={server.origin} icon={<IconGlobe />} label={host(server.origin)} hint={`${server.email}${queued}`}
-              control={<button className="btn" type="button" disabled={busy}
-                onClick={() => void perform(() => desktop.openServer(server.origin))}>Abrir</button>} />
+              control={<>
+                <button className="icon-btn" type="button" disabled={busy} aria-label={t("Editar conexão")} data-tooltip={t("Editar conexão")}
+                  onClick={() => openForm(server)}><IconEdit /></button>
+                <button className="btn" type="button" disabled={busy}
+                  onClick={() => void perform(() => desktop.openServer(server.origin))}>{t("Abrir")}</button>
+              </>} />
           );
         })}
-        <SettingsLinkRow onClick={() => (showForm ? closeForm() : openForm())} tone="brand" icon={<IconPlus />}
-          label={status.servers.length ? "Conectar outro servidor" : "Conectar a um servidor"}
-          hint="Sincronize com uma instalação do Feito por HTTPS."
-          trailing={showForm ? <IconChevronDown className="set-chev" /> : <IconChevronRight className="set-chev" />} />
-        {showForm && (
-          <form className="set-form" onSubmit={connect} aria-label="Conectar a um servidor">
-            <label className="field">
-              <strong>Endereço HTTPS do Feito</strong>
-              <input className="input" type="url" value={origin} placeholder="https://feito.exemplo.com" autoComplete="url"
-                required autoFocus onChange={(event) => setOrigin(event.target.value)} />
-            </label>
-            <div className="set-form-pair">
-              <label className="field">
-                <strong>E-mail</strong>
-                <input className="input" type="email" value={email} autoComplete="username" required onChange={(event) => setEmail(event.target.value)} />
+        <SettingsLinkRow onClick={() => { if (!busy) openForm(); }} tone="brand" icon={<IconPlus />}
+          label={status.servers.length ? t("Conectar outro servidor") : t("Conectar a um servidor")}
+          hint={t("Sincronize com uma instalação do Feito por HTTPS.")}
+          trailing={<IconChevronRight className="set-chev" />} />
+        <Dialog open={showForm} onClose={() => { if (!busy) closeForm(); }} title={editingOrigin ? t("Editar conexão") : t("Conectar a um servidor")} width={440}>
+          <form className="dialog-b connection-form" onSubmit={connect} aria-label={editingOrigin ? t("Editar conexão") : t("Conectar a um servidor")}>
+            <fieldset disabled={busy} className="connection-fields">
+              <label className="ps-field">
+                <span className="lbl">{t("Endereço HTTPS do Feito")}</span>
+                <input className="inline-input" type="url" value={origin} placeholder={t("https://feito.exemplo.com")} autoComplete="url"
+                  required data-autofocus onChange={(event) => setOrigin(event.target.value)} />
               </label>
-              <label className="field">
-                <strong>Senha</strong>
-                <input className="input" type="password" value={password} autoComplete="current-password" required onChange={(event) => setPassword(event.target.value)} />
-              </label>
+              <div className="connection-fields">
+                <label className="ps-field">
+                  <span className="lbl">{t("E-mail")}</span>
+                  <input className="inline-input" type="email" value={email} autoComplete="username" required onChange={(event) => setEmail(event.target.value)} />
+                </label>
+                <label className="ps-field">
+                  <span className="lbl">{t("Senha")}</span>
+                  <input className="inline-input" type="password" value={password} autoComplete="current-password" required onChange={(event) => setPassword(event.target.value)} />
+                </label>
+              </div>
+            </fieldset>
+            <div className="named-details-actions">
+              <button className="btn primary" type="submit" disabled={busy}>{busy ? t("Conectando…") : editingOrigin ? t("Salvar conexão") : t("Conectar")}</button>
+              <button className="btn ghost" type="button" disabled={busy} onClick={closeForm}>{t("Cancelar")}</button>
             </div>
-            <div className="desktop-inline">
-              <button className="btn primary" type="submit" disabled={busy}>{busy ? "Conectando…" : "Conectar"}</button>
-              <button className="btn ghost" type="button" disabled={busy} onClick={closeForm}>Cancelar</button>
-            </div>
+            {error && <p className="field-error" role="alert">{translateMessage(error)}</p>}
           </form>
-        )}
+        </Dialog>
       </div>
       {status.hasLocal && confirm && (
         <div className="set-card">
-          <SettingsRow icon={<IconTrash />} tone="danger" label="Excluir espaço local"
-            hint="Apaga para sempre as tarefas, projetos e etiquetas deste computador. Espaços remotos continuam."
-            control={<button className="btn ghost danger" type="button" disabled={busy} onClick={deleteLocal}>Excluir…</button>} />
+          <SettingsRow icon={<IconTrash />} tone="danger" label={t("Excluir espaço local")}
+            hint={t("Apaga para sempre as tarefas, projetos e etiquetas deste computador. Espaços remotos continuam.")}
+            control={<button className="btn ghost danger" type="button" disabled={busy} onClick={deleteLocal}>{t("Excluir…")}</button>} />
         </div>
       )}
-      {error && <p className="field-error" role="alert">{error}</p>}
+      {error && !showForm && <p className="field-error" role="alert">{translateMessage(error)}</p>}
     </SettingsGroup>
   );
 }

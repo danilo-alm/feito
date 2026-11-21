@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
-import { LoginForm } from "@/components/auth-forms";
+import { BrowserApp } from "@/components/browser-app";
 
 export const metadata: Metadata = { title: "Entrar" };
 
 export default function LoginPage() {
-  return <Suspense><LoginForm /></Suspense>;
+  return <BrowserApp />;
 }

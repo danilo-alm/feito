@@ -5,9 +5,8 @@ type Account = { email: string; password: string };
 export type Api = <T = unknown>(method: string, path: string, body?: unknown) => Promise<T>;
 
 export async function login(page: Page, account: Account, path = "/entrar") {
-  const ready = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/session");
   await page.goto(path);
-  await ready;
+  await expect(page.getByRole("heading", { name: "Entrar no Feito" })).toBeVisible();
   await page.getByLabel("E-mail").fill(account.email);
   await page.getByLabel("Senha", { exact: true }).fill(account.password);
   await page.getByRole("button", { name: "Entrar" }).click();

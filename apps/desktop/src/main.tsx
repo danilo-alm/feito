@@ -1,3 +1,4 @@
+import { SkipToContent, useT } from "@feito/ui/components/language";
 import { Suspense, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { NavigationProvider } from "@feito/ui/navigation";
@@ -17,6 +18,7 @@ import Label from "@feito/ui/screens/label";
 import { desktop, openPublicProject, watchServer } from "./data/native";
 import { usePathname, useRoute, useRouter } from "./platform/navigation";
 import Link from "./platform/link";
+import { SyncStatus } from "@feito/ui/components/sync-status";
 import { DesktopSettings } from "./settings";
 import { SpaceManager } from "./spaces";
 import { detectTitlebar, Titlebar } from "./titlebar";
@@ -42,6 +44,7 @@ const routes: Record<string, ReactNode> = {
 };
 
 function WorkspaceScreen() {
+  const t = useT();
   const route = useRoute();
   const router = useRouter();
   const status = useSyncExternalStore(desktop.subscribe, desktop.getStatus);
@@ -59,15 +62,15 @@ function WorkspaceScreen() {
   if (id?.[1] === "projetos") page = <ProjectView key={id[2]} projectId={id[2]} sharing={remoteOrigin
     ? { origin: remoteOrigin, openPublicPage: (token) => openPublicProject(remoteOrigin, token) }
     : { unavailable: status.active === "server"
-      ? "Entre novamente no servidor para compartilhar este projeto."
-      : "Conecte-se a um servidor para compartilhar este projeto." }} />;
+      ? t("Entre novamente no servidor para compartilhar este projeto.")
+      : t("Conecte-se a um servidor para compartilhar este projeto.") }} />;
   if (id?.[1] === "etiquetas") {
     let params = labels.get(id[2]);
     if (!params) {
       params = Promise.resolve({ id: id[2] });
       labels.set(id[2], params);
     }
-    page = <Suspense fallback={<Spinner label="Carregando etiqueta" />}><Label key={id[2]} params={params} /></Suspense>;
+    page = <Suspense fallback={<Spinner label={t("Carregando etiqueta")} />}><Label key={id[2]} params={params} /></Suspense>;
   }
 
   useEffect(() => {
@@ -97,9 +100,9 @@ function WorkspaceScreen() {
 
   if (!status.ready) {
     return storageError ? <main id="conteudo" className="desktop-space-start">
-      <p role="alert">Não foi possível abrir os dados do Feito neste computador.</p>
-      <button type="button" className="btn" onClick={initializeWorkspace}>Tentar de novo</button>
-    </main> : <Spinner label="Carregando o Feito" />;
+      <p role="alert">{t("Não foi possível abrir os dados do Feito neste computador.")}</p>
+      <button type="button" className="btn" onClick={initializeWorkspace}>{t("Tentar de novo")}</button>
+    </main> : <Spinner label={t("Carregando o Feito")} />;
   }
   if (status.active === "none") return (
     <main id="conteudo" className="desktop-space-start">
@@ -124,10 +127,7 @@ function WorkspaceScreen() {
             close("task");
           }} />
           {status.active === "server" && (
-            <Link className="desktop-sync-status" data-sync={syncState} href="/ajustes"
-              aria-label={`${syncLabels[syncState]}. Abrir ajustes`}>
-              <span className="desktop-sync-label" aria-hidden="true">{syncLabels[syncState]}</span>
-            </Link>
+            <SyncStatus state={syncState} label={t(syncLabels[syncState])} href="/ajustes" />
           )}
         </>
       )}
@@ -150,18 +150,13 @@ if (titlebar) {
 }
 configureApi({ fetch: desktop.fetch });
 document.addEventListener("contextmenu", (event) => event.preventDefault(), { capture: true });
-document.querySelector<HTMLAnchorElement>(".sr-only")?.addEventListener("click", (event) => {
-  const main = document.getElementById("conteudo");
-  if (!main) return;
-  event.preventDefault();
-  main.tabIndex = -1;
-  main.focus();
-});
+
 function DesktopApp() {
   const pathname = usePathname();
   const router = useRouter();
   return (
     <NavigationProvider pathname={pathname} router={router} Link={Link}>
+      <SkipToContent />
       {titlebar ? (
         <Titlebar platform={titlebar}><AppProviders contextMenus><WorkspaceScreen /></AppProviders></Titlebar>
       ) : <AppProviders contextMenus><WorkspaceScreen /></AppProviders>}

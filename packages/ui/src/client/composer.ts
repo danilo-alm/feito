@@ -57,6 +57,11 @@ export function useFailedDrafts() {
   return useSyncExternalStore(subscribe, () => failed, () => failed);
 }
 
+export function clearComposer() {
+  active = null;
+  dismissFailedDrafts();
+}
+
 export function dismissFailedDrafts() {
   if (!failed.length) return;
   failed = [];

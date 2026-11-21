@@ -23,4 +23,6 @@ FEITO_TEST_TLS=$(mktemp -d)
 
 Em Linux, use `pnpm --filter @feito/web exec playwright install --with-deps --only-shell chromium` para instalar também as dependências do sistema. Com `FEITO_E2E_KEY`, o Playwright serve o build de produção do Next.js em HTTPS, espera `/api/health` e encerra o servidor ao fim da suíte. Para usar um servidor de teste que já esteja rodando em HTTPS, omita `FEITO_E2E_KEY` e aponte a URL e os certificados para ele. O Chromium fixa a chave pública do certificado por `FEITO_E2E_CERT`, e o Node confia no certificado via `NODE_EXTRA_CA_CERTS`.
 
+O teste de atualização offline simula uma nova versão do service worker com `tests/e2e/serve.mjs`. Se esse servidor já estiver rodando quando a suíte começar, use `FEITO_E2E_LOCAL_SERVER=1` para incluir o teste.
+
 O setup global cria contas novas pela camada de administração (`IDENTITY_ADMIN_DATABASE_URL`) e guarda os estados de sessão em `tests/e2e/.auth/`, fora do Git. Cada perfil (desktop e celular) reusa sua própria sessão. O teste de autenticação usa uma conta separada e percorre o login pela interface.

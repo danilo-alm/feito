@@ -1,4 +1,8 @@
 "use client";
+
+import { translate as t } from "../client/locale";
+import { useT } from "./language";
+
 import { forwardRef, useState, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
 import { addDays, dayOfMonth, nextWeek, shortDate, weekend } from "../client/dates";
 import { editKey, openEditor, useEditorOpen } from "../client/editor-store";
@@ -19,8 +23,8 @@ import { MenuButton, Popover, useContextMenu, useIsMobile, type MenuItem } from 
 export type TaskActions = ReturnType<typeof useTaskActions>;
 
 export function priorityAria(task: Pick<TaskItem, "priority" | "title" | "status">) {
-  const level = task.priority < 4 ? `prioridade ${task.priority}` : "sem prioridade";
-  return `${task.status === "completed" ? "Reabrir" : "Concluir"} “${task.title}”, ${level}`;
+  const level = task.priority < 4 ? t("prioridade {0}", [task.priority]) : t("sem prioridade");
+  return `${task.status === "completed" ? t("Reabrir") : t("Concluir")} “${task.title}”, ${level}`;
 }
 
 export function Checkbox({ task, onToggle, disabled }: { task: TaskItem; onToggle: () => void; disabled?: boolean }) {
@@ -69,39 +73,39 @@ export function taskMenu({ task, actions, reference, edit, datePicker, insert, a
   const active = task.status === "active";
   if (active && insert) {
     items.push(
-      { label: "Adicionar tarefa acima", icon: <IconInsertAbove />, onSelect: () => insert("above") },
-      { label: "Adicionar tarefa abaixo", icon: <IconInsertBelow />, onSelect: () => insert("below") },
+      { label: t("Adicionar tarefa acima"), icon: <IconInsertAbove />, onSelect: () => insert("above") },
+      { label: t("Adicionar tarefa abaixo"), icon: <IconInsertBelow />, onSelect: () => insert("below") },
       "separator",
     );
   }
   if (active) {
     const dates = [
-      { label: "Hoje", date: reference, icon: <IconCalendarDay day={dayOfMonth(reference)} />, className: "c-today" },
-      { label: "Amanhã", date: addDays(reference, 1), icon: <IconSun />, className: "c-tomorrow" },
-      { label: "Fim de semana", date: weekend(reference), icon: <IconSofa />, className: "c-weekend" },
-      { label: "Próxima semana", date: nextWeek(reference), icon: <IconNextWeek />, className: "c-week" },
+      { label: t("Hoje"), date: reference, icon: <IconCalendarDay day={dayOfMonth(reference)} />, className: "c-today" },
+      { label: t("Amanhã"), date: addDays(reference, 1), icon: <IconSun />, className: "c-tomorrow" },
+      { label: t("Fim de semana"), date: weekend(reference), icon: <IconSofa />, className: "c-weekend" },
+      { label: t("Próxima semana"), date: nextWeek(reference), icon: <IconNextWeek />, className: "c-week" },
     ];
     items.push(
-      { label: "Editar", icon: <IconEdit />, onSelect: edit },
+      { label: t("Editar"), icon: <IconEdit />, onSelect: edit },
       "separator",
       {
         kind: "choices",
-        label: "Data",
+        label: t("Data"),
         options: [
           ...dates.map((option) => ({
             label: `${option.label} · ${shortDate(option.date)}`, icon: option.icon, className: option.className,
             active: task.dueDate === option.date, onSelect: () => void actions.reschedule(task, option.date),
           })),
           ...(task.dueDate && !task.recurrence
-            ? [{ label: "Sem data", icon: <IconBan />, onSelect: () => void actions.reschedule(task, null) }] : []),
-          { label: "Escolher data…", icon: <IconMore />, popover: datePicker },
+            ? [{ label: t("Sem data"), icon: <IconBan />, onSelect: () => void actions.reschedule(task, null) }] : []),
+          { label: t("Escolher data…"), icon: <IconMore />, popover: datePicker },
         ],
       },
       {
         kind: "choices",
-        label: "Prioridade",
+        label: t("Prioridade"),
         options: ([1, 2, 3, 4] as Priority[]).map((priority) => ({
-          label: PRIORITY_NAMES[priority], icon: <IconFlag />, className: `mflag p${priority}`,
+          label: t(PRIORITY_NAMES[priority]), icon: <IconFlag />, className: `mflag p${priority}`,
           active: task.priority === priority, onSelect: () => void actions.setPriority(task, priority),
         })),
       },
@@ -114,13 +118,13 @@ export function taskMenu({ task, actions, reference, edit, datePicker, insert, a
   if (arrange.length) items.push("separator");
   if (active) {
     items.push(
-      { label: "Mover para…", icon: <IconMove />, onSelect: () => actions.openMove(task) },
-      { label: "Duplicar", icon: <IconCopy />, onSelect: () => void actions.duplicate(task) },
+      { label: t("Mover para…"), icon: <IconMove />, onSelect: () => actions.openMove(task) },
+      { label: t("Duplicar"), icon: <IconCopy />, onSelect: () => void actions.duplicate(task) },
     );
   } else {
-    items.push({ label: "Reabrir", icon: <IconCheck />, onSelect: () => void actions.reopen(task) });
+    items.push({ label: t("Reabrir"), icon: <IconCheck />, onSelect: () => void actions.reopen(task) });
   }
-  items.push("separator", { label: "Excluir…", icon: <IconTrash />, danger: true, onSelect: () => void actions.remove(task) });
+  items.push("separator", { label: t("Excluir…"), icon: <IconTrash />, danger: true, onSelect: () => void actions.remove(task) });
   return items;
 }
 
@@ -147,6 +151,7 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
   task, actions, showOrigin, grip, tag, arrange, onArrange, onKeyArrange, insert, variant = "row",
   depth = task.parentId && !showOrigin ? 1 : 0, showMoreSubtasks, extraClass = "", noMenu, timeOnly, style, onContextMenu, ...rest
 }, ref) {
+  const t = useT();
   const app = useApp();
   const mobile = useIsMobile();
   const temporary = isTemporaryTask(task.id);
@@ -179,18 +184,18 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
         <div ref={setActs} className="t-acts" style={variant === "card" ? { margin: "-4px -6px 0 0" } : undefined}>
           {showShortcuts && (
             <>
-              <button type="button" className="icon-btn desktop-only" aria-label={`Editar “${task.title}”`} data-tooltip="Editar"
+              <button type="button" className="icon-btn desktop-only" aria-label={t("Editar “{0}”", [task.title])} data-tooltip={t("Editar")}
                 onPointerDown={stop} onClick={(event) => { stop(event); edit(); }}>
                 <IconEdit />
               </button>
-              <button type="button" className="icon-btn desktop-only" aria-label={`Agendar “${task.title}”`} data-tooltip="Data"
+              <button type="button" className="icon-btn desktop-only" aria-label={t("Agendar “{0}”", [task.title])} data-tooltip={t("Data")}
                 aria-haspopup="dialog" aria-expanded={dateOpen}
                 onPointerDown={stop} onClick={(event) => { stop(event); setDateOpen((value) => !value); }}>
                 <IconCalendar />
               </button>
             </>
           )}
-          <MenuButton label={`Ações de “${task.title}”`} title={task.title} contextMenu={contextMenu}
+          <MenuButton label={t("Ações de “{0}”", [task.title])} title={task.title} contextMenu={contextMenu}
             items={() => taskMenu({
               task, actions, reference: app.reference, edit, insert, arrange, onArrange,
               datePicker: (close) => (
@@ -201,7 +206,7 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
             <IconMore />
           </MenuButton>
           {showShortcuts && (
-            <Popover anchor={acts} open={dateOpen} onClose={() => setDateOpen(false)} label="Agendar" align="end">
+            <Popover anchor={acts} open={dateOpen} onClose={() => setDateOpen(false)} label={t("Agendar")} align="end">
               <DatePicker value={task.dueDate} reference={app.reference} onClose={() => setDateOpen(false)}
                 allowClear={!task.recurrence} onPick={(date) => void actions.reschedule(task, date)} />
             </Popover>

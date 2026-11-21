@@ -1,4 +1,6 @@
 "use client";
+import { useT } from "./language";
+
 import {
   createContext, useCallback, useContext, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncExternalStore,
   type MouseEventHandler, type ReactNode, type RefObject,
@@ -76,6 +78,7 @@ export function Dialog({
   hideHeader?: boolean;
   width?: number;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -116,7 +119,7 @@ export function Dialog({
         {!view.hideHeader && (
           <div className="dialog-h">
             <h2>{view.title}</h2>
-            <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar (Esc)"><IconX /></button>
+            <button type="button" className="icon-btn" onClick={onClose} aria-label={t("Fechar (Esc)")}><IconX /></button>
           </div>
         )}
         {view.children}
@@ -477,16 +480,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 export const useToast = () => useContext(ToastContext);
 
-export function Spinner({ label = "Carregando" }: { label?: string }) {
-  return <div className="loading" role="status" aria-label={label}><div className="spinner" /></div>;
+export function Spinner({ label }: { label?: string }) {
+  const t = useT();
+  return <div className="loading" role="status" aria-label={label ?? t("Carregando")}><div className="spinner" /></div>;
 }
 
 export function ReadFallback({ error, loading, onRetry }: { error: unknown; loading: boolean; onRetry: () => void }) {
+  const t = useT();
   if (!error) return <Spinner />;
   return (
     <div className="empty">
       <strong role="alert">{errorMessage(error)}</strong>
-      <button type="button" className="btn" disabled={loading} onClick={onRetry}>Tentar de novo</button>
+      <button type="button" className="btn" disabled={loading} onClick={onRetry}>{t("Tentar de novo")}</button>
     </div>
   );
 }

@@ -113,6 +113,59 @@ function readTask(client: ReturnType<typeof createDesktop>, id: string) {
 }
 
 describe("sincronização do desktop", () => {
+  it("edita o endereço e substitui a conexão sem persistir a senha", async () => {
+    const nextOrigin = "https://novo.feito.example";
+    const old = testBridge();
+    const next = testBridge(nextOrigin);
+    const bridge: Bridge = { ...old.bridge, request: (address, method, path, body) =>
+      (address === nextOrigin ? next.bridge : old.bridge).request(address, method, path, body) };
+    const client = createDesktop(bridge, vi.fn());
+    await client.connect(origin, owner.email, "senha anterior");
+    await client.sync();
+    next.setOnline(false);
+    await expect(client.updateConnection(origin, nextOrigin, owner.email, "senha nova")).rejects.toThrow("Sem internet");
+    expect(client.getStatus().servers).toHaveLength(1);
+    expect(client.getStatus().server?.origin).toBe(origin);
+    next.setOnline(true);
+    await client.updateConnection(origin, nextOrigin, owner.email, "senha nova");
+    await client.sync();
+    expect(client.getStatus().servers).toEqual([expect.objectContaining({ origin: nextOrigin, email: owner.email })]);
+    expect(JSON.stringify(await bridge.read())).not.toContain("senha nova");
+    const reopened = createDesktop(bridge, vi.fn());
+    await reopened.initialize();
+    expect(reopened.getStatus().servers).toEqual([expect.objectContaining({ origin: nextOrigin })]);
+  });
+
+  it("edita as credenciais e isola a nova conta sem enviar a fila anterior", async () => {
+    const server = testBridge();
+    const switched = vi.fn();
+    const client = createDesktop(server.bridge, vi.fn(), switched);
+    await client.connect(origin, owner.email, "senha anterior");
+    await client.sync();
+    server.setOnline(false);
+    const queued = await (await createTask(client, "Da conta anterior")).json() as TaskDetail;
+    await client.sync();
+    await expect(client.updateConnection(origin, "https://novo.feito.example", owner.email, "senha nova")).rejects.toThrow("pendentes");
+    server.setOnline(true);
+    await expect(client.updateConnection(origin, origin, alternate.email, "senha nova")).rejects.toThrow("pendentes");
+    expect(client.getStatus().server).toMatchObject({ email: owner.email, pending: 1 });
+    expect(server.attempts).toHaveLength(0);
+    await client.updateConnection(origin, origin, owner.email, "senha nova");
+    await client.sync();
+    expect(server.taskRecord(queued.id)).toBeDefined();
+    // A outra conta tem uma base distinta.
+    const other = testBridge();
+    const request = server.bridge.request;
+    server.bridge.request = (address, method, path, body) =>
+      other.bridge.request(address, method, path, body);
+    await client.updateConnection(origin, origin, alternate.email, "senha nova");
+    await client.sync();
+    expect(client.getStatus().server).toMatchObject({ email: alternate.email, pending: 0 });
+    expect((await readTask(client, queued.id)).status).toBe(404);
+    expect(switched).toHaveBeenCalledTimes(2);
+    server.bridge.request = request;
+  });
+
   it("gerencia o link público na conta vinculada sem gravar no espaço ou na fila", async () => {
     const server = testBridge();
     const { id } = await server.changeServer({ method: "POST", path: "/projects", body: { name: "Viagem" } });
@@ -280,6 +333,46 @@ describe("sincronização do desktop", () => {
     expect(server.loginEmails).toEqual([owner.email]);
     expect(server.receipts.size).toBe(1);
     expect(server.taskCount()).toBe(1);
+  });
+
+  it("reenvia uma conclusão recorrente e mantém a edição dependente na sequência", async () => {
+    const server = testBridge();
+    const client = createDesktop(server.bridge, vi.fn());
+    await client.connect(origin, owner.email, "senha de teste");
+    await client.sync();
+    const task = await server.changeServer({
+      method: "POST", path: "/tasks", body: {
+        title: "Regar plantas", recurrence: { frequency: "daily" }, dueDate: "2026-11-12",
+      },
+    });
+    await client.sync();
+    server.setOnline(false);
+    const response = await client.fetch(`/api/v1/tasks/${task.id}/complete`, {
+      method: "POST", body: JSON.stringify({ revision: task.revision, occurrenceId: task.occurrenceId }),
+    });
+    expect(response.status).toBe(200);
+    const advanced = await (await readTask(client, task.id)).json() as TaskDetail;
+    expect(advanced.occurrenceId).not.toBe(task.occurrenceId);
+    const edit = await client.fetch(`/api/v1/tasks/${task.id}`, {
+      method: "PATCH", body: JSON.stringify({ revision: advanced.revision, title: "Regar as plantas" }),
+    });
+    expect(edit.status).toBe(200);
+    await client.sync();
+
+    server.setOnline(true);
+    server.loseResponse();
+    await client.sync();
+    expect(client.getStatus().server?.pending).toBe(2);
+    expect(server.taskRecord(task.id)?.occurrenceId).toBe(advanced.occurrenceId);
+    await client.sync();
+    expect(client.getStatus()).toMatchObject({ sync: "current", server: { pending: 0 } });
+    expect(server.attempts[0]).toEqual(server.attempts[1]);
+    expect(server.attempts.map(({ method }) => method)).toEqual(["POST", "POST", "PATCH"]);
+    expect(server.receipts.size).toBe(2);
+    expect(server.taskCount()).toBe(1);
+    expect(server.taskRecord(task.id)).toMatchObject({
+      occurrenceId: advanced.occurrenceId, data: { dueDate: advanced.dueDate, title: "Regar as plantas" },
+    });
   });
 
   it("aplica edições e exclusões incrementais sem descartar a tarefa pendente", async () => {
@@ -454,4 +547,25 @@ describe("sincronização do desktop", () => {
     expect(client.getStatus()).toMatchObject({ sync: "current", server: { pending: 0 } });
     expect(server.taskCount()).toBe(1);
   });
+});
+
+it("mantém o idioma na reabertura offline e o envia com a fila do espaço remoto", async () => {
+  const server = testBridge();
+  const client = createDesktop(server.bridge, vi.fn());
+  await client.connect(origin, owner.email, "senha sintética");
+  await client.sync();
+  server.setOnline(false);
+  const response = await client.fetch("/api/v1/preferences", { method: "PATCH", body: JSON.stringify({ locale: "en" }) });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ locale: "en" });
+  const reopened = createDesktop(server.bridge, vi.fn());
+  await reopened.initialize();
+  const me = await (await reopened.fetch("/api/v1/me", { method: "GET" })).json() as Me;
+  expect(me.preferences.locale).toBe("en");
+  server.setOnline(true);
+  await reopened.sync();
+  expect(reopened.getStatus().server?.pending).toBe(0);
+  expect(server.attempts).toContainEqual(expect.objectContaining({ path: "/preferences", body: { locale: "en" } }));
+  const saved = await server.bridge.read();
+  expect(saved?.value.server?.confirmed?.preferences.locale).toBe("en");
 });

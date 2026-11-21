@@ -1,4 +1,6 @@
 "use client";
+import { useT } from "./language";
+
 import { useId, useRef, useState, type ReactNode, type SVGProps } from "react";
 import { projectStyle, tagColor } from "../client/colors";
 import type { ProjectColor, ProjectIcon } from "@feito/core/validation/project-style";
@@ -102,19 +104,20 @@ export function ProjectStyleFields({ projectId, color, icon, disabled, onColor, 
   projectId?: string; color: ProjectColor | null; icon: ProjectIcon; disabled?: boolean;
   onColor: (color: ProjectColor | null) => void; onIcon: (icon: ProjectIcon) => void;
 }) {
+  const t = useT();
   const id = useId();
   const [open, setOpen] = useState<"color" | "icon" | null>(null);
   const colorRef = useRef<HTMLButtonElement>(null);
   const iconRef = useRef<HTMLButtonElement>(null);
   const auto = projectId ? tagColor(projectId) : "var(--faint)";
   const current = color ? colorValue(color) : auto;
-  const colorName = color ? COLOR_OPTIONS.find((option) => option.value === color)?.label : "Automática";
+  const colorName = color ? COLOR_OPTIONS.find((option) => option.value === color)?.label : t("Automática");
   const close = () => setOpen(null);
 
   return (
     <div className="ps-fields">
       <div className="ps-field">
-        <span className="lbl" id={`${id}-color`}>Cor</span>
+        <span className="lbl" id={`${id}-color`}>{t("Cor")}</span>
         <button ref={colorRef} type="button" className="inline-input ps-select" disabled={disabled}
           aria-haspopup="listbox" aria-expanded={open === "color"} aria-labelledby={`${id}-color ${id}-color-value`}
           onClick={() => setOpen(open === "color" ? null : "color")}>
@@ -124,19 +127,19 @@ export function ProjectStyleFields({ projectId, color, icon, disabled, onColor, 
         </button>
       </div>
       <div className="ps-field">
-        <span className="lbl" id={`${id}-icon`}>Ícone</span>
+        <span className="lbl" id={`${id}-icon`}>{t("Ícone")}</span>
         <button ref={iconRef} type="button" className="inline-input ps-select ps-icon-btn" disabled={disabled}
           aria-haspopup="listbox" aria-expanded={open === "icon"} aria-labelledby={`${id}-icon ${id}-icon-value`}
           onClick={() => setOpen(open === "icon" ? null : "icon")}>
           <Glyph icon={icon} style={{ color: current }} />
-          <span id={`${id}-icon-value`} className="ps-value">{ICON_PATHS[icon].label}</span>
+          <span id={`${id}-icon-value`} className="ps-value">{t(ICON_PATHS[icon].label)}</span>
           <IconChevronDown className="sm" />
         </button>
       </div>
 
-      <Popover anchor={colorRef.current} open={open === "color"} onClose={close} label="Cor do projeto" role="listbox" width={260}>
+      <Popover anchor={colorRef.current} open={open === "color"} onClose={close} label={t("Cor do projeto")} role="listbox" width={260}>
         <div className="ps-list" role="presentation">
-          {[{ value: null, label: "Automática" } as { value: ProjectColor | null; label: string }, ...COLOR_OPTIONS].map((option) => {
+          {[{ value: null, label: t("Automática") } as { value: ProjectColor | null; label: string }, ...COLOR_OPTIONS].map((option) => {
             const selected = option.value === color;
             return (
               <button key={option.value ?? "auto"} type="button" role="option" aria-selected={selected}
@@ -144,20 +147,20 @@ export function ProjectStyleFields({ projectId, color, icon, disabled, onColor, 
                 onClick={() => { onColor(option.value); close(); }}>
                 <span className="ps-check">{selected && <IconCheck />}</span>
                 <span className={`ps-dot${option.value ? "" : " auto"}`} style={{ background: option.value ? colorValue(option.value) : undefined }} />
-                <span>{option.label}</span>
+                <span>{t(option.label)}</span>
               </button>
             );
           })}
         </div>
       </Popover>
 
-      <Popover anchor={iconRef.current} open={open === "icon"} onClose={close} label="Ícone do projeto" role="listbox" width={316} align="end">
+      <Popover anchor={iconRef.current} open={open === "icon"} onClose={close} label={t("Ícone do projeto")} role="listbox" width={316} align="end">
         <div className="ps-grid" role="presentation">
           {ICON_OPTIONS.map((option) => {
             const selected = option.value === icon;
             return (
-              <button key={option.value} type="button" role="option" aria-selected={selected} aria-label={option.label}
-                data-tooltip={option.label} className={`ps-glyph${selected ? " on" : ""}`} data-autofocus={selected || undefined}
+              <button key={option.value} type="button" role="option" aria-selected={selected} aria-label={t(option.label)}
+                data-tooltip={t(option.label)} className={`ps-glyph${selected ? " on" : ""}`} data-autofocus={selected || undefined}
                 onClick={() => { onIcon(option.value); close(); }}>
                 <Glyph icon={option.value} style={{ color: current }} />
               </button>

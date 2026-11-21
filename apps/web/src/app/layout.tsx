@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Inter_Tight } from "next/font/google";
 import type { ReactNode } from "react";
-import { AppProviders } from "@feito/ui/components/app";
-import { WebNavigation } from "@/components/platform-navigation";
+import { LanguageProvider, SkipToContent } from "@feito/ui/components/language";
+import { OfflineRegistration } from "@/components/offline-status";
 import "@feito/ui/globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -24,18 +24,16 @@ export const viewport: Viewport = {
   ],
 };
 
-// Aplica o tema salvo antes da primeira pintura para evitar o piscar entre claro e escuro.
-const themeScript = `(function(){try{var t=localStorage.getItem("feito:theme")||"system";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);if(d)document.documentElement.classList.add("dark")}catch(e){}})()`;
+const systemTheme = `if(matchMedia("(prefers-color-scheme: dark)").matches)document.documentElement.classList.add("dark")`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" className={`${inter.variable} ${interTight.variable}`} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-      </head>
+      <head><script dangerouslySetInnerHTML={{ __html: systemTheme }} /></head>
       <body>
-        <a href="#conteudo" className="sr-only">Pular para o conteúdo</a>
-        <WebNavigation><AppProviders>{children}</AppProviders></WebNavigation>
+        <LanguageProvider><SkipToContent /></LanguageProvider>
+        <OfflineRegistration />
+        {children}
       </body>
     </html>
   );

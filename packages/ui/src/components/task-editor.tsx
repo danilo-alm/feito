@@ -1,4 +1,6 @@
 "use client";
+import { useT } from "./language";
+
 // Editor rápido de tarefa: o mesmo formulário serve à edição em linha (no lugar da tarefa), à criação em linha
 // (no lugar de "Adicionar tarefa") e ao diálogo de adicionar (Q, botão da barra lateral e celular).
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
@@ -7,16 +9,17 @@ import { composerText, recoverDraft, registerComposer, type DraftText } from "..
 import { tagColor } from "../client/colors";
 import { dateLabel, dayOfMonth, dueTone } from "../client/dates";
 import { closeEditor, currentEditor, editKey, insertKey, openEditor, useEditorOpen, type InsertDefaults } from "../client/editor-store";
-import { getQueryData, useQuery } from "../client/store";
+import { cacheScope, getQueryData, useQuery } from "../client/store";
 import { createTask, editTask, type MutationContext } from "../client/task-mutations";
 import type { EditTask, Frequency, Label, Priority, ProjectPage, TaskDetail, TaskItem } from "@feito/core/types";
 import { useApp } from "./app";
 import {
   DueIcon, IconCalendar, IconCheck, IconChevronDown, IconClock, IconFlag, IconInbox, IconPlus, IconRepeat, IconSub, IconTag, IconX,
 } from "./icons";
+import { TaskDescription } from "./task-description";
 import { ProjectGlyph } from "./project-style";
 import { DatePicker, DestinationPicker, FREQUENCIES, LabelPicker, PriorityMenu, RepeatMenu, TimePicker, destinationLabel } from "./pickers";
-import { MenuList, Popover, useAutoGrow, useIsMobile, type MenuItem } from "./ui";
+import { MenuList, Popover, useIsMobile, type MenuItem } from "./ui";
 
 export type TaskDraft = {
   title: string;
@@ -113,6 +116,7 @@ export function TaskEditor({
   flipKey?: string;
   hint?: ReactNode;
 }) {
+  const t = useT();
   const app = useApp();
   const id = useId();
   const [draft, setDraft] = useState(initial);
@@ -122,7 +126,6 @@ export function TaskEditor({
   const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
   const ownTitle = useRef<HTMLInputElement>(null);
   const title = titleRef ?? ownTitle;
-  const descRef = useAutoGrow(draft.description);
   const descTouched = useRef(false);
   const loadingDescription = lateDescription === null;
   const inline = variant === "inline";
@@ -160,13 +163,14 @@ export function TaskEditor({
     if (!text || busy) return;
     if (resetOnSubmit) {
       // Otimista: o campo fica livre para a próxima tarefa e o texto enviado só volta se a gravação falhar.
+      const scope = cacheScope();
       const sent: DraftText = { title: draft.title, description: draft.description };
       descTouched.current = false;
       latest.current = { ...latest.current, title: "", description: "" };
       set({ title: "", description: "" });
       title.current?.focus();
       const ok = await onSubmit({ ...draft, title: text }).catch(() => false);
-      if (!ok) recoverDraft(sent);
+      if (!ok && scope === cacheScope()) recoverDraft(sent);
       return;
     }
     setBusy(true);
@@ -192,31 +196,31 @@ export function TaskEditor({
 
   const hasDate = !!draft.dueDate || !!draft.frequency;
   const moreItems: MenuItem[] = [
-    ...(hasDate ? [{ label: draft.dueTime ? `Horário · ${draft.dueTime}` : "Horário", icon: <IconClock />, onSelect: () => setPop("time") }] : []),
-    ...(canRepeat ? [{ label: "Repetir", icon: <IconRepeat />, onSelect: () => setPop("repeat") }] : []),
-    { label: "Etiquetas", icon: <IconTag />, onSelect: () => setPop("labels") },
+    ...(hasDate ? [{ label: draft.dueTime ? t("Horário · {0}", [draft.dueTime]) : t("Horário"), icon: <IconClock />, onSelect: () => setPop("time") }] : []),
+    ...(canRepeat ? [{ label: t("Repetir"), icon: <IconRepeat />, onSelect: () => setPop("repeat") }] : []),
+    { label: t("Etiquetas"), icon: <IconTag />, onSelect: () => setPop("labels") },
   ];
   const destination = (
     chip("dest", <>
       {draft.projectId === inboxId ? <IconInbox /> : <ProjectGlyph id={draft.projectId} className="te-hash" />}
       <span className="te-dest">{destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))}</span>
       <IconChevronDown className="sm" />
-    </>, false, "Projeto")
+    </>, false, t("Projeto"))
   );
 
   const chips = (
     <div className="chips">
-      {chip("more", <IconPlus />, false, "Mais opções", "te-plus")}
+      {chip("more", <IconPlus />, false, t("Mais opções"), "te-plus")}
       {chip("date", <>{draft.dueDate
         ? <DueIcon tone={dueTone(draft.dueDate, app.reference)} day={dayOfMonth(draft.dueDate)} />
-        : <IconCalendar />}{draft.dueDate ? dateLabel(draft.dueDate, app.reference) : "Data"}</>, !!draft.dueDate, "Data",
+        : <IconCalendar />}{draft.dueDate ? dateLabel(draft.dueDate, app.reference) : t("Data")}</>, !!draft.dueDate, t("Data"),
         draft.dueDate ? `tone-${dueTone(draft.dueDate, app.reference)}` : "")}
-      {hasDate && draft.dueTime && chip("time", <><IconClock />{draft.dueTime}</>, true, "Horário")}
-      {draft.frequency && chip("repeat", <><IconRepeat />{FREQUENCIES.find((option) => option.value === draft.frequency)?.label.split(",")[0]}</>, true, "Repetir")}
-      {chip("priority", <><IconFlag style={{ color: "var(--pc)" }} />{draft.priority < 4 ? `P${draft.priority}` : "Prioridade"}</>,
-        draft.priority < 4, "Prioridade", `p${draft.priority}`)}
+      {hasDate && draft.dueTime && chip("time", <><IconClock />{draft.dueTime}</>, true, t("Horário"))}
+      {draft.frequency && chip("repeat", <><IconRepeat />{t(FREQUENCIES.find((option) => option.value === draft.frequency)?.label ?? "").split(",")[0]}</>, true, t("Repetir"))}
+      {chip("priority", <><IconFlag style={{ color: "var(--pc)" }} />{draft.priority < 4 ? `P${draft.priority}` : t("Prioridade")}</>,
+        draft.priority < 4, t("Prioridade"), `p${draft.priority}`)}
       {draft.labelIds.length > 0 && chip("labels", <><IconTag style={{ color: tagColor(draft.labelIds[0]) }} />
-        {draft.labelIds.map((labelId) => labels.find((label) => label.id === labelId)?.name ?? "etiqueta").join(", ")}</>, true, "Etiquetas")}
+        {draft.labelIds.map((labelId) => labels.find((label) => label.id === labelId)?.name ?? t("Etiqueta")).join(", ")}</>, true, t("Etiquetas"))}
       {inline && !lockDestination && destination}
     </div>
   );
@@ -230,14 +234,13 @@ export function TaskEditor({
           onCancel();
         }
       }}>
-      {parentTitle && <div className="crumb"><IconSub className="sm" />Subtarefa de {parentTitle}</div>}
-      <label htmlFor={`${id}-title`} className="sr-only">Título da tarefa</label>
-      <input id={`${id}-title`} ref={title} className={inline ? "te-title" : "qa-title"} placeholder="Nome da tarefa" value={draft.title}
+      {parentTitle && <div className="crumb"><IconSub className="sm" />{t("Subtarefa de")}{" "}{parentTitle}</div>}
+      <label htmlFor={`${id}-title`} className="sr-only">{t("Título da tarefa")}</label>
+      <input id={`${id}-title`} ref={title} className={inline ? "te-title" : "qa-title"} placeholder={t("Nome da tarefa")} value={draft.title}
         maxLength={500} autoComplete="off" onChange={(event) => set({ title: event.target.value })} />
-      <label htmlFor={`${id}-desc`} className="sr-only">Descrição</label>
-      <textarea id={`${id}-desc`} ref={descRef} className={inline ? "te-desc" : "qa-desc"} rows={1} maxLength={10_000}
-        placeholder={loadingDescription ? "Carregando descrição…" : "Descrição"} readOnly={loadingDescription} value={draft.description}
-        onChange={(event) => { descTouched.current = true; set({ description: event.target.value }); }}
+      <TaskDescription id={`${id}-desc`} className={inline ? "te-desc" : "qa-desc"} rows={1} maxLength={10_000}
+        placeholder={loadingDescription ? t("Carregando descrição…") : t("Descrição")} readOnly={loadingDescription} value={draft.description}
+        onValueChange={(description) => { descTouched.current = true; set({ description }); }}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
@@ -248,7 +251,7 @@ export function TaskEditor({
         <div className="te-bar">
           {chips}
           <span className="te-actions">
-            <button type="button" className="icon-btn" onClick={onCancel} aria-label="Cancelar (Esc)" data-tooltip="Cancelar (Esc)"><IconX /></button>
+            <button type="button" className="icon-btn" onClick={onCancel} aria-label={t("Cancelar (Esc)")} data-tooltip={t("Cancelar (Esc)")}><IconX /></button>
             <button type="submit" className="te-ok" disabled={!draft.title.trim() || busy} aria-label={submitLabel} data-tooltip={`${submitLabel} (Enter)`}>
               <IconCheck />
             </button>
@@ -261,35 +264,35 @@ export function TaskEditor({
             {!lockDestination && destination}
             {hint}
             <span style={{ flex: 1 }} />
-            <button type="button" className="btn ghost" onClick={onCancel}>Cancelar</button>
+            <button type="button" className="btn ghost" onClick={onCancel}>{t("Cancelar")}</button>
             <button type="submit" className="btn primary" disabled={!draft.title.trim() || busy}>{submitLabel}</button>
           </div>
         </>
       )}
 
-      <Popover anchor={anchors.current.more ?? null} open={pop === "more"} onClose={closePop} label="Mais opções" role="menu">
+      <Popover anchor={anchors.current.more ?? null} open={pop === "more"} onClose={closePop} label={t("Mais opções")} role="menu">
         <MenuList items={moreItems} onClose={closePop} />
       </Popover>
-      <Popover anchor={anchors.current.date ?? null} open={pop === "date"} onClose={closePop} label="Data">
+      <Popover anchor={anchors.current.date ?? null} open={pop === "date"} onClose={closePop} label={t("Data")}>
         <DatePicker value={draft.dueDate} reference={app.reference} onClose={closePop} allowClear={!draft.frequency}
           onPick={(date) => set(date ? { dueDate: date } : { dueDate: null, dueTime: null })} />
       </Popover>
-      <Popover anchor={anchorOf("time")} open={pop === "time"} onClose={closePop} label="Horário">
+      <Popover anchor={anchorOf("time")} open={pop === "time"} onClose={closePop} label={t("Horário")}>
         <TimePicker value={draft.dueTime} onPick={(time) => { set({ dueTime: time }); closePop(); }} />
       </Popover>
-      <Popover anchor={anchorOf("repeat")} open={pop === "repeat"} onClose={closePop} label="Repetir">
+      <Popover anchor={anchorOf("repeat")} open={pop === "repeat"} onClose={closePop} label={t("Repetir")}>
         <RepeatMenu value={draft.frequency} onPick={(value) => {
           set(value && !draft.dueDate ? { frequency: value, dueDate: app.reference } : { frequency: value });
           closePop();
         }} />
       </Popover>
-      <Popover anchor={anchors.current.priority ?? null} open={pop === "priority"} onClose={closePop} label="Prioridade">
+      <Popover anchor={anchors.current.priority ?? null} open={pop === "priority"} onClose={closePop} label={t("Prioridade")}>
         <PriorityMenu value={draft.priority} onPick={(value) => { set({ priority: value }); closePop(); }} />
       </Popover>
-      <Popover anchor={anchorOf("labels")} open={pop === "labels"} onClose={closePop} label="Etiquetas">
+      <Popover anchor={anchorOf("labels")} open={pop === "labels"} onClose={closePop} label={t("Etiquetas")}>
         <LabelPicker selected={draft.labelIds} onChange={(update) => setDraft((current) => ({ ...current, labelIds: update(current.labelIds) }))} />
       </Popover>
-      <Popover anchor={anchors.current.dest ?? null} open={pop === "dest"} onClose={closePop} label="Projeto">
+      <Popover anchor={anchors.current.dest ?? null} open={pop === "dest"} onClose={closePop} label={t("Projeto")}>
         <DestinationPicker projectId={draft.projectId} sectionId={draft.sectionId}
           onPick={(projectId, sectionId) => { set({ projectId, sectionId }); closePop(); }} />
       </Popover>
@@ -299,6 +302,7 @@ export function TaskEditor({
 
 /** Edição em linha, no lugar da tarefa. */
 export function InlineEdit({ task }: { task: TaskItem }) {
+  const t = useT();
   const app = useApp();
   const key = editKey(task);
   const detail = useQuery<TaskDetail>(`task:${task.id}`, () => api.tasks.get(task.id));
@@ -312,11 +316,11 @@ export function InlineEdit({ task }: { task: TaskItem }) {
       lateDescription={loaded ? loaded.description : null}
       lockDestination={!!task.parentId}
       canRepeat={!task.parentId && task.subtasks.total === 0}
-      submitLabel="Salvar"
+      submitLabel={t("Salvar")}
       onCancel={() => closeEditor(key)}
       onSubmit={async (draft) => {
         const saving = app.run(() => saveEdits(task, initial, draft, loaded?.description, app.taskContext), {
-          success: (value) => (value === "saved" ? "Tarefa atualizada" : ""),
+          success: (value) => (value === "saved" ? t("Tarefa atualizada") : ""),
         });
         closeEditor(key);
         return !!await saving;
@@ -331,8 +335,13 @@ export function InlineEdit({ task }: { task: TaskItem }) {
  */
 const belowChains = new Map<string, { tail: Promise<string | undefined>; pending: number }>();
 
+export function clearInlineCreateQueues() {
+  belowChains.clear();
+}
+
 /** Criação em linha, no lugar de "Adicionar tarefa" ou acima/abaixo de uma tarefa. Fica aberta para a próxima. */
 export function InlineCreate({ slot, defaults }: { slot: string; defaults: InsertDefaults }) {
+  const t = useT();
   const app = useApp();
   const inboxId = app.nav?.inbox.projectId ?? app.me.inboxProjectId;
   const [initial] = useState(() => {
@@ -348,7 +357,7 @@ export function InlineCreate({ slot, defaults }: { slot: string; defaults: Inser
       initial={initial}
       lockDestination={!!parentId}
       canRepeat={!parentId}
-      submitLabel="Adicionar tarefa"
+      submitLabel={t("Adicionar tarefa")}
       resetOnSubmit
       onCancel={() => closeEditor(slot)}
       onSubmit={async (draft) => {
@@ -357,7 +366,7 @@ export function InlineCreate({ slot, defaults }: { slot: string; defaults: Inser
           parentId, ...(samePlace ? { beforeId: defaults.beforeId, afterId } : {}),
         }, app.taskContext), {
           // Fora do lugar onde o editor está, a tarefa não aparece aqui: o aviso diz para onde foi.
-          success: samePlace ? undefined : `Tarefa adicionada em ${destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))}`,
+          success: samePlace ? undefined : t("Tarefa adicionada em {0}", [destinationLabel(app, draft.projectId, sectionNameOf(draft.projectId, draft.sectionId))]),
         });
         if (!samePlace || !defaults.afterId) return !!await create();
 
@@ -365,15 +374,18 @@ export function InlineCreate({ slot, defaults }: { slot: string; defaults: Inser
         const chain = belowChains.get(slot) ?? { tail: Promise.resolve(defaults.afterId), pending: 0 };
         belowChains.set(slot, chain);
         chain.pending += 1;
-        const attempt = chain.tail.then(async (afterId) => ({ afterId, created: await create(afterId) }));
+        const scope = cacheScope();
+        const attempt = chain.tail.then(async (afterId) => ({
+          afterId, created: scope === cacheScope() ? await create(afterId) : undefined,
+        }));
         chain.tail = attempt.then(({ afterId, created }) => created?.id ?? afterId);
         const { created } = await attempt;
         chain.pending -= 1;
         if (chain.pending) return !!created;
-        belowChains.delete(slot);
+        if (belowChains.get(slot) === chain) belowChains.delete(slot);
         // Fim da sequência: o editor desce para depois da última tarefa criada, com o texto que já estiver nele.
         const target = currentEditor();
-        if (created && target?.key === slot) {
+        if (scope === cacheScope() && created && target?.key === slot) {
           openEditor({
             kind: "create", key: insertKey("below", created.id), defaults: { ...defaults, afterId: created.id },
             text: composerText() ?? undefined,

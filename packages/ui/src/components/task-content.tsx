@@ -1,8 +1,13 @@
 "use client";
+import { TaskDescriptionExcerpt } from "./task-markdown";
+
+import { useT } from "./language";
+
 import { useCallback, useState, type ReactNode } from "react";
 import { api } from "../client/api";
 import { tagColor } from "../client/colors";
 import { completedLabel, dayOfMonth, dueLabel, dueTone, FREQUENCY_LABEL } from "../client/dates";
+import { inSentence } from "../client/locale";
 import { editTask, isTemporaryTask } from "../client/task-mutations";
 import { useQuery } from "../client/store";
 import type { TaskDetail, TaskItem } from "@feito/core/types";
@@ -25,6 +30,7 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
   task: TaskItem; actions: Actions; showOrigin?: boolean; timeOnly?: boolean; preview?: boolean; showDescription?: boolean;
   showMoreSubtasks?: boolean; onOpen?: (id: string) => void;
 }) {
+  const t = useT();
   const app = useApp();
   const temporary = isTemporaryTask(task.id);
   const desktop = useMediaQuery("(min-width: 900px) and (any-pointer: fine)") && !preview && !temporary;
@@ -34,7 +40,7 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
   const editable = desktop && active;
   const { parentId, origin } = task;
   const destination = showOrigin && origin
-    ? (origin.isInbox ? "Caixa de entrada" : [origin.projectName, origin.sectionName].filter(Boolean).join(" / "))
+    ? (origin.isInbox ? t("Caixa de entrada") : [origin.projectName, origin.sectionName].filter(Boolean).join(" / "))
     : null;
 
   const item = (key: string, content: ReactNode, options: {
@@ -70,32 +76,32 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
       {task.status === "completed" && task.completedAt
         ? item("done", completedLabel(task.completedAt, app.reference, app.timezone))
         : due && item("due", <>{onlyTime && editable ? <IconClock /> : <DueIcon tone={tone} day={dayOfMonth(task.dueDate ?? app.reference)} />}{due}
-          {task.overdue && <span className="sr-only"> (atrasada)</span>}</>, {
+          {task.overdue && <span className="sr-only"> {" "}{t("(atrasada)")}</span>}</>, {
           className: dateClass,
           field: editable ? (onlyTime ? "time" : "date") : undefined,
-          label: editable ? `${onlyTime ? "Horário" : "Data"}: ${due}${task.overdue ? " (atrasada)" : ""}` : undefined,
+          label: editable ? `${onlyTime ? t("Horário") : t("Data")}: ${due}${task.overdue ? t(" (atrasada)") : ""}` : undefined,
         })}
       {editable && !onlyTime && task.dueDate && task.dueTime && item("time", <><IconClock />{task.dueTime}</>, {
-        className: dateClass, field: "time", label: `Horário: ${task.dueTime}`,
+        className: dateClass, field: "time", label: t("Horário: {0}", [task.dueTime]),
       })}
-      {task.recurrence && item("repeat", <><IconRepeat className="ic-repeat" />{FREQUENCY_LABEL[task.recurrence.frequency]}</>, {
-        field: editable ? "repeat" : undefined, label: `Repetir: ${FREQUENCY_LABEL[task.recurrence.frequency]}`,
+      {task.recurrence && item("repeat", <><IconRepeat className="ic-repeat" />{t(FREQUENCY_LABEL[task.recurrence.frequency])}</>, {
+        field: editable ? "repeat" : undefined, label: t("Repetir: {0}", [t(FREQUENCY_LABEL[task.recurrence.frequency])]),
       })}
-      {parentId && origin?.parentTitle && item("parent", <><IconSub />em {origin.parentTitle}</>, {
-        label: desktop ? `Tarefa-pai: ${origin.parentTitle}` : undefined,
+      {parentId && origin?.parentTitle && item("parent", <><IconSub />{t("em")}{" "}{origin.parentTitle}</>, {
+        label: desktop ? t("Tarefa-pai: {0}", [origin.parentTitle]) : undefined,
         action: () => app.openTask(parentId),
       })}
-      {task.subtasks.total > 0 && (showMoreSubtasks ? item("subtasks", <><IconSub />Ver subtarefas</>, {
+      {task.subtasks.total > 0 && (showMoreSubtasks ? item("subtasks", <><IconSub />{t("Ver subtarefas")}</>, {
         className: "m-task-details", action: () => app.openTask(task.id),
       }) : item("subtasks", <><IconSub />{task.subtasks.completed}/{task.subtasks.total}</>, {
-        field: "subtasks", label: `${task.subtasks.completed} de ${task.subtasks.total} subtarefas concluídas`,
+        field: "subtasks", label: t("{0} de {1} subtarefas concluídas", [task.subtasks.completed, task.subtasks.total]),
       }))}
       {task.priority < 4 && item("priority", <><IconFlag />P{task.priority}</>, {
         className: "m-prio", field: editable ? "priority" : undefined,
-        label: editable ? PRIORITY_NAMES[task.priority] : undefined,
+        label: editable ? t(PRIORITY_NAMES[task.priority]) : undefined,
       })}
       {task.labels.map((label) => item(`label:${label.id}`, <><IconTag style={{ color: tagColor(label.id) }} />{label.name}</>, {
-        field: editable ? "labels" : undefined, label: editable ? `Etiqueta: ${label.name}` : undefined,
+        field: editable ? "labels" : undefined, label: editable ? t("Etiqueta: {0}", [label.name]) : undefined,
       }))}
     </span>
   );
@@ -110,7 +116,7 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
   </>;
   const originLabel = (originContent || undefined) && (editable
     ? <button type="button" className="t-origin" data-tooltip={destination ?? undefined}
-      aria-label={`Mover para… (atual: ${destination})`}
+      aria-label={t("Mover para… (atual: {0})", [destination])}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => { event.stopPropagation(); actions.openMove(task); }}>
       {originContent}
@@ -125,20 +131,20 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
         <div className="t-line">
           <button type="button" className="t-click" disabled={temporary} onClick={() => (onOpen ?? app.openTask)(task.id)}>
             {title}
-            {excerpt && <span className="t-desc">{excerpt}</span>}
+            {excerpt && <TaskDescriptionExcerpt>{excerpt}</TaskDescriptionExcerpt>}
           </button>
           {originLabel}
         </div>
       ) : (
         <button type="button" className="t-click" disabled={temporary} onClick={() => (onOpen ?? app.openTask)(task.id)}>
           {originLabel ? <span className="t-line">{title}{originLabel}</span> : title}
-          {excerpt && <span className="t-desc">{excerpt}</span>}
+          {excerpt && <TaskDescriptionExcerpt>{excerpt}</TaskDescriptionExcerpt>}
           {meta}
         </button>
       )}
       {desktop && meta}
       <Popover anchor={openField?.anchor ?? null} open={desktop && !!openField} onClose={close}
-        label={openField ? FIELD_LABELS[openField.field] : ""}>
+        label={openField ? t(FIELD_LABELS[openField.field]) : ""}>
         {openField && (
           <div onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
             <TaskFieldPicker key={openField.field} field={openField.field} task={task} actions={actions} close={close} />
@@ -152,6 +158,7 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
 function TaskFieldPicker({ field, task, actions, close }: {
   field: Field; task: TaskItem; actions: Actions; close: () => void;
 }) {
+  const t = useT();
   const app = useApp();
   switch (field) {
     case "date":
@@ -168,7 +175,7 @@ function TaskFieldPicker({ field, task, actions, close }: {
         void app.run(() => editTask(app.taskContext, task, {
           recurrence: frequency ? { frequency, anchorDate: task.dueDate ?? app.reference, time: task.dueTime } : null,
         }),
-        { success: frequency ? `Repete: ${FREQUENCY_LABEL[frequency].toLowerCase()}` : "Repetição removida" });
+        { success: frequency ? t("Repete: {0}", [inSentence(t(FREQUENCY_LABEL[frequency]))]) : t("Repetição removida") });
       }} />;
     case "labels":
       return <TaskLabels task={task} onSave={async (labelIds, revision) => {
@@ -182,6 +189,7 @@ function TaskFieldPicker({ field, task, actions, close }: {
 function TaskLabels({ task, onSave }: {
   task: TaskItem; onSave: (ids: string[], revision: number) => Promise<void>;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState(() => ({ ids: task.labels.map((label) => label.id), revision: task.revision }));
   const [saving, setSaving] = useState(false);
   return (
@@ -190,26 +198,27 @@ function TaskLabels({ task, onSave }: {
       <button type="button" className="btn primary" onClick={async () => {
         setSaving(true);
         try { await onSave(draft.ids, draft.revision); } finally { setSaving(false); }
-      }}>Salvar</button>
+      }}>{t("Salvar")}</button>
     </fieldset>
   );
 }
 
 function TaskSubtasks({ taskId, close }: { taskId: string; close: () => void }) {
+  const t = useT();
   const app = useApp();
   const query = useQuery<TaskDetail>(`task:${taskId}`, () => api.tasks.get(taskId));
   const task = query.data;
-  if (!task) return query.error ? <p className="hint task-field">Não foi possível carregar a tarefa.</p> : <Spinner />;
+  if (!task) return query.error ? <p className="hint task-field">{t("Não foi possível carregar a tarefa.")}</p> : <Spinner />;
 
   return (
     <div className="menu">
       {task.children.map((child) => (
         <button type="button" key={child.id} className="mi" onClick={() => { close(); app.openTask(child.id); }}>
-          {child.status === "completed" && <><IconCheck /><span className="sr-only">Concluída: </span></>}
+          {child.status === "completed" && <><IconCheck /><span className="sr-only">{t("Concluída:")}{" "}</span></>}
           <span>{child.title}</span>
         </button>
       ))}
-      {!task.children.length && <p className="hint task-field">Nenhuma subtarefa.</p>}
+      {!task.children.length && <p className="hint task-field">{t("Nenhuma subtarefa.")}</p>}
     </div>
   );
 }

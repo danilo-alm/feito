@@ -118,19 +118,28 @@ app=$(hex) auth=$(hex) migrator=$(hex) identity_admin=$(hex)
 umask 077
 mkdir -p "$(dirname "$file")"
 cat > "$file" <<EOF
+# Aplicação e HTTPS
 FEITO_ORIGIN=$origin
 FEITO_HTTPS_PORT=$https_port
+FEITO_PRODUCT_CACHE_MODE=single-process
+
+# Segredos da aplicação
 BETTER_AUTH_SECRET=$(hex)
 IMPORT_PREVIEW_SECRET=$(hex)
+
+# Criptografia dos dados
 DATA_KEK_ACTIVE_VERSION=1
 DATA_KEK_V1=$(openssl rand -base64 32)
+
+# PostgreSQL e credenciais das roles
 POSTGRES_PORT=$db_port
 POSTGRES_BOOTSTRAP_PASSWORD=$(hex)
 POSTGRES_MIGRATOR_PASSWORD=$migrator
 POSTGRES_APP_PASSWORD=$app
 POSTGRES_AUTH_PASSWORD=$auth
 POSTGRES_IDENTITY_ADMIN_PASSWORD=$identity_admin
-# Usadas sem Docker ou com compose.prod.tunnel.yaml.
+
+# URLs do PostgreSQL para execução sem Docker ou com compose.prod.tunnel.yaml
 DOMAIN_DATABASE_URL='postgresql://feito_app$db_user_suffix:$app@$db_endpoint'
 AUTH_DATABASE_URL='postgresql://feito_auth$db_user_suffix:$auth@$db_endpoint'
 MIGRATION_DATABASE_URL='postgresql://feito_migrator$db_user_suffix:$migrator@$db_endpoint'

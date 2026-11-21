@@ -1,3 +1,4 @@
+import { translate as t } from "./locale";
 import { inboxName } from "@feito/core/domain/product";
 import { compareSearchKey, normalizeSearchText } from "@feito/core/domain/search";
 import type { QueryData } from "./store";
@@ -45,7 +46,7 @@ export function taskOrigin(data: QueryData, tasks: Map<string, TaskState>, task:
   const project = page?.project ?? nav?.projects.find((item) => item.id === task.projectId);
   const isInbox = project?.isInbox ?? (nav?.inbox.projectId === task.projectId || task.origin?.isInbox || false);
   return {
-    projectName: project?.name ?? (isInbox ? inboxName : task.origin?.projectName ?? "Projeto"),
+    projectName: project?.name ?? (isInbox ? inboxName : task.origin?.projectName ?? t("Projeto")),
     isInbox,
     sectionName: task.sectionId
       ? page?.sections.find((section) => section.id === task.sectionId)?.name ?? task.origin?.sectionName ?? null

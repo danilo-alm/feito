@@ -2,7 +2,7 @@
 #
 # Stages:
 #   dev    → compose.dev.yaml  (next dev, código montado do host, live reload)
-#   tools  → migração e CLIs (pnpm db:migrate, pnpm admin, pnpm keys) nos dois ambientes
+#   tools  → migração e CLIs (pnpm db:migrate, pnpm admin, pnpm keys) nos dois ambientes, empacotados (sem next nem devDependencies)
 #   prod   → imagem de produção no GHCR (saída standalone do Next.js, sem devDependencies, usuário sem privilégios)
 
 ARG NODE_VERSION=24
@@ -28,21 +28,38 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
 # ---------------------------------------------------------------------------
-# Ferramentas operacionais: código web e pacotes comuns com as devDependencies.
-FROM deps AS tools
+# Código web e pacotes comuns com as devDependencies: base de dev, build e do bundle das ferramentas.
+FROM deps AS source
 COPY apps/web/ apps/web/
 COPY packages/ packages/
+
+# ---------------------------------------------------------------------------
+# Empacota migrate, admin e keys em ESM autocontido (apps/web/scripts/build-tools.mjs).
+# Só o argon2 nativo fica fora do bundle e é copiado da instalação desta mesma plataforma.
+FROM source AS tools-bundle
+RUN pnpm --filter @feito/web build:tools \
+ && mkdir -p /out/node_modules/@node-rs \
+ && cp -r apps/web/dist-tools/. /out/ \
+ && cp -rL node_modules/.pnpm/node_modules/@node-rs/. /out/node_modules/@node-rs/ \
+ && test -f /out/node_modules/@node-rs/argon2/package.json
+
+# ---------------------------------------------------------------------------
+# Ferramentas operacionais (pnpm db:migrate, pnpm admin, pnpm keys): node, pnpm,
+# o bundle dos CLIs, as migrações e o argon2 nativo. Sem next, react nem devDependencies.
+FROM base AS tools
+ENV NODE_ENV=production
+COPY --from=tools-bundle /out/ ./
 CMD ["pnpm", "db:migrate"]
 
 # ---------------------------------------------------------------------------
 # Desenvolvimento: código montado do host e dependências Linux da imagem.
-FROM tools AS dev
+FROM source AS dev
 ENV NODE_ENV=development
 EXPOSE 3000
 CMD ["pnpm", "--filter", "@feito/web", "exec", "next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
 
 # ---------------------------------------------------------------------------
-FROM tools AS build
+FROM source AS build
 ENV NODE_ENV=production
 RUN pnpm --filter @feito/web build
 
@@ -56,6 +73,7 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY --from=build --chown=node:node /app/apps/web/.next/standalone ./
 COPY --from=build --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build --chown=node:node /app/apps/web/public ./apps/web/public
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
