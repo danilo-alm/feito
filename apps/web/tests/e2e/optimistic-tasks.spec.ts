@@ -112,6 +112,8 @@ test("limpa o campo ao enviar e devolve o texto quando a gravação local falha"
   const write = await holdWrite(page, "POST", "/tasks", true);
   const input = page.getByRole("textbox", { name: "Título da tarefa" });
   const description = page.getByRole("textbox", { name: "Descrição" });
+  // Ao perder o foco, a descrição vira pré-visualização: o texto devolvido aparece na região, não no campo.
+  const preview = page.getByRole("region", { name: "Descrição", exact: true });
   await input.fill("Revisar orçamento");
   await description.fill("Conferir as três cotações");
 
@@ -119,12 +121,12 @@ test("limpa o campo ao enviar e devolve o texto quando a gravação local falha"
     await input.press("Enter");
     await write.received();
     await expect(input).toHaveValue("");
-    await expect(description).toHaveValue("");
+    await expect(preview).not.toContainText("Conferir as três cotações");
     await expect(row(page, "Revisar orçamento")).toBeVisible();
     await write.release();
     await expect(row(page, "Revisar orçamento")).toBeHidden();
     await expect(input).toHaveValue("Revisar orçamento");
-    await expect(description).toHaveValue("Conferir as três cotações");
+    await expect(preview).toContainText("Conferir as três cotações");
     await page.reload();
     await expect(page.getByRole("heading", { name: "Projeto da criação recuperada" })).toBeVisible();
     await expect(row(page, "Revisar orçamento")).toHaveCount(0);

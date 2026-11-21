@@ -54,7 +54,8 @@ test.describe("recuperação e concorrência na interface", () => {
     await api("PATCH", `/tasks/${task.id}`, { revision: task.revision, priority: 1 });
     await expect(detail.getByRole("button", { name: /^Prioridade:/ })).toHaveText("P1");
     await expect(description).toHaveValue("Meu rascunho");
-    await description.press("Tab");
+    // O Tab leva à barra de formatação, ainda dentro da descrição; mover o foco para fora confirma a edição.
+    await detail.getByRole("button", { name: /^Prioridade:/ }).focus();
 
     await expect.poll(() => api<TaskDetail>("GET", `/tasks/${task.id}`))
       .toMatchObject({ description: "Meu rascunho", priority: 1 });
