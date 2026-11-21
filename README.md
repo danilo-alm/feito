@@ -2,7 +2,7 @@
 
 Feito é um app de tarefas pessoais que você hospeda na sua máquina ou no seu servidor. Capture tarefas na Caixa de entrada, planeje o que fazer em Hoje e Em breve e organize seus projetos em listas ou painéis. O app oferece subtarefas, etiquetas, prioridades e recorrência, além de importação do Todoist e exportação de dados. Os dados de tarefas e projetos são armazenados cifrados.
 
-![Visão Hoje com tarefas do dia, atrasos, horários e prioridades](docs/screenshots/hoje.png)
+![Feito desktop no tema escuro, na visão Hoje, com tarefas do dia, atrasos, horários e prioridades](docs/screenshots/hoje.png)
 
 ## Como usar
 
