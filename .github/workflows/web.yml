@@ -110,6 +110,15 @@ jobs:
             docker compose -p feito-test --env-file "$RUNNER_TEMP/test.env" logs postgres
           fi
 
+      - name: Guardar diagnóstico do Playwright em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: playwright-failure
+          path: apps/web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
   publish:
     # Os pushes de main, dev e tags de versão passam pelos testes antes de publicar.
     if: github.event_name == 'push'

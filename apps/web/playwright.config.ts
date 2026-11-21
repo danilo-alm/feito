@@ -17,6 +17,7 @@ const spki = cert
 
 export default defineConfig({
   testDir: "tests/e2e",
+  outputDir: "test-results/web",
   testMatch: /.*\.spec\.ts/,
   globalSetup: "./tests/e2e/global-setup.ts",
   fullyParallel: false,

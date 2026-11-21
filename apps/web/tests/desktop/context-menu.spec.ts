@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { handleLocal, newWorkspace } from "../../../desktop/src/data/local";
+import { mockDesktop, test } from "./fixtures";
 
 const projectName = "Reforma da sala";
 const sectionName = "Planejar";
@@ -17,26 +18,14 @@ async function openProject(page: Page, layout: "list" | "board" = "list") {
   const section = await write(`/projects/${project.id}/sections`, { name: sectionName });
   await write("/tasks", { title: taskTitle, projectId: project.id, sectionId: section.id });
   await write(`/projects/${project.id}/view`, { layout }, "PATCH");
-  await page.addInitScript((local) => {
-    Object.assign(window, {
-      __TAURI_INTERNALS__: {
-        async invoke(command: string) {
-          if (command === "read_workspace") return { generation: 1, value: { version: 1, active: "local", local } };
-          throw new Error(`Comando inesperado: ${command}`);
-        },
-      },
-    });
-  }, workspace);
+  await mockDesktop(page, { generation: 1, value: { version: 1, active: "local", local: workspace } });
   await page.goto(`/#/projetos/${project.id}`);
 }
 
-test("bloqueia o menu nativo antes de abrir um espaço", async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.assign(window, {
-      __TAURI_INTERNALS__: { invoke: async () => ({ generation: 1, value: { version: 1, active: "none" } }) },
-    });
-  });
+test("bloqueia o menu nativo antes de abrir um espaço", async ({ page }, testInfo) => {
+  await mockDesktop(page, { generation: 1, value: { version: 1, active: "none" } });
   await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-titlebar", testInfo.project.name);
   const heading = page.getByRole("heading", { name: "Feito" });
   await expect(heading).toBeVisible();
   const defaultAllowed = await heading.evaluate((element) => element.dispatchEvent(
@@ -44,6 +33,14 @@ test("bloqueia o menu nativo antes de abrir um espaço", async ({ page }) => {
   ));
   expect(defaultAllowed).toBe(false);
   await expect(page.getByRole("menu")).toHaveCount(0);
+});
+
+test("cria o espaço local ao abrir uma instalação nova", async ({ page }) => {
+  await mockDesktop(page, null);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Hoje", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Caixa de entrada" })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
 for (const layout of ["list", "board"] as const) {

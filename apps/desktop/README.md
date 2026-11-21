@@ -43,7 +43,7 @@ pnpm dev:desktop
 
 Em `apps/desktop`, para compilar, use `pnpm tauri build`. Para validar sem gerar um instalador, use `pnpm tauri build --debug --no-bundle`. Os comandos `pnpm typecheck`, `pnpm test`, `cargo fmt --check --manifest-path src-tauri/Cargo.toml` e `cargo test --locked --manifest-path src-tauri/Cargo.toml` verificam as duas camadas.
 
-Na raiz, rode `pnpm --filter @feito/web exec playwright test -c playwright.desktop.config.ts` para verificar os menus de contexto com Chromium e uma ponte Tauri simulada.
+Na raiz, rode `pnpm --filter @feito/web exec playwright test -c playwright.desktop.config.ts` para verificar a abertura do espaço local e os menus de contexto com Chromium e uma ponte Tauri simulada. A suíte cobre as barras de título de Linux, Windows e macOS, além de uma janela estreita em tema escuro, e falha se houver erros JavaScript não tratados. A ponte fica em `apps/web/tests/desktop/fixtures.ts`; ao mudar a API nativa, atualize também essa simulação. Traces de falhas ficam em `apps/web/test-results/desktop/`, separados dos testes web em `apps/web/test-results/web/`.
 
 ## CI e releases
 
