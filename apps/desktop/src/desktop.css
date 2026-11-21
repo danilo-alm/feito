@@ -3,6 +3,443 @@
   --font-brand: "Inter Tight";
 }
 
+/* Faixa de título desenhada pelo app (titlebar.tsx). Mesmo desenho no macOS, no Windows e no Linux;
+   só os botões da janela mudam por sistema. */
+:root {
+  --tb-press: #DED9CF;
+}
+
+html.dark {
+  --tb-press: #3D3A35;
+}
+
+.desktop-overlay {
+  --desktop-titlebar-height: 40px;
+  --tb-lead: 12px;
+  --tb-fade: 16px;
+  scroll-padding-top: calc(var(--desktop-titlebar-height) + 16px);
+}
+
+.desktop-overlay[data-titlebar="macos"]:not([data-fullscreen]) {
+  --tb-lead: 80px;
+}
+
+.tb {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 21;
+  height: var(--desktop-titlebar-height);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Vidro: a lista passa por baixo, o blur e o fundo esmaecem juntos nos 16 px abaixo da faixa. */
+.tb-glass {
+  --tb-glass: var(--bg);
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: calc(var(--desktop-titlebar-height) + var(--tb-fade));
+  pointer-events: none;
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tb-glass) 78%, transparent) 0,
+    color-mix(in srgb, var(--tb-glass) 78%, transparent) var(--desktop-titlebar-height),
+    transparent 100%);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 var(--desktop-titlebar-height), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 var(--desktop-titlebar-height), transparent 100%);
+}
+
+.tb-glass-side {
+  --tb-glass: var(--side);
+  display: none;
+  right: auto;
+  width: calc(var(--sidebar-width) - 1px);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tb-glass {
+    background: linear-gradient(to bottom, var(--tb-glass) 0, var(--tb-glass) var(--desktop-titlebar-height), transparent 100%);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .tb-glass {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: linear-gradient(to bottom, var(--tb-glass) 0, var(--tb-glass) var(--desktop-titlebar-height), transparent 100%);
+  }
+}
+
+.tb-row {
+  position: relative;
+  display: flex;
+  height: 100%;
+}
+
+.tb-lead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-inline-start: var(--tb-lead);
+}
+
+.tb-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  align-items: center;
+}
+
+.tb-nav,
+.tb-tools,
+.tb-tools .tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tb-title {
+  display: flex;
+  min-width: 0;
+  padding-inline-start: 10px;
+  font-size: 14px;
+}
+
+.tb-title .compact-title {
+  max-width: 100%;
+  color: var(--text);
+}
+
+.tb-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  padding-inline-end: 4px;
+}
+
+.desktop-overlay[data-titlebar="windows"] .tb-end {
+  padding-inline-end: 0;
+}
+
+.desktop-overlay[data-titlebar="macos"] .tb-end {
+  padding-inline-end: 16px;
+}
+
+.tb-tools-wide {
+  display: none !important;
+}
+
+/* Botões do app na faixa: 32 × 32, mesma linguagem dos icon-btn. */
+.tb :is(.tb-btn, .icon-btn) {
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+}
+
+.tb .btn {
+  height: 32px;
+  min-height: 0;
+}
+
+/* Na faixa larga, os botões de ferramenta mantêm o texto, como na antiga topbar. */
+.tb-tools-wide .tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: auto;
+  padding: 0 10px 0 9px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.tb-tools-wide .tool-label {
+  display: inline;
+}
+
+/* Hover e pressão com transição mais longa: o fundo entra devagar. */
+.tb :is(.tb-btn, .icon-btn, .btn, .tb-win, .tb-dot) {
+  transition: background-color var(--dur-slow) var(--ease-out), color var(--dur-slow) var(--ease-out), border-color var(--dur-slow) var(--ease-out);
+}
+
+.tb-btn {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+}
+
+.tb-btn:hover,
+.tb .icon-btn[aria-expanded="true"] {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.tb-btn:active {
+  color: var(--text);
+  background: var(--tb-press);
+}
+
+.tb-btn[aria-disabled="true"] {
+  color: var(--faint);
+  background: transparent;
+  cursor: default;
+}
+
+.tb-sidebar {
+  display: none;
+}
+
+.tb-search {
+  display: none;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 4px 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 13px;
+  text-align: start;
+  cursor: text;
+  transition: border-color var(--dur-slow) var(--ease-out);
+}
+
+.tb-search:hover {
+  border-color: var(--border-strong);
+}
+
+.tb-search svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tb-search .kbd {
+  min-width: 18px;
+  height: 18px;
+  margin-inline-start: auto;
+  font-size: 10.5px;
+}
+
+/* Botões da janela no Windows: retângulos de 46 × 40 colados ao canto. */
+.tb-window {
+  display: flex;
+  height: 100%;
+}
+
+.tb-win {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--text);
+  background: transparent;
+}
+
+.tb-win svg {
+  width: 10px;
+  height: 10px;
+  stroke-width: 1;
+}
+
+.tb-win:hover {
+  background: var(--hover);
+}
+
+.tb-win:active {
+  background: var(--tb-press);
+}
+
+.tb-win-close:hover {
+  color: #FFFFFF;
+  background: #C42B1C;
+}
+
+.tb-win-close:active {
+  color: #FFFFFF;
+  background: #B3271A;
+}
+
+.tb-win:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Linux: círculos de 24 px dentro de alvos de 32 × 40. Fechar não fica vermelho. */
+.desktop-overlay[data-titlebar="linux"] .tb-win {
+  width: 32px;
+  color: var(--text);
+  background: transparent;
+}
+
+.tb-dot {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--hover);
+}
+
+.tb-dot svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.5;
+}
+
+.desktop-overlay[data-titlebar="linux"] .tb-win:hover .tb-dot {
+  background: var(--tb-press);
+}
+
+.desktop-overlay[data-titlebar="linux"] .tb-win:active .tb-dot {
+  background: var(--border-strong);
+}
+
+.desktop-overlay[data-titlebar="linux"] .tb-win:focus-visible {
+  outline: none;
+}
+
+.desktop-overlay[data-titlebar="linux"] .tb-win:focus-visible .tb-dot {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--focus);
+}
+
+/* Janela inativa: só os glifos clareiam. */
+[data-window-inactive] :is(.tb-btn, .tb-win, .tb .icon-btn) {
+  color: var(--faint);
+}
+
+[data-window-inactive] .tb-dot {
+  background: transparent;
+}
+
+[data-window-inactive] .tb-title .compact-title {
+  color: var(--muted);
+}
+
+[data-fullscreen] .tb-window {
+  display: none;
+}
+
+/* Com um diálogo aberto, a faixa fica acima do véu para a janela continuar arrastável e fechável;
+   os controles do app ficam inertes. */
+html:has(.dialog-wrap) .tb {
+  z-index: 52;
+}
+
+html:has(.dialog-wrap) .tb-app {
+  pointer-events: none;
+  opacity: .45;
+}
+
+/* O conteúdo rola desde o topo da janela e passa por baixo da faixa. */
+.desktop-overlay .main > :is(.content, .project-content) {
+  padding-top: calc(var(--desktop-titlebar-height) + 8px);
+  scroll-padding-top: calc(var(--desktop-titlebar-height) + 16px);
+}
+
+.desktop-overlay .desktop-space-start {
+  margin-top: calc(var(--desktop-titlebar-height) + 24px);
+}
+
+@media (min-width: 900px) {
+  .tb-main {
+    grid-template-columns: minmax(max-content, 1fr) minmax(0, max-content) minmax(max-content, 1fr);
+    padding-inline-start: 8px;
+  }
+
+  .tb-title {
+    justify-content: center;
+    padding-inline-start: 0;
+  }
+
+  .tb-end {
+    justify-self: end;
+  }
+
+  .tb-tools-wide {
+    display: flex !important;
+  }
+
+  .tb-tools-compact {
+    display: none !important;
+  }
+
+  .tb-sidebar {
+    display: inline-grid;
+  }
+
+  .desktop-overlay .side {
+    padding-top: calc(var(--desktop-titlebar-height) + 6px);
+    overflow-x: hidden;
+  }
+
+  .desktop-overlay .side::-webkit-scrollbar-track {
+    margin-top: var(--desktop-titlebar-height);
+  }
+
+  /* Menu aberto: a primeira parte da faixa acompanha o menu, com Recolher menu à direita. */
+  .desktop-overlay[data-sidebar="open"] .tb-lead {
+    flex: 0 0 var(--sidebar-width);
+    padding-inline-end: 12px;
+  }
+
+  .desktop-overlay[data-sidebar="open"] .tb-sidebar {
+    margin-inline-start: auto;
+  }
+
+  .desktop-overlay[data-sidebar="open"] .tb-main {
+    padding-inline-start: 16px;
+  }
+
+  .desktop-overlay[data-sidebar="open"] .tb-glass-side {
+    display: block;
+  }
+
+  .desktop-overlay[data-sidebar="open"] .tb-glass-main {
+    left: var(--sidebar-width);
+  }
+
+  /* Windows e Linux: a linha da faixa sobre o menu leva a busca, que sai da lista. */
+  .desktop-overlay[data-sidebar="open"]:is([data-titlebar="windows"], [data-titlebar="linux"]) .tb-search {
+    display: flex;
+  }
+
+  .desktop-overlay[data-sidebar="open"]:is([data-titlebar="windows"], [data-titlebar="linux"]) .side .nav-search {
+    display: none;
+  }
+
+  /* Menu recolhido: a área principal ganha a largura; a lista mantém seu limite e fica centrada. */
+  .desktop-overlay .app > .side {
+    transition: flex-basis var(--dur-slow) var(--ease-out), padding var(--dur-slow) var(--ease-out), visibility 0s;
+  }
+
+  /* O conteúdo do menu mantém a largura enquanto ele recolhe, em vez de se espremer. */
+  .desktop-overlay .app > .side > * {
+    min-width: calc(var(--sidebar-width) - 24px);
+  }
+
+  .desktop-overlay[data-sidebar="collapsed"] .app > .side {
+    flex-basis: 0;
+    padding-inline: 0;
+    border-right-width: 0;
+    visibility: hidden;
+    transition: flex-basis var(--dur-slow) var(--ease-out), padding var(--dur-slow) var(--ease-out), visibility 0s linear var(--dur-slow);
+  }
+}
+
 .desktop-inline {
   display: flex;
   flex-wrap: wrap;
@@ -30,22 +467,52 @@
 }
 
 .desktop-sync-status {
+  --sync-dot: var(--late);
   position: fixed;
   z-index: 3;
-  inset-inline-end: 16px;
-  inset-block-end: 16px;
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  inset-inline-end: 8px;
+  inset-block-end: 8px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.desktop-sync-status[data-sync="current"] {
+  --sync-dot: var(--proj-verde);
+}
+
+.desktop-sync-status[data-sync="syncing"] {
+  --sync-dot: var(--proj-amarelo);
+}
+
+.desktop-sync-status::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sync-dot);
+}
+
+.desktop-sync-label {
+  position: absolute;
+  inset-inline-end: calc(100% + 8px);
   color: var(--muted);
-  background: var(--surface);
-  box-shadow: var(--shadow);
   font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease-in-out);
+}
+
+.desktop-sync-status:is(:hover, :focus-visible) .desktop-sync-label {
+  opacity: 1;
 }
 
 @media (max-width: 899px) {
   .desktop-sync-status {
-    inset-block-end: calc(66px + env(safe-area-inset-bottom));
+    inset-block-end: calc(78px + env(safe-area-inset-bottom));
   }
 }
 

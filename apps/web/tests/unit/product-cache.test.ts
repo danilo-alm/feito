@@ -95,4 +95,32 @@ describe("on-demand product projection cache", () => {
     expect((await productCache.read(pinned, "labels", 0, load)).cache).toBe("hit");
     expect((await productCache.read(oldest, "labels", 0, load)).cache).toBe("miss");
   });
+
+  it("shares expiration and entry and process byte limits with local lists", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const ttl = 12 * 60 * 60_000;
+    const account = access();
+    const load = async () => ({ data: projection() });
+    const read = (id: string) => productCache.readLocal(account, "project", [id], load);
+    expect((await read("first")).cache).toBe("miss");
+    await vi.advanceTimersByTimeAsync(ttl - 1);
+    expect((await read("first")).cache).toBe("hit");
+    await vi.advanceTimersByTimeAsync(1);
+    expect((await read("first")).cache).toBe("miss");
+
+    const nearLimit = "x".repeat(1_900_000);
+    const large = async () => ({ data: projection(nearLimit) });
+    for (const id of ["a", "b", "c", "d"]) {
+      await productCache.readLocal(account, "project", [id], large);
+    }
+    expect((await read("first")).cache).toBe("hit");
+    await productCache.read(access(), "labels", 0, async () => projection(nearLimit));
+    expect((await productCache.readLocal(account, "project", ["a"], load)).cache).toBe("miss");
+    expect((await productCache.readLocal(account, "project", ["d"], load)).cache).toBe("hit");
+
+    const oversized = async () => ({ data: projection("x".repeat(2 * 1024 * 1024)) });
+    await productCache.readLocal(account, "project", ["oversized"], oversized);
+    expect((await productCache.readLocal(account, "project", ["oversized"], load)).cache).toBe("miss");
+    await vi.advanceTimersByTimeAsync(ttl);
+  });
 });

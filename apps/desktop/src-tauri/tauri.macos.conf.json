@@ -1,0 +1,27 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Feito",
+        "width": 1180,
+        "height": 800,
+        "minWidth": 380,
+        "minHeight": 500,
+        "create": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 20
+        }
+      }
+    ],
+    "security": {
+      "capabilities": [
+        "desktop",
+        "macos-titlebar"
+      ]
+    }
+  }
+}

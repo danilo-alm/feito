@@ -1,12 +1,27 @@
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { clearCache, invalidate } from "@feito/ui/client/store";
 import { createDesktop, type Bridge } from "./desktop";
 
-const bridge: Bridge = {
+const nativeBridge: Bridge = {
   read: () => invoke("read_workspace"),
   write: (generation, value) => invoke("write_workspace", { generation, value }),
   request: (origin, method, path, body) => invoke("server_request", { origin, method, path, body }),
 };
+
+/** Só em desenvolvimento e fora do Tauri: guarda o espaço local na memória para conferir a interface no navegador. */
+function previewBridge(): Bridge {
+  let stored: Awaited<ReturnType<Bridge["read"]>> = null;
+  return {
+    read: async () => structuredClone(stored),
+    write: async (generation, value) => {
+      stored = { generation: (generation ?? 0) + 1, value: structuredClone(value) };
+      return structuredClone(stored);
+    },
+    request: async () => { throw new Error("A prévia no navegador não conecta a servidores."); },
+  };
+}
+
+const bridge = import.meta.env.DEV && !isTauri() ? previewBridge() : nativeBridge;
 
 export const desktop = createDesktop(bridge, () => { void invalidate(); }, clearCache);
 

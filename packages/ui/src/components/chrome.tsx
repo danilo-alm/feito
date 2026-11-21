@@ -2,6 +2,8 @@
 import { Link } from "../navigation";
 import { usePathname, useRouter } from "../navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useTitlebar } from "./titlebar";
 import { api, ApiFailure, errorMessage } from "../client/api";
 import { tagColor } from "../client/colors";
 import { invalidate } from "../client/store";
@@ -45,7 +47,7 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
       <button type="button" className="side-add" onClick={() => app.openQuickAdd()}>
         <span className="plus"><IconPlus /></span>Adicionar tarefa<span className="kbd" style={{ marginLeft: "auto" }}>Q</span>
       </button>
-      <Link href="/busca" className={`nav${is("/busca") ? " on" : ""}`} aria-current={is("/busca") ? "page" : undefined}>
+      <Link href="/busca" className={`nav nav-search${is("/busca") ? " on" : ""}`} aria-current={is("/busca") ? "page" : undefined}>
         <IconSearch />Buscar<span className="kbd" style={{ marginLeft: "auto" }}>/</span>
       </Link>
       <NavLink href="/entrada" icon={<IconInbox />} label="Caixa de entrada" count={nav?.inbox.activeCount} active={is("/entrada")} />
@@ -229,7 +231,7 @@ export function BrowsePanel() {
 
 /** Cabeçalho da página: barra superior no desktop e barra fixa no celular. */
 export function PageHeader({
-  crumb, tools, mobileTools, mobileTitle, compactTitle, back,
+  crumb, tools, mobileTools, mobileTitle, compactTitle, back, title,
 }: {
   crumb?: ReactNode;
   tools?: ReactNode;
@@ -237,15 +239,33 @@ export function PageHeader({
   mobileTitle?: string;
   compactTitle?: ReactNode;
   back?: string;
+  /** Título da tela na faixa do desktop; sem ele, vale o mobileTitle. */
+  title?: string;
 }) {
   const router = useRouter();
+  const titlebar = useTitlebar();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
+    if (titlebar) return;
     const onScroll = () => setScrolled(window.scrollY > 56);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [titlebar]);
+  if (titlebar) {
+    const label = title ?? mobileTitle;
+    return (
+      <>
+        {titlebar.title && createPortal(compactTitle || (label ? (
+          <span className="compact-title" aria-hidden={!titlebar.scrolled}><span>{label}</span></span>
+        ) : null), titlebar.title)}
+        {titlebar.tools && createPortal(<>
+          <div className="tools tb-tools-wide">{tools}</div>
+          <div className="tools tb-tools-compact">{mobileTools ?? tools}</div>
+        </>, titlebar.tools)}
+      </>
+    );
+  }
   return (
     <>
       <div className="topbar">

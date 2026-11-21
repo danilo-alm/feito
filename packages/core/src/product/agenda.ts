@@ -8,7 +8,7 @@ import type { ProductPort } from "./port";
 
 export function createAgendaService<Access>({ readTaskView }: Pick<ProductPort<Access>, "readTaskView">) {
   function getToday(access: Access, includeCompleted = false) {
-    return readTaskView(access, { operation: "today" }, async (view) => {
+    return readTaskView(access, { operation: "today", includeCompleted }, async (view) => {
       const { referenceDate, timezone } = view;
       const { overdue, today, completedToday } = collectToday(view.candidates.values(), referenceDate, timezone, includeCompleted);
       const product = await view.contextFor([...overdue, ...today, ...completedToday]);
@@ -24,7 +24,7 @@ export function createAgendaService<Access>({ readTaskView }: Pick<ProductPort<A
   }
 
   function getUpcoming(access: Access, requestedStart?: string) {
-    return readTaskView(access, { operation: "upcoming" }, async (view) => {
+    return readTaskView(access, { operation: "upcoming", start: requestedStart }, async (view) => {
       const tomorrow = Temporal.PlainDate.from(view.referenceDate).add({ days: 1 }).toString();
       const start = requestedStart ?? tomorrow;
       if (start < tomorrow) throw validation("start", "Informe amanhã ou uma data posterior.");

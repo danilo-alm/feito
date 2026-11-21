@@ -25,7 +25,9 @@ export type TaskViewScope = {
   labelId?: string;
   skipTasks?: boolean;
 } & (
-  | { operation: "today" | "upcoming" | "search" }
+  | { operation: "today"; includeCompleted?: boolean }
+  | { operation: "upcoming"; start?: string }
+  | { operation: "search" }
   | { operation: "label"; labelId: string; page: { after: () => string | undefined; limit: number } }
 );
 

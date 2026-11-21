@@ -137,7 +137,7 @@ test.describe("telas do dia a dia", () => {
     await board.getByRole("button", { name: "Adicionar seção" }).click();
     await expect(board.getByRole("region", { name: "Coluna Compras" })).toContainText("Pesquisar preços.");
 
-    await page.getByRole("button", { name: "Ações do projeto" }).click();
+    await page.getByRole("button", { name: "Mais ações" }).click();
     await page.getByRole("menuitem", { name: "Editar projeto" }).click();
     const edit = page.getByRole("dialog", { name: "Editar projeto" });
     await expect(edit.getByRole("textbox", { name: "Descrição do projeto" })).toHaveValue("Organizar a reforma.");

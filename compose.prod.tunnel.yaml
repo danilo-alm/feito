@@ -52,6 +52,7 @@ services:
       <<: *runtime-env
       IMPORT_PREVIEW_SECRET: ${IMPORT_PREVIEW_SECRET:?Defina IMPORT_PREVIEW_SECRET}
       IMPORT_MAX_BYTES: ${IMPORT_MAX_BYTES:-}
+      FEITO_PRODUCT_CACHE_MODE: ${FEITO_PRODUCT_CACHE_MODE:-revision}
       # A Cloudflare sobrescreve este cabeçalho na borda. O app não publica portas,
       # então só o cloudflared consegue enviá-lo.
       AUTH_CLIENT_IP_HEADER: cf-connecting-ip

@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "custom-titlebar",
+  "description": "Barra de título desenhada pelo app: arrastar, redimensionar, minimizar, maximizar, fechar e acompanhar o estado da janela",
+  "platforms": [
+    "windows",
+    "linux"
+  ],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "core:window:allow-is-focused",
+    "core:window:allow-is-fullscreen",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

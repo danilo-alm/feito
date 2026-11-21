@@ -25,7 +25,7 @@ export default function TodayPage() {
   );
   return (
     <>
-      <PageHeader crumb="Agenda do dia" tools={toggle}
+      <PageHeader crumb="Agenda do dia" title="Hoje" tools={toggle}
         mobileTools={<button type="button" className="icon-btn" aria-pressed={showDone} aria-label="Mostrar concluídas de hoje"
           onClick={() => setShowDone((value) => !value)} style={showDone ? { color: "var(--brand-text)" } : undefined}><IconCheck /></button>} />
       <div className="content">

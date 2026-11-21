@@ -18,7 +18,7 @@
   --shadow:0 1px 2px rgba(40,34,24,.06),0 10px 28px rgba(40,34,24,.10);
   --lift:0 2px 4px rgba(40,34,24,.08),0 18px 40px rgba(40,34,24,.18);
   --scrim:rgba(32,29,24,.36);--toast:#2A2926;--on-toast:#F6F4EF;
-  --mobile-header-height:56px;
+  --mobile-header-height:56px;--sidebar-width:264px;
   /* Movimento: únicas durações e curvas do app (docs/04-motion-and-interaction.md).
      motion.tsx lê as durações dos componentes com presença para desmontá-los no tempo certo. */
   --dur-fast:120ms;--dur-base:180ms;--dur-slow:260ms;--dur-compact-title:500ms;
@@ -60,7 +60,7 @@ h1,h2,h3,p{margin:0}
 
 /* app shell */
 .app{display:flex;flex-wrap:wrap;width:100%;height:900px;overflow:hidden;position:relative}
-.side{flex:0 0 264px;height:100%;background:var(--side);border-right:1px solid var(--border);padding:14px 12px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.side{flex:0 0 var(--sidebar-width);height:100%;background:var(--side);border-right:1px solid var(--border);padding:14px 12px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
 .brand{display:flex;align-items:center;gap:6px;font-family:var(--font-brand),var(--font-inter),Inter,system-ui,sans-serif;font-weight:600;font-size:19px;letter-spacing:-.02em;padding:4px 8px 14px}
 .logo{color:var(--brand-text);flex:none}
 .nav{--nav-end-inset:10px;--nav-end-size:24px;display:flex;align-items:center;gap:10px;padding:0 var(--nav-end-inset);min-height:36px;border-radius:8px;color:var(--text);font-size:14px}
@@ -608,7 +608,7 @@ textarea.project-heading-input{resize:none;overflow:hidden}
   .btn,.icon-btn{min-height:40px}
 }
 @media (min-width: 900px){
-  .app>.side{flex:0 0 264px}
+  .app>.side{flex:0 0 var(--sidebar-width)}
 }
 
 /* ---------- Editor rápido (em linha e no diálogo de adicionar) ---------- */

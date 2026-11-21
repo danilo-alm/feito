@@ -361,7 +361,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
       {app.browserTools && !project.isInbox && <ShareMenu projectId={project.id} archived={archived} />}
       {!archived && <ViewMenu page={page} onChange={(patch) => void changeView(patch)} />}
       {!project.isInbox && (
-        <MenuButton label="Ações do projeto" title={project.name} items={projectMenu} contextMenu={visible ? contextMenu : undefined}><IconMore /></MenuButton>
+        <MenuButton label="Mais ações" tooltip="Mais ações" title={project.name} items={projectMenu} contextMenu={visible ? contextMenu : undefined}><IconMore /></MenuButton>
       )}
     </>
   );

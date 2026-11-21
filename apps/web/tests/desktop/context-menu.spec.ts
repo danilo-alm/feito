@@ -86,7 +86,7 @@ test("abre as ações do projeto na barra lateral e no cabeçalho, e as da seç�
 
   await project.click();
   await page.getByRole("heading", { name: projectName }).click({ button: "right" });
-  await expect(page.getByRole("button", { name: "Ações do projeto" })).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: "Mais ações" })).toHaveAttribute("aria-expanded", "true");
   await menu.getByRole("menuitem", { name: "Editar projeto" }).click();
   await expect(page.getByRole("dialog", { name: "Editar projeto" })).toBeVisible();
   await page.keyboard.press("Escape");

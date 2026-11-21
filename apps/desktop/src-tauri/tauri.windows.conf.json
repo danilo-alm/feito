@@ -1,0 +1,23 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Feito",
+        "width": 1180,
+        "height": 800,
+        "minWidth": 380,
+        "minHeight": 500,
+        "create": false,
+        "decorations": false,
+        "shadow": true
+      }
+    ],
+    "security": {
+      "capabilities": [
+        "desktop",
+        "custom-titlebar"
+      ]
+    }
+  }
+}

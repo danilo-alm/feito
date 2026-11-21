@@ -46,8 +46,8 @@ Use **Node.js 24**, **pnpm 10** e **PostgreSQL 18**. O app usa Next.js App Route
 ## Leituras e desempenho
 
 - Comece pelas consultas delimitadas, pelos DTOs necessários à tela e pela paginação existente. Meça leituras frias e quentes antes de ampliar o cache ou adicionar infraestrutura. Considere volume de registros, consultas, decifragem e memória retida.
-- O cache de produto é em RAM por processo. Guarda sob demanda os resumos de navegação, projetos ativos, projetos arquivados e etiquetas. Ele tem expiração de 12 horas e limites por entrada e por processo. Preserve a autorização antes da leitura, a separação por tenant e projeção e a exclusão de descrições de tarefas, sessões e chaves desse cache.
-- Leituras cacheáveis verificam `productRevision` no PostgreSQL primário. A revisão e a reconstrução da projeção usam o mesmo snapshot transacional. A navegação também respeita a virada do dia no fuso da conta. Ao mudar o cache, teste expiração, isolamento, commits concorrentes e leituras feitas por instâncias diferentes. [Cache e medições](docs/03-operations.md#cache-interno-de-leituras-do-produto)
+- O cache de produto é em RAM por processo. Guarda sob demanda os resumos de navegação, projetos ativos, projetos arquivados e etiquetas. O modo explícito de processo único também cobre Hoje, Em breve e páginas de projeto. Preserve a retenção de até 12 horas, os limites por entrada e por processo, a autorização antes da leitura e a separação por tenant, projeção e parâmetros. Mantenha descrições de tarefas, inclusive trechos, sessões e chaves fora do cache.
+- No modo padrão, leituras cacheáveis verificam `productRevision` no PostgreSQL primário pelo mesmo snapshot usado para reconstruir a projeção. No modo de processo único, commits que avançam a revisão invalidam o cache da conta. Preserve a virada do dia no fuso da conta em projeções que usam a data de referência. Ao mudar o cache, teste expiração, isolamento, commits concorrentes e leituras feitas por instâncias diferentes. [Cache e medições](docs/03-operations.md#cache-interno-de-leituras-do-produto)
 
 ## Desenvolvimento e operação
 

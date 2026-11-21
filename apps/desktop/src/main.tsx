@@ -18,13 +18,20 @@ import { desktop, watchServer } from "./data/native";
 import { usePathname, useRoute, useRouter } from "./platform/navigation";
 import Link from "./platform/link";
 import { DesktopSettings } from "./settings";
-import { SpaceManager, syncLabel } from "./spaces";
+import { SpaceManager } from "./spaces";
+import { detectTitlebar, Titlebar } from "./titlebar";
 import "@feito/ui/globals.css";
 import "@fontsource-variable/inter/wght.css";
 import "@fontsource/inter-tight/latin-600.css";
 import "./desktop.css";
 
 const labels = new Map<string, Promise<{ id: string }>>();
+const syncLabels = {
+  current: "Sincronizado",
+  syncing: "Sincronizando",
+  disconnected: "Desconectado",
+};
+
 const routes: Record<string, ReactNode> = {
   "/hoje": <Today />,
   "/entrada": <Inbox />,
@@ -39,6 +46,8 @@ function WorkspaceScreen() {
   const router = useRouter();
   const status = useSyncExternalStore(desktop.subscribe, desktop.getStatus);
   const remoteOrigin = status.active === "server" && status.sync !== "login" ? status.server?.origin : undefined;
+  const syncState = status.sync === "current" ? (status.server?.pending ? "syncing" : "current")
+    : status.sync === "syncing" ? "syncing" : "disconnected";
   const [storageError, setStorageError] = useState(false);
   const initializeWorkspace = () => {
     setStorageError(false);
@@ -110,8 +119,12 @@ function WorkspaceScreen() {
             }
             close("task");
           }} />
-          {status.active === "server" && route.pathname !== "/ajustes" && status.sync !== "current" &&
-            <Link className="desktop-sync-status" href="/ajustes">{syncLabel(status)}</Link>}
+          {status.active === "server" && (
+            <Link className="desktop-sync-status" data-sync={syncState} href="/ajustes"
+              aria-label={`${syncLabels[syncState]}. Abrir ajustes`}>
+              <span className="desktop-sync-label" aria-hidden="true">{syncLabels[syncState]}</span>
+            </Link>
+          )}
         </>
       )}
     >
@@ -125,6 +138,11 @@ try {
   applyTheme(theme === "light" || theme === "dark" ? theme : "system");
 } catch {
   applyTheme("system");
+}
+const titlebar = detectTitlebar();
+if (titlebar) {
+  document.documentElement.classList.add("desktop-overlay");
+  document.documentElement.dataset.titlebar = titlebar;
 }
 configureApi({ fetch: desktop.fetch });
 document.addEventListener("contextmenu", (event) => event.preventDefault(), { capture: true });
@@ -140,7 +158,9 @@ function DesktopApp() {
   const router = useRouter();
   return (
     <NavigationProvider pathname={pathname} router={router} Link={Link}>
-      <AppProviders contextMenus><WorkspaceScreen /></AppProviders>
+      {titlebar ? (
+        <Titlebar platform={titlebar}><AppProviders contextMenus><WorkspaceScreen /></AppProviders></Titlebar>
+      ) : <AppProviders contextMenus><WorkspaceScreen /></AppProviders>}
     </NavigationProvider>
   );
 }

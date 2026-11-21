@@ -366,9 +366,11 @@ export function useContextMenu(enabled = true) {
 
 /** Botão que abre um menu de ações (popover no desktop, folha no celular). */
 export function MenuButton({
-  label, items, children, className = "icon-btn", title, contextMenu,
+  label, items, children, className = "icon-btn", title, tooltip, contextMenu,
 }: {
   label: string;
+  /** Dica nativa do botão no hover. */
+  tooltip?: string;
   items: () => MenuItem[];
   children: ReactNode;
   className?: string;
@@ -393,6 +395,7 @@ export function MenuButton({
         type="button"
         className={className}
         aria-label={label}
+        title={tooltip}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(event) => {

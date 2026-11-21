@@ -5,6 +5,7 @@ import { isActive, type Product, type Project, type Task } from "@feito/core/dom
 import { notFound } from "@/server/errors";
 import { logger } from "@/server/logger";
 import type { Transaction } from "./client";
+import { readLocalTaskList } from "./product-cache";
 import {
   mapRows, mapTaskLabels, readCalendar, readLabelRecord, readProjectRecord,
   readSectionRecord, readTaskRecord, type ProductAccess,
@@ -116,6 +117,13 @@ async function viewContext(
 }
 
 export async function readTaskView<T>(access: ProductAccess, scope: TaskViewScope, run: (view: TaskView) => Promise<T>) {
+  const load = () => loadTaskView(access, scope, run);
+  if (scope.operation === "today") return readLocalTaskList(access, scope.operation, [scope.includeCompleted ?? false], load);
+  if (scope.operation === "upcoming") return readLocalTaskList(access, scope.operation, [scope.start], load);
+  return (await load()).data;
+}
+
+async function loadTaskView<T>(access: ProductAccess, scope: TaskViewScope, run: (view: TaskView) => Promise<T>) {
   const { db, keys, tenantId } = access;
   const start = performance.now();
   await ensureWorkspace(db, keys, tenantId);
@@ -140,10 +148,11 @@ export async function readTaskView<T>(access: ProductAccess, scope: TaskViewScop
     };
     const candidates = await scanCandidates(tx, decrypt, [...active.keys()], scope);
     metrics.taskCandidates = candidates.size;
-    return run({
+    const data = await run({
       ...calendar, candidates,
       contextFor: (results) => viewContext(tx, reader, decrypt, calendar, active, candidates, !!scope.labelId, results),
     });
+    return { data, calendar: { timezone: calendar.timezone, referenceDate: calendar.referenceDate } };
   }), { isolationLevel: "repeatable read", accessMode: "read only" });
 
   logger.info({

@@ -11,6 +11,7 @@ test-results/
 playwright-report/
 /apps/web/tests/e2e/.auth/
 *.crt
+.claude/
 
 # Tauri e Vite
 dist/

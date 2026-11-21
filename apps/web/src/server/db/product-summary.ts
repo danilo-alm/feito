@@ -6,7 +6,7 @@ import { referenceDate } from "@feito/core/domain/preferences";
 import { isActive, type Label } from "@feito/core/domain/product";
 import { logger } from "@/server/logger";
 import type { Transaction } from "./client";
-import { productCache } from "./product-cache";
+import { productCache, usesLocalProductCache } from "./product-cache";
 import { withProductReader, type ProductReader } from "./product-crypto";
 import { mapRows, readLabelRecord, readPreferenceRecord, readProjectRecord, readTaskRecord, type ProductAccess } from "./product";
 import { labels, preferences, projects, taskLabels, tasks, tenants } from "./schema";
@@ -82,16 +82,26 @@ export async function readProductSummary<T>(
   const { db, keys, tenantId } = access;
   const start = performance.now();
   const requestTime = Temporal.Now.instant();
-  const read = () => withTenant(db, tenantId, async (tx) => {
-    const [tenant] = await tx.select({ revision: tenants.productRevision }).from(tenants).where(eq(tenants.id, tenantId));
-    if (!tenant) return null;
-    // Pin the revision and the projected data to the same committed database snapshot.
-    return productCache.read(access, projection, tenant.revision, () =>
-      withProductReader(tx, keys, tenantId, async (reader) => {
-        const { summary, calendar, domainQueries } = await loadSummary(tx, reader, projection, requestTime);
-        return { data: select(summary, calendar), calendar, domainQueries };
-      }), ({ calendar }) => !calendar || calendar.referenceDate === referenceDate(calendar.timezone, requestTime));
-  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  const snapshot = { isolationLevel: "repeatable read", accessMode: "read only" } as const;
+  const load = (tx: Transaction, at: Temporal.Instant) => withProductReader(tx, keys, tenantId, async (reader) => {
+    const { summary, calendar, domainQueries } = await loadSummary(tx, reader, projection, at);
+    return { data: select(summary, calendar), calendar, domainQueries };
+  });
+  const read = () => {
+    if (usesLocalProductCache()) {
+      return productCache.readLocal(access, projection, [], async () => {
+        await ensureWorkspace(db, keys, tenantId);
+        return withTenant(db, tenantId, (tx) => load(tx, Temporal.Now.instant()), snapshot);
+      });
+    }
+    return withTenant(db, tenantId, async (tx) => {
+      const [tenant] = await tx.select({ revision: tenants.productRevision }).from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) return null;
+      // Pin the revision and the projected data to the same committed database snapshot.
+      return productCache.read(access, projection, tenant.revision, () => load(tx, requestTime),
+        ({ calendar }) => !calendar || calendar.referenceDate === referenceDate(calendar.timezone, requestTime));
+    }, snapshot);
+  };
 
   let result = await read();
   if (!result) {

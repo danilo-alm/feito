@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { Temporal } from "@js-temporal/polyfill";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultPreferences } from "@feito/core/domain/preferences";
 import { connectDatabase } from "@/server/db/client";
 import { withDekWrite } from "@/server/db/product-crypto";
@@ -22,7 +22,11 @@ function cacheMetrics(calls: [unknown, ...unknown[]][]) {
 }
 
 describe("revision-checked product read cache", () => {
-  afterEach(() => vi.restoreAllMocks());
+  beforeEach(() => vi.stubEnv("FEITO_PRODUCT_CACHE_MODE", "revision"));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
 
   it("shares concurrent reads, avoids the cold scan on hits and isolates authorized sessions", async () => {
     const first = await accountFixture();

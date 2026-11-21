@@ -32,7 +32,7 @@ export default function UpcomingPage() {
   );
   return (
     <>
-      <PageHeader crumb="Próximos sete dias" tools={nav} />
+      <PageHeader crumb="Próximos sete dias" title="Em breve" tools={nav} />
       <div className="content">
         <div className="col">
           <div className="page-h"><h1 className="title">Em breve</h1>{data && <PageTaskCount count={data.days.reduce((sum, day) => sum + day.tasks.length, 0)} />}</div>

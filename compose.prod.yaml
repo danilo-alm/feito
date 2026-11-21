@@ -48,6 +48,7 @@ services:
       <<: *runtime-env
       IMPORT_PREVIEW_SECRET: ${IMPORT_PREVIEW_SECRET:?Defina IMPORT_PREVIEW_SECRET}
       IMPORT_MAX_BYTES: ${IMPORT_MAX_BYTES:-}
+      FEITO_PRODUCT_CACHE_MODE: ${FEITO_PRODUCT_CACHE_MODE:-revision}
       AUTH_CLIENT_IP_HEADER: x-real-ip
       DOMAIN_DATABASE_URL: postgresql://feito_app:${POSTGRES_APP_PASSWORD:-}@postgres:5432/feito
       AUTH_DATABASE_URL: postgresql://feito_auth:${POSTGRES_AUTH_PASSWORD:-}@postgres:5432/feito
