@@ -295,7 +295,7 @@ function MenuEntries({ items, onClose, large }: { items: MenuItem[]; onClose: ()
               <div className="mchoices">
                 {item.options.map((option) => (
                   <button key={option.label} type="button" role="menuitemradio" aria-checked={!!option.active}
-                    aria-label={option.label} title={option.label} className={`mchoice ${option.className ?? ""}`}
+                    aria-label={option.label} data-tooltip={option.label} className={`mchoice ${option.className ?? ""}`}
                     aria-haspopup={"popover" in option ? "dialog" : undefined}
                     aria-expanded={"popover" in option ? sub?.label === option.label : undefined}
                     onClick={(event) => {
@@ -395,7 +395,7 @@ export function MenuButton({
         type="button"
         className={className}
         aria-label={label}
-        title={tooltip}
+        data-tooltip={tooltip}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(event) => {

@@ -184,7 +184,7 @@ export function TaskEditor({
 
   const chip = (key: Exclude<Pop, null>, content: ReactNode, active: boolean, label: string, className = "") => (
     <button type="button" ref={(node) => { anchors.current[key] = node; }} className={`pill${active ? " on" : ""} ${className}`}
-      aria-haspopup={key === "more" ? "menu" : "dialog"} aria-expanded={pop === key} aria-label={label} title={label}
+      aria-haspopup={key === "more" ? "menu" : "dialog"} aria-expanded={pop === key} aria-label={label} data-tooltip={label}
       onClick={() => setPop(pop === key ? null : key)}>
       {content}
     </button>
@@ -248,8 +248,8 @@ export function TaskEditor({
         <div className="te-bar">
           {chips}
           <span className="te-actions">
-            <button type="button" className="icon-btn" onClick={onCancel} aria-label="Cancelar (Esc)" title="Cancelar (Esc)"><IconX /></button>
-            <button type="submit" className="te-ok" disabled={!draft.title.trim() || busy} aria-label={submitLabel} title={`${submitLabel} (Enter)`}>
+            <button type="button" className="icon-btn" onClick={onCancel} aria-label="Cancelar (Esc)" data-tooltip="Cancelar (Esc)"><IconX /></button>
+            <button type="submit" className="te-ok" disabled={!draft.title.trim() || busy} aria-label={submitLabel} data-tooltip={`${submitLabel} (Enter)`}>
               <IconCheck />
             </button>
           </span>

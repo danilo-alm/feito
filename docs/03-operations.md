@@ -111,7 +111,7 @@ docker compose -f compose.prod.yaml --env-file "$FEITO_ENV" up -d --wait
 
 `FEITO_ORIGIN` é o endereço HTTPS usado pelo navegador. `FEITO_HTTPS_PORT` define a porta HTTPS publicada pelo Compose. Inclua a porta em `FEITO_ORIGIN` quando o navegador acessá-la diretamente, como em `https://localhost:3000`.
 
-Com um domínio público e as portas 80 e 443 acessíveis, o Caddy obtém o certificado via ACME. Com `localhost` ou um IP, o certificado vem da CA interna. O Next.js e o PostgreSQL não publicam portas no host. O contêiner da aplicação roda com sistema de arquivos somente leitura, sem capabilities, e tem healthcheck em `/api/health`.
+Com um domínio público e as portas 80 e 443 acessíveis, o Caddy obtém o certificado via ACME. Com `localhost` ou um IP, o certificado vem da CA interna. O Next.js e o PostgreSQL não publicam portas no host. O contêiner da aplicação roda com sistema de arquivos somente leitura, sem capabilities, e tem healthcheck em `/api/health/live` a cada 30 segundos. Essa checagem verifica apenas se o servidor HTTP responde, sem consultar o banco, tanto com PostgreSQL interno quanto externo. O Docker pode considerar o app saudável mesmo com o banco indisponível. Para diagnóstico e validação da instalação, `/api/health` continua verificando os dois acessos ao banco e retorna `503` se algum falhar.
 
 ### Produção com PostgreSQL externo e Cloudflare Tunnel
 

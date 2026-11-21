@@ -6,6 +6,7 @@ fn main() {
             "server_request",
             "start_product_events",
             "stop_product_events",
+            "open_public_project",
         ]),
     ))
     .expect("Falha ao configurar o aplicativo Tauri");

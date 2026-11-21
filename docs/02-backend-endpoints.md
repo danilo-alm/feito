@@ -9,7 +9,7 @@ Contrato HTTP proposto em 17 de novembro de 2026 para o MVP descrito em [Arquite
 | Tema | Regra |
 | --- | --- |
 | Base e formato | Prefixo `/api/v1`. Corpo e resposta em JSON UTF-8 com chaves em `camelCase`. Exceções: download da exportação e corpo bruto da importação. |
-| Autenticação | Cookie de sessão opaco emitido pelo login (`HttpOnly`, `Secure`, `SameSite=Lax`). Exigem sessão válida e conta ativa as rotas privadas. `POST /auth/login`, `GET /api/health` e `GET /api/v1/public/projects/{token}` aceitam acesso sem sessão. Rotas privadas sem sessão devolvem `401 UNAUTHENTICATED`. |
+| Autenticação | Cookie de sessão opaco emitido pelo login (`HttpOnly`, `Secure`, `SameSite=Lax`). Exigem sessão válida e conta ativa as rotas privadas. `POST /auth/login`, `GET /api/health`, `GET /api/health/live` e `GET /api/v1/public/projects/{token}` aceitam acesso sem sessão. Rotas privadas sem sessão devolvem `401 UNAUTHENTICATED`. |
 | Senha provisória | Enquanto a conta tiver `mustChangePassword`, só respondem `GET /auth/session`, `GET /me`, `POST /auth/password` e `POST /auth/logout`. As demais devolvem `403 PASSWORD_CHANGE_REQUIRED`. |
 | Origem | Métodos que alteram estado (`POST`, `PATCH`, `PUT`, `DELETE`) exigem `Origin` igual à origem configurada da instalação. Caso contrário: `403 FORBIDDEN_ORIGIN`. |
 | Tenant | As rotas privadas obtêm o tenant da sessão. A leitura pública resolve o tenant e o projeto pelo token do compartilhamento. IDs de outra conta, inexistentes ou de entidades excluídas respondem `404 NOT_FOUND`, sem distinguir os casos. |
@@ -149,6 +149,7 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
 | `GET /api/health` | 1 | Sem autenticação. | `200 { "status": "ok" }` com os dois acessos ao banco disponíveis. Caso contrário, `503 SERVICE_UNAVAILABLE`. Sem detalhes internos. |
+| `GET /api/health/live` | 1 | Sem autenticação. | `200 { "status": "ok" }` se o servidor HTTP responder. Sem acesso ao banco. Usado pelo healthcheck do Docker a cada 30 segundos. |
 | `POST /api/v1/auth/login` | 1 | `{ email, password }` | `200 { user: { id, email }, mustChangePassword }` e cookie de sessão. `401 INVALID_CREDENTIALS`, `429 RATE_LIMITED`. |
 | `POST /api/v1/auth/logout` | 1 | Vazio. | `204`. Revoga só a sessão atual. |
 | `GET /api/v1/auth/session` | 1 | Vazio. | `200 { user, mustChangePassword }` ou `401`. |

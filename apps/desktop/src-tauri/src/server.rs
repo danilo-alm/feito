@@ -20,6 +20,7 @@ const PASSWORD_PATH: &str = "/api/v1/auth/password";
 const SESSION_PATH: &str = "/api/v1/auth/session";
 const SYNC_PATH: &str = "/api/v1/desktop-sync";
 const EVENTS_PATH: &str = "/api/v1/product-events";
+const PROJECTS_PATH: &str = "/api/v1/projects/";
 const SESSION_COOKIE: &str = "__Secure-feito.session_token";
 const SESSION_VAULT_ERROR: &str = "Não foi possível acessar a sessão do Feito no cofre do sistema.";
 const MAX_REQUEST_BYTES: usize = 1024 * 1024;
@@ -131,6 +132,24 @@ fn server_origin(input: &str) -> Result<Url, &'static str> {
     Ok(url)
 }
 
+fn is_uuid(value: &str) -> bool {
+    value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if matches!(index, 8 | 13 | 18 | 23) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
+}
+
+fn is_project_share_route(route: &str) -> bool {
+    route
+        .strip_prefix(PROJECTS_PATH)
+        .and_then(|path| path.strip_suffix("/share"))
+        .is_some_and(is_uuid)
+}
+
 fn request_url(mut url: Url, method: &Method, path: &str) -> Result<Url, &'static str> {
     let (route, query) = match path.split_once('?') {
         Some((route, query)) => (route, Some(query)),
@@ -140,7 +159,11 @@ fn request_url(mut url: Url, method: &Method, path: &str) -> Result<Url, &'stati
         LOGIN_PATH | LOGOUT_PATH | PASSWORD_PATH => method == Method::POST && query.is_none(),
         SESSION_PATH => method == Method::GET && query.is_none(),
         SYNC_PATH => method == Method::GET || (method == Method::POST && query.is_none()),
-        _ => false,
+        _ => {
+            query.is_none()
+                && matches!(*method, Method::GET | Method::PUT | Method::DELETE)
+                && is_project_share_route(route)
+        }
     };
     if !allowed
         || path.len() > 2048
@@ -255,8 +278,8 @@ pub async fn server_request(
     let method =
         Method::from_bytes(method.as_bytes()).map_err(|_| "O método da requisição é inválido.")?;
     let url = request_url(url, &method, &path)?;
-    if method == Method::GET && body.is_some() {
-        return Err("A leitura do servidor Feito não aceita um corpo.".into());
+    if body.is_some() && (method == Method::GET || is_project_share_route(url.path())) {
+        return Err("Esta requisição ao servidor Feito não aceita um corpo.".into());
     }
 
     let is_login = url.path() == LOGIN_PATH;
@@ -328,6 +351,44 @@ pub async fn server_request(
         let _ = sessions.update_cookie(&mut state, origin, None).await;
     }
     Ok(result)
+}
+
+fn public_project_url(origin: &str, token: &str) -> Result<Url, &'static str> {
+    let mut url = server_origin(origin)?;
+    if !is_uuid(token) {
+        return Err("O link público do projeto é inválido.");
+    }
+    url.set_path(&format!("/compartilhado/{token}"));
+    Ok(url)
+}
+
+#[tauri::command]
+pub async fn open_public_project(origin: String, token: String) -> Result<(), String> {
+    let url = public_project_url(&origin, &token)?;
+    #[cfg(target_os = "macos")]
+    let mut opener = std::process::Command::new("/usr/bin/open");
+    #[cfg(target_os = "linux")]
+    let mut opener = std::process::Command::new("xdg-open");
+    #[cfg(target_os = "windows")]
+    let mut opener = {
+        use std::os::windows::process::CommandExt;
+        let mut command = std::process::Command::new("rundll32.exe");
+        command
+            .arg("url.dll,FileProtocolHandler")
+            .creation_flags(0x08000000);
+        command
+    };
+
+    tauri::async_runtime::spawn_blocking(move || {
+        opener
+            .arg(url.as_str())
+            .status()
+            .is_ok_and(|status| status.success())
+    })
+    .await
+    .unwrap_or(false)
+    .then_some(())
+    .ok_or_else(|| "Não foi possível abrir a página pública no navegador.".into())
 }
 
 #[derive(Default)]
@@ -555,5 +616,37 @@ mod tests {
                 "{path}"
             );
         }
+    }
+
+    #[test]
+    fn allows_only_the_project_share_methods_and_path() {
+        let origin = server_origin("https://feito.example.com").unwrap();
+        let path = "/api/v1/projects/4aa87f4d-8772-4020-9f71-f2abd870d560/share";
+        for method in [Method::GET, Method::PUT, Method::DELETE] {
+            let url = request_url(origin.clone(), &method, path).unwrap();
+            assert_eq!(url.path(), path);
+        }
+        assert!(request_url(origin.clone(), &Method::POST, path).is_err());
+        for path in [
+            "/api/v1/projects/../share",
+            "/api/v1/projects/%2e%2e/share",
+            "/api/v1/projects/4aa87f4d-8772-4020-9f71-f2abd870d560",
+            "/api/v1/projects/4aa87f4d-8772-4020-9f71-f2abd870d560/share?unexpected=1",
+        ] {
+            assert!(request_url(origin.clone(), &Method::GET, path).is_err());
+        }
+    }
+
+    #[test]
+    fn opens_only_public_project_urls_over_https() {
+        let token = "4aa87f4d-8772-4020-9f71-f2abd870d560";
+        assert_eq!(
+            public_project_url("https://feito.example.com:8443", token)
+                .unwrap()
+                .as_str(),
+            "https://feito.example.com:8443/compartilhado/4aa87f4d-8772-4020-9f71-f2abd870d560"
+        );
+        assert!(public_project_url("http://feito.example.com", token).is_err());
+        assert!(public_project_url("https://feito.example.com", "../ajustes").is_err());
     }
 }

@@ -36,6 +36,7 @@ A saída é mais curta que a entrada em elementos que o usuário fecha. O títul
 | Diálogo no desktop | Fade + escala de 0,96 para 1 + 8 px de subida (`base`, `ease-out`). | Fade + escala 0,98 + 4 px (`fast`, `ease-in`). | `Dialog` |
 | Folha inferior (celular) | Desliza de baixo (`slow`). | Desce (`base`). | `Dialog` abaixo de 900 px, incluindo `MenuButton` |
 | Popover e menu | Fade + escala 0,96 com `transform-origin` no lado da âncora, inclusive quando vira para cima (`base`). | Fade + escala 0,98 (`fast`). | `Popover`, `MenuButton` no desktop |
+| Tooltip | Fade (`base`) após 320 ms com o ponteiro sobre o controle ou imediatamente ao receber foco pelo teclado. | Fade (`fast`). | `TooltipLayer`, em controles marcados com `data-tooltip` |
 | Aviso (toast) | Sobe 12 px com fade (`slow`). | Fade + escala 0,98 (`base`); os demais deslizam para o lugar (`useFlip`). | `ToastProvider` |
 | Item de lista criado | Fade + 4 px (`base`). | — | `useFlip` no `<main>` |
 | Item de lista removido ou concluído que sai do filtro | — | Cópia fixa ("fantasma") esmaece (`fast`) enquanto os vizinhos deslizam para o espaço. | `useFlip` |

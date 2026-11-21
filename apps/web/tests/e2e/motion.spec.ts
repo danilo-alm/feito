@@ -10,6 +10,48 @@ async function openQuickAdd(page: Page, isMobile: boolean) {
 }
 
 test.describe("movimento", () => {
+  test("tooltips aparecem rapidamente e esmaecem ao sair", async ({ page, isMobile }) => {
+    test.skip(isMobile, "A entrada por ponteiro é exercitada com mouse.");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.goto("/entrada");
+    const button = page.getByRole("button", { name: "Mostrar: Lista" });
+    const tip = page.getByRole("tooltip");
+    await expect(button).toBeVisible();
+    await page.evaluate(() => {
+      document.addEventListener("transitionrun", (event) => {
+        if (event.propertyName !== "opacity" || !(event.target instanceof HTMLElement) || !event.target.matches(".tooltip")) return;
+        const phase = event.target.dataset.state;
+        if (phase === "entering") document.body.dataset.tooltipEntered = "true";
+        if (phase === "exiting") document.body.dataset.tooltipExited = "true";
+      });
+    });
+    await button.hover();
+    await expect(tip).toHaveText("Mostrar: Lista", { timeout: 800 });
+    await expect(tip).toHaveCSS("background-color", "rgb(44, 42, 39)");
+    await expect(tip).toHaveCSS("color", "rgb(237, 233, 226)");
+    await expect(page.locator("body")).toHaveAttribute("data-tooltip-entered", "true");
+    await tip.hover();
+    await expect(tip).toBeVisible();
+    await page.mouse.move(0, 0);
+    await expect(page.locator("body")).toHaveAttribute("data-tooltip-exited", "true");
+    await expect(page.locator(".tooltip")).toHaveCount(0);
+
+    await page.keyboard.press("Tab");
+    await button.focus();
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tip).toBeHidden();
+    await expect(button).toBeFocused();
+  });
+
+  test("toque abre o controle sem exibir tooltip", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "O perfil de celular usa entrada por toque.");
+    await page.goto("/entrada");
+    await page.getByRole("button", { name: "Mostrar: Lista" }).tap();
+    await expect(page.getByRole("dialog", { name: "Visualização" })).toBeVisible();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+  });
+
   test("ao soltar como subtarefa, a linha recupera a opacidade da prévia gradualmente", async ({ page, api, isMobile }) => {
     test.skip(isMobile, "A prévia transparente é usada no arraste com mouse.");
     const seed = await seedProject(api, `Transparência ${Date.now()}`);

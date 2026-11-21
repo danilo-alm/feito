@@ -6,6 +6,8 @@ import { Dialog, Popover, useIsMobile } from "./ui";
 
 export const SORT_LABEL: Record<SortMode, string> = { manual: "Manual", date: "Data planejada", priority: "Prioridade" };
 export const LAYOUT_LABEL: Record<Layout, string> = { list: "Lista", board: "Painel" };
+const LAYOUT_HELP = "Lista e Painel mostram as mesmas tarefas e seções. Calendário e Tabela chegam depois.";
+const INBOX_LAYOUT_HELP = "A Caixa de entrada não tem seções para virar colunas.";
 
 export function ViewMenu({ page, onChange }: {
   page: ProjectPage;
@@ -17,6 +19,7 @@ export function ViewMenu({ page, onChange }: {
   const sortRef = useRef<HTMLButtonElement>(null);
   const mobile = useIsMobile();
   const { view, isInbox } = { view: page.project.view, isInbox: page.project.isInbox };
+  const label = `Mostrar: ${LAYOUT_LABEL[view.layout]}`;
   const close = () => { setOpen(false); setSortOpen(false); };
   const closeSort = () => setSortOpen(false);
 
@@ -25,7 +28,8 @@ export function ViewMenu({ page, onChange }: {
       {!mobile && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h2 style={{ fontSize: 16, fontWeight: 700 }}>Visualização</h2>
-          <span className="icon-btn" style={{ width: 30, height: 30 }} title="Lista e Painel mostram as mesmas tarefas e seções. Calendário e Tabela chegam depois.">
+          <span className="icon-btn" style={{ width: 30, height: 30 }} role="img" tabIndex={0}
+            aria-label="Sobre os layouts" aria-description={LAYOUT_HELP} data-tooltip={LAYOUT_HELP}>
             <IconHelp />
           </span>
         </div>
@@ -35,7 +39,7 @@ export function ViewMenu({ page, onChange }: {
         <button type="button" className={`seg-o${view.layout === "list" ? " on" : ""}`} role="radio" aria-checked={view.layout === "list"}
           onClick={() => view.layout !== "list" && onChange({ layout: "list" })}><IconList />Lista</button>
         <button type="button" className={`seg-o${view.layout === "board" ? " on" : ""}`} role="radio" aria-checked={view.layout === "board"}
-          disabled={isInbox} title={isInbox ? "A Caixa de entrada não tem seções para virar colunas." : undefined}
+          disabled={isInbox} data-tooltip={isInbox ? INBOX_LAYOUT_HELP : undefined} aria-description={isInbox ? INBOX_LAYOUT_HELP : undefined}
           onClick={() => view.layout !== "board" && onChange({ layout: "board" })}><IconBoard />Painel</button>
         <button type="button" className="seg-o" role="radio" aria-checked={false} disabled><span className="badge">Depois</span><IconCalendar />Calendário</button>
         <button type="button" className="seg-o" role="radio" aria-checked={false} disabled><span className="badge">Depois</span><IconTable />Tabela</button>
@@ -83,7 +87,7 @@ export function ViewMenu({ page, onChange }: {
   return (
     <>
       <button ref={setAnchor} type="button" className={`icon-btn tool-btn${open ? " on" : ""}`}
-        aria-label={`Mostrar: ${LAYOUT_LABEL[view.layout]}`} aria-haspopup="dialog" aria-expanded={open}
+        data-tooltip={label} aria-label={label} aria-haspopup="dialog" aria-expanded={open}
         onClick={() => open ? close() : setOpen(true)}>
         {view.layout === "board" ? <IconBoard /> : <IconList />}
         <span className="tool-label">Mostrar</span>

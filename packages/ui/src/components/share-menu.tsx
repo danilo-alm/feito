@@ -9,11 +9,14 @@ import { Dialog, Popover, useIsMobile, useToast } from "./ui";
 /** Rota pública do front para um projeto compartilhado (docs/02-backend-endpoints.md, compartilhamento). */
 export const publicProjectPath = (token: string) => `/compartilhado/${encodeURIComponent(token)}`;
 
-export const shareKey = (projectId: string) => `share:${projectId}`;
+export type ProjectSharing =
+  | { origin: string; openPublicPage: (token: string) => Promise<void>; unavailable?: never }
+  | { unavailable: string; origin?: never; openPublicPage?: never };
 
 /** Estado do link público do projeto; compartilhado entre o botão da barra e o selo do título. */
-export function useProjectShare(projectId: string, enabled = true) {
-  return useQuery<ProjectShare>(enabled ? shareKey(projectId) : null, () => api.projects.share(projectId));
+export function useProjectShare(projectId: string, enabled = true, origin?: string) {
+  const key = origin ? `share:${origin}:${projectId}` : `share:${projectId}`;
+  return useQuery<ProjectShare>(enabled ? key : null, () => api.projects.share(projectId));
 }
 
 async function copyText(text: string, fallback: HTMLInputElement | null) {
@@ -28,21 +31,35 @@ async function copyText(text: string, fallback: HTMLInputElement | null) {
   }
 }
 
-export function ShareMenu({ projectId, archived }: { projectId: string; archived: boolean }) {
+export function ShareMenu({ projectId, archived, sharing }: {
+  projectId: string;
+  archived: boolean;
+  sharing?: ProjectSharing;
+}) {
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const mobile = useIsMobile();
-  const share = useProjectShare(projectId);
-  const shared = !!share.data?.enabled;
+  const unavailable = sharing?.unavailable;
+  const share = useProjectShare(projectId, !unavailable, sharing?.origin);
+  const shared = !archived && !!share.data?.enabled;
   const close = () => setOpen(false);
 
-  const body = <ShareBody projectId={projectId} archived={archived} share={share} mobile={mobile} onClose={close} />;
+  const body = unavailable
+    ? <div className="share" style={{ padding: mobile ? "8px 16px 24px" : "16px 18px" }}>
+        {!mobile && <h2 className="share-h">Compartilhar</h2>}
+        <p className="share-status">{unavailable}</p>
+      </div>
+    : <ShareBody projectId={projectId} archived={archived} share={share} mobile={mobile} sharing={sharing} onClose={close} />;
 
   return (
     <>
       <button ref={setAnchor} type="button" className={`icon-btn tool-btn${open ? " on" : ""}${shared ? " shared" : ""}`}
+        data-share-unavailable={unavailable ? "" : undefined} data-tooltip={unavailable ?? "Compartilhar"} aria-description={unavailable}
         aria-label={shared ? "Compartilhar: link público ativo" : "Compartilhar"} aria-haspopup="dialog" aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}>
+        onClick={() => {
+          if (!open && sharing?.origin && !share.loading) void share.reload();
+          setOpen(!open);
+        }}>
         <IconShare />
         <span className="tool-label">Compartilhar</span>
       </button>
@@ -53,11 +70,12 @@ export function ShareMenu({ projectId, archived }: { projectId: string; archived
   );
 }
 
-function ShareBody({ projectId, archived, share, mobile, onClose }: {
+function ShareBody({ projectId, archived, share, mobile, sharing, onClose }: {
   projectId: string;
   archived: boolean;
   share: ReturnType<typeof useProjectShare>;
   mobile: boolean;
+  sharing?: ProjectSharing;
   onClose: () => void;
 }) {
   const toast = useToast();
@@ -67,10 +85,11 @@ function ShareBody({ projectId, archived, share, mobile, onClose }: {
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  const token = share.data?.enabled ? share.data.token : null;
+  const token = !archived && share.data?.enabled ? share.data.token : null;
   const shared = !!token;
-  const url = token ? `${window.location.origin}${publicProjectPath(token)}` : "";
-  const canNativeShare = mobile && typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const url = token ? `${sharing?.origin ?? window.location.origin}${publicProjectPath(token)}` : "";
+  const openPublicPage = sharing?.openPublicPage;
+  const canNativeShare = mobile && !openPublicPage && typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   const toggle = async () => {
     if (busy || archived || !share.data) return;
@@ -107,7 +126,8 @@ function ShareBody({ projectId, archived, share, mobile, onClose }: {
   };
 
   const status = archived ? "Reative o projeto para compartilhar."
-    : !share.data ? (share.error ? "Não foi possível carregar o compartilhamento." : "Carregando…")
+    : share.error && !share.loading ? errorMessage(share.error)
+      : !share.data ? "Carregando…"
       : shared ? "Ativado. Qualquer pessoa com o link pode ver este projeto." : "Desativado. Só você vê este projeto.";
 
   return (
@@ -120,9 +140,13 @@ function ShareBody({ projectId, archived, share, mobile, onClose }: {
           <div className="share-status" aria-live="polite">{status}</div>
         </div>
         <button type="button" className={`switch${shared ? " on" : ""}`} role="switch" aria-checked={shared}
-          aria-labelledby="share-public-label" disabled={busy || archived || !share.data} aria-busy={busy}
+          aria-labelledby="share-public-label" disabled={busy || archived || !share.data || share.loading || !!share.error} aria-busy={busy}
           onClick={() => void toggle()} />
       </div>
+
+      {!archived && !!share.error && !share.loading && (
+        <button type="button" className="btn" onClick={() => void share.reload()}>Tentar de novo</button>
+      )}
 
       {shared && (
         <div className="share-link">
@@ -141,7 +165,14 @@ function ShareBody({ projectId, archived, share, mobile, onClose }: {
               )}
               <CopyButton copied={copied} onClick={() => void copy()} large />
             </div>
-          ) : (
+          ) : null}
+          {openPublicPage ? (
+            <button type="button" className="share-open" onClick={() => {
+              void openPublicPage(token).then(onClose, () => toast("Não foi possível abrir a página pública no navegador.", { bad: true }));
+            }}>
+              Abrir página pública<IconExternal />
+            </button>
+          ) : !mobile && (
             <a className="share-open" href={publicProjectPath(token)} target="_blank" rel="noopener noreferrer" onClick={onClose}>
               Abrir página pública<IconExternal />
             </a>

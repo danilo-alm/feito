@@ -157,7 +157,7 @@ export function ProjectStyleFields({ projectId, color, icon, disabled, onColor, 
             const selected = option.value === icon;
             return (
               <button key={option.value} type="button" role="option" aria-selected={selected} aria-label={option.label}
-                title={option.label} className={`ps-glyph${selected ? " on" : ""}`} data-autofocus={selected || undefined}
+                data-tooltip={option.label} className={`ps-glyph${selected ? " on" : ""}`} data-autofocus={selected || undefined}
                 onClick={() => { onIcon(option.value); close(); }}>
                 <Glyph icon={option.value} style={{ color: current }} />
               </button>

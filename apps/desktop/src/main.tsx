@@ -14,7 +14,7 @@ import Inbox from "@feito/ui/screens/inbox";
 import Search from "@feito/ui/screens/search";
 import Browse from "@feito/ui/screens/browse";
 import Label from "@feito/ui/screens/label";
-import { desktop, watchServer } from "./data/native";
+import { desktop, openPublicProject, watchServer } from "./data/native";
 import { usePathname, useRoute, useRouter } from "./platform/navigation";
 import Link from "./platform/link";
 import { DesktopSettings } from "./settings";
@@ -56,7 +56,11 @@ function WorkspaceScreen() {
   const id = /^\/(projetos|etiquetas)\/([0-9a-f-]+)$/i.exec(route.pathname);
   const linked = route.searchParams.get("tarefa");
   let page = routes[route.pathname];
-  if (id?.[1] === "projetos") page = <ProjectView key={id[2]} projectId={id[2]} />;
+  if (id?.[1] === "projetos") page = <ProjectView key={id[2]} projectId={id[2]} sharing={remoteOrigin
+    ? { origin: remoteOrigin, openPublicPage: (token) => openPublicProject(remoteOrigin, token) }
+    : { unavailable: status.active === "server"
+      ? "Entre novamente no servidor para compartilhar este projeto."
+      : "Conecte-se a um servidor para compartilhar este projeto." }} />;
   if (id?.[1] === "etiquetas") {
     let params = labels.get(id[2]);
     if (!params) {

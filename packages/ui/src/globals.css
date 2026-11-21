@@ -171,10 +171,31 @@ h1,h2,h3,p{margin:0}
 .m-date{color:var(--tc,var(--muted));font-weight:500}
 .m-date.tone-today,.m-date.tone-late{font-weight:600}
 .m-prio svg{color:var(--pc)}
-.m-origin{margin-left:auto}
+/* Origem (projeto / seção) na linha do título, em Hoje, Em breve e outras listas planas. */
+.t-line{display:flex;align-items:flex-start;gap:16px}
+.t-line>.t-click,.t-line>.t-title{flex:1;min-width:0}
+.t-origin{display:inline-flex;align-items:center;gap:5px;flex:0 1 auto;min-width:0;max-width:200px;font-size:12px;line-height:20px;color:var(--muted);white-space:nowrap}
+button.t-origin{border:0;background:none;padding:0 4px;margin:0 -4px;border-radius:4px;text-align:left}
+button.t-origin:hover{background:var(--hover)}
+.t-origin svg{width:13px;height:13px}
+.t-origin-name{flex:0 1 auto;min-width:24px;overflow:hidden;text-overflow:ellipsis}
+.t-origin-sec{flex:0 100 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--faint)}
+.done-t .t-origin{opacity:.8}
 .t-acts{display:flex;gap:2px;opacity:0;margin:-6px 0}
 .task:hover .t-acts,.task:focus-within .t-acts,.card .t-acts,.t-acts:has([aria-expanded=true]){opacity:1}
 .t-acts .icon-btn{width:30px;height:30px}
+/* Com a origem na linha do título, as ações ocultas não reservam espaço: o projeto fica na borda direita
+   e desliza para a esquerda quando as ações aparecem (hover, foco ou menu aberto). */
+@media (min-width: 900px){
+  .task:has(.t-origin) .t-acts{max-width:0;margin-inline-start:-10px;overflow:hidden;
+    transition:opacity var(--dur-slow) var(--ease-in-out),max-width var(--dur-slow) var(--ease-in-out),margin-inline-start var(--dur-slow) var(--ease-in-out)}
+  .task:has(.t-origin):hover .t-acts,.task:has(.t-origin):focus-within .t-acts,.task:has(.t-origin) .t-acts:has([aria-expanded=true]){
+    max-width:120px;margin-inline-start:0}
+  /* O recorte fica ligado o tempo todo (trocar overflow no início da transição mostrava os botões por cima do projeto)
+     e os botões mantêm a largura enquanto a área abre; o anel de foco vai para dentro para não ser cortado. */
+  .task:has(.t-origin) .t-acts>*{flex:none}
+  .task:has(.t-origin) .t-acts :focus-visible{outline-offset:-2px}
+}
 .add-task{display:flex;align-items:center;gap:10px;height:40px;padding:0 4px;color:var(--muted);font-size:14px;border:0;background:none;width:100%;text-align:left}
 .add-task .plus{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:var(--brand-text)}
 .add-task:hover{color:var(--brand-text)}
@@ -589,6 +610,11 @@ textarea.project-heading-input{resize:none;overflow:hidden}
   .list-group{--task-indent-step:clamp(12px,3.6vw,22px)}
   .chk{width:44px;height:44px;margin:-12px -10px -12px -12px}
   .t-title{font-size:15px;line-height:21px}
+  .t-line{gap:12px}
+  .t-origin{max-width:112px;line-height:21px}
+  .t-origin-sec{display:none}
+  /* Com a origem dividindo a linha, o título longo fica em até duas linhas; o texto completo continua no nome acessível e no detalhe. */
+  .t-line>.t-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
   .grip{display:none}
   .t-acts{opacity:1}
   .board{padding:8px 16px 140px;scroll-snap-type:x mandatory;height:calc(100dvh - 200px)}
@@ -672,6 +698,16 @@ textarea.project-heading-input{resize:none;overflow:hidden}
 .popover[data-state=exiting]{opacity:0;transform:scale(.98);pointer-events:none;transition-duration:var(--dur-fast);transition-timing-function:var(--ease-in)}
 .popover[data-state=entering],.popover[data-state=exiting]{will-change:opacity,transform}
 
+.tooltip{position:fixed;z-index:90;max-width:min(280px,calc(100vw - 16px));padding:5px 8px;border-radius:7px;
+  background:var(--toast);color:var(--on-toast);box-shadow:var(--shadow);font-size:12px;line-height:1.4;overflow-wrap:anywhere;
+  transition:opacity var(--dur-base) var(--ease-out)}
+html.dark .tooltip{background:var(--raised);color:var(--text)}
+.tooltip::before{content:"";position:absolute;inset-inline:0;height:6px}
+.tooltip[data-side=below]::before{bottom:100%}
+.tooltip[data-side=above]::before{top:100%}
+@starting-style{.tooltip[data-state=entering]{opacity:0}}
+.tooltip[data-state=exiting]{opacity:0;pointer-events:none;transition-duration:var(--dur-fast);transition-timing-function:var(--ease-in)}
+
 /* Avisos: entram subindo com fade, saem em fade; os demais deslizam (useFlip). */
 .toast-stack .toast{transition:opacity var(--dur-slow) var(--ease-out),transform var(--dur-slow) var(--ease-out)}
 @starting-style{.toast-stack .toast{opacity:0;transform:translateY(12px)}}
@@ -751,6 +787,7 @@ textarea.project-heading-input{resize:none;overflow:hidden}
 .tool-label{display:none}
 .topbar .tool-label{display:inline}
 .tool-btn.shared{color:var(--brand-text)}
+.tool-btn[data-share-unavailable]{color:var(--muted);opacity:.65}
 .topbar:has(.compact-title){display:grid;padding-inline:32px;grid-template-columns:minmax(max-content,1fr) minmax(0,max-content) minmax(max-content,1fr)}
 .compact-title{grid-column:2;justify-self:center;display:flex;align-items:center;gap:7px;min-width:0;max-width:100%;font-weight:700;transition:opacity var(--dur-compact-title) var(--ease-in-out),visibility var(--dur-compact-title)}
 .compact-title[aria-hidden=true]{opacity:0;visibility:hidden}
@@ -782,7 +819,7 @@ textarea.project-heading-input{resize:none;overflow:hidden}
 .share-copy-btn.copied{background:var(--brand-soft);color:var(--brand-text);border-color:transparent}
 .share-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px}
 .share-actions .btn{justify-content:center;height:44px}
-.share-open{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-size:13px;font-weight:600;color:var(--brand-text)}
+.share-open{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-size:13px;font-weight:600;color:var(--brand-text);padding:0;border:0;background:none}
 .share-open:hover{text-decoration:underline}
 .share-open svg{width:14px;height:14px}
 .share-notes{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--muted)}

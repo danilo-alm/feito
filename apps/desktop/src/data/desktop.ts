@@ -1,5 +1,6 @@
 import { handleLocal, newWorkspace, type Workspace } from "./local";
-import type { User } from "@feito/core/types";
+import type { Session, User } from "@feito/core/types";
+import { entityId } from "@feito/core/validation/product";
 
 type Operation = {
   id: string;
@@ -74,6 +75,8 @@ const syncPath = "/api/v1/desktop-sync";
 const apiPrefix = "/api/v1";
 const loginPath = apiPrefix + "/auth/login";
 const logoutPath = apiPrefix + "/auth/logout";
+const sessionPath = apiPrefix + "/auth/session";
+const shareRoute = /^\/projects\/([^/]+)\/share$/;
 
 function desktopOrigin(input: string) {
   const url = new URL(input.trim());
@@ -166,6 +169,7 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
   let serial: Promise<unknown> = Promise.resolve();
   let syncing: Promise<void> | undefined;
   let signingIn = false;
+  const shareRequests = new Set<Promise<Response>>();
   let authentication: "unknown" | "valid" | "required" = "unknown";
   const needsAuthentication = () => authentication === "required";
   let status: DesktopStatus = { ready: false, active: "none", hasLocal: false, servers: [], sync: "local" };
@@ -332,6 +336,7 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
     signingIn = true;
     try {
       await syncing;
+      await Promise.all(shareRequests);
       const { value } = await locked(init);
       const wasCurrentOrigin = value.server?.origin === origin;
       const login = await bridge.request(origin, "POST", loginPath, { email: email.trim(), password });
@@ -400,6 +405,7 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
     signingIn = true;
     try {
       await syncing;
+      await Promise.all(shareRequests);
       authentication = "required";
       const { value } = await locked(init);
       if (value.server) {
@@ -419,6 +425,7 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
     signingIn = true;
     try {
       await syncing;
+      await Promise.all(shareRequests);
       await locked(async () => {
         const { value } = await init();
         const current = value.server;
@@ -479,10 +486,44 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
     });
   }
 
+  async function requestShare(server: Connected, method: string, input: string, projectId: string) {
+    const spaceChanged = () => saved?.value.active !== "server" || saved.value.server?.origin !== server.origin;
+    const changed = () => apiError(409, "O espaço de trabalho mudou durante a ação.", "WORKSPACE_CHANGED");
+    const loginRequired = () => {
+      authentication = "required";
+      const message = "Entre novamente no servidor para compartilhar este projeto.";
+      publish("login", message);
+      return apiError(401, message);
+    };
+    if (signingIn) return apiError(409, "Aguarde a conexão com o servidor.");
+    if (needsAuthentication()) return loginRequired();
+    if (!server.confirmed.projects.some((project) => project.id === projectId && !project.isInbox)) {
+      return apiError(409, "Sincronize o projeto com o servidor para compartilhar.");
+    }
+    try {
+      const session = await bridge.request(server.origin, "GET", sessionPath);
+      if (spaceChanged()) return changed();
+      if (session.status === 401) return loginRequired();
+      if (session.status !== 200) return response(session);
+      const identity = session.body as Session | null;
+      if (identity?.user?.id !== server.user.id || identity.mustChangePassword) return loginRequired();
+      if (signingIn || needsAuthentication()) return apiError(409, "A conexão com o servidor mudou. Tente de novo.");
+      const reply = await bridge.request(server.origin, method, input);
+      if (spaceChanged()) return changed();
+      if (reply.status === 401 || (reply.body as { error?: { code?: string } } | null)?.error?.code === "PASSWORD_CHANGE_REQUIRED") {
+        return loginRequired();
+      }
+      return response(reply);
+    } catch {
+      return apiError(503, "Sem conexão com o servidor. Tente de novo.");
+    }
+  }
+
   async function fetch(input: string, initRequest: RequestInit) {
     const method = initRequest.method ?? "GET";
     if (!input.startsWith(apiPrefix + "/")) return apiError(404, "Rota do Feito indisponível.");
     const path = input.slice(apiPrefix.length);
+    const share = shareRoute.exec(path);
     const taskChanges = new Headers(initRequest.headers).get("X-Feito-Task-Changes") === "1";
     const startedIn = saved && workspaceIdentity(saved.value);
     let body: unknown;
@@ -493,6 +534,27 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
     }
     const read = method === "GET" || (method === "POST" && path === "/search");
     try {
+      if (share) {
+        const projectId = entityId.safeParse(share[1]);
+        if (!projectId.success || body !== undefined || !["GET", "PUT", "DELETE"].includes(method)) {
+          return apiError(400, "Requisição de compartilhamento inválida.");
+        }
+        const initialized = await locked(init);
+        const { value } = saved ?? initialized;
+        if (startedIn !== undefined && startedIn !== workspaceIdentity(value)) {
+          return apiError(409, "O espaço de trabalho mudou durante a ação.", "WORKSPACE_CHANGED");
+        }
+        if (value.active !== "server" || !value.server) {
+          return apiError(422, "Conecte-se a um servidor para compartilhar este projeto.");
+        }
+        const request = requestShare(value.server, method, input, projectId.data);
+        shareRequests.add(request);
+        try {
+          return await request;
+        } finally {
+          shareRequests.delete(request);
+        }
+      }
       return await locked(async () => {
         const { value, generation } = await init();
         if (startedIn !== undefined && startedIn !== workspaceIdentity(value)) {

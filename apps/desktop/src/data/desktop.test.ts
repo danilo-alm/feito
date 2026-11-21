@@ -113,6 +113,71 @@ function readTask(client: ReturnType<typeof createDesktop>, id: string) {
 }
 
 describe("sincronização do desktop", () => {
+  it("gerencia o link público na conta vinculada sem gravar no espaço ou na fila", async () => {
+    const server = testBridge();
+    const { id } = await server.changeServer({ method: "POST", path: "/projects", body: { name: "Viagem" } });
+    const path = `/api/v1/projects/${id}/share`;
+    const token = crypto.randomUUID();
+    let sessionUser = owner;
+    let shared = false;
+    const request = server.bridge.request;
+    const transport = vi.spyOn(server.bridge, "request").mockImplementation(async (remote, method, route, body) => {
+      if (route === "/api/v1/auth/session") return { status: 200, body: { user: sessionUser, mustChangePassword: false } };
+      if (route !== path) return request(remote, method, route, body);
+      expect(remote).toBe(origin);
+      expect(body).toBeUndefined();
+      if (method === "DELETE") {
+        shared = false;
+        return { status: 204, body: null };
+      }
+      if (method === "PUT") shared = true;
+      return { status: 200, body: { enabled: shared, token: shared ? token : null } };
+    });
+    const client = createDesktop(server.bridge, vi.fn());
+    expect((await client.fetch(path, { method: "GET" })).status).toBe(422);
+    expect(transport).not.toHaveBeenCalled();
+    await client.connect(origin, owner.email, "senha de teste");
+    await client.sync();
+    const stored = await server.bridge.read();
+
+    expect(await (await client.fetch(path, { method: "GET" })).json()).toEqual({ enabled: false, token: null });
+    expect(await (await client.fetch(path, { method: "PUT" })).json()).toEqual({ enabled: true, token });
+    expect(await (await client.fetch(path, { method: "GET" })).json()).toEqual({ enabled: true, token });
+    expect((await client.fetch(path, { method: "DELETE" })).status).toBe(204);
+    expect(await server.bridge.read()).toEqual(stored);
+    expect(server.attempts).toHaveLength(0);
+
+    sessionUser = alternate;
+    transport.mockClear();
+    expect((await client.fetch(path, { method: "PUT" })).status).toBe(401);
+    expect(transport.mock.calls).toEqual([[origin, "GET", "/api/v1/auth/session"]]);
+    expect(client.getStatus().sync).toBe("login");
+  });
+
+  it("permite trocar para o espaço local durante a consulta de compartilhamento", async () => {
+    const server = testBridge();
+    const { id } = await server.changeServer({ method: "POST", path: "/projects", body: { name: "Viagem" } });
+    const client = createDesktop(server.bridge, vi.fn());
+    await client.connect(origin, owner.email, "senha de teste");
+    await client.sync();
+
+    const requested = Promise.withResolvers<void>();
+    const session = Promise.withResolvers<{ status: number; body: unknown }>();
+    const request = server.bridge.request;
+    const transport = vi.spyOn(server.bridge, "request").mockImplementation((...args) => {
+      if (args[2] !== "/api/v1/auth/session") return request(...args);
+      requested.resolve();
+      return session.promise;
+    });
+    const reading = client.fetch(`/api/v1/projects/${id}/share`, { method: "GET" });
+    await requested.promise;
+    await client.switchSpace("local");
+    expect(client.getStatus().active).toBe("local");
+    session.resolve({ status: 200, body: { user: owner, mustChangePassword: false } });
+    expect((await reading).status).toBe(409);
+    expect(transport.mock.calls).toEqual([[origin, "GET", "/api/v1/auth/session"]]);
+  });
+
   it("busca a revisão avisada durante uma leitura em andamento, apenas no espaço remoto ativo", async () => {
     const server = testBridge();
     const client = createDesktop(server.bridge, vi.fn());

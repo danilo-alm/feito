@@ -27,7 +27,8 @@ Os instaladores ainda não têm assinatura de distribuição:
 - **Excluir espaço local** remove suas tarefas, projetos, etiquetas e preferências locais após confirmação. Os espaços remotos e suas filas continuam disponíveis. Você pode criar um novo espaço local vazio a qualquer momento.
 - As alterações no espaço sincronizado são gravadas localmente antes de serem enviadas. O servidor avisa o app sobre mudanças por SSE. O app também consulta ao ganhar foco, ao detectar retorno da rede e a cada 30 segundos se o canal de avisos estiver indisponível ou a sincronização precisar de nova tentativa. **Sincronizar agora** permite tentar de imediato. Encerrar a sessão preserva a fila e exige autenticação para voltar a enviá-la.
 - Se duas edições concorrerem no mesmo campo de uma tarefa, vence a mais recente, com desempate estável. Exclusões prevalecem sobre edições atrasadas. Operações que deixaram de ser aplicáveis são informadas nos Ajustes. Uma rejeição que bloqueie a fila pode ser descartada após confirmação. Alterações estruturais de projetos, seções e etiquetas ainda seguem as revisões usadas pelo site.
-- Compartilhamento por link, importação e exportação, troca de senha e links de tarefas continuam disponíveis no website.
+- Em um projeto sincronizado, **Compartilhar** permite ativar ou desativar o link público da instalação vinculada, copiar o endereço e abri-lo no navegador. A ação precisa de uma conexão com o servidor. Em um espaço local, o botão indica que é preciso conectar-se a um servidor.
+- Importação e exportação, troca de senha e links de tarefas continuam disponíveis no website.
 
 ## Desenvolvimento
 

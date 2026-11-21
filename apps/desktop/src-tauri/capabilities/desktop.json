@@ -3,5 +3,5 @@
   "identifier": "desktop",
   "description": "Leitura e gravação locais e acesso à API Feito por HTTPS",
   "windows": ["main"],
-  "permissions": ["allow-read-workspace", "allow-write-workspace", "allow-server-request", "allow-start-product-events", "allow-stop-product-events"]
+  "permissions": ["allow-read-workspace", "allow-write-workspace", "allow-server-request", "allow-start-product-events", "allow-stop-product-events", "allow-open-public-project"]
 }

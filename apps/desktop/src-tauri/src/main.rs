@@ -36,6 +36,7 @@ fn main() {
             workspace::write_workspace,
             server::start_product_events,
             server::stop_product_events,
+            server::open_public_project,
             server::server_request
         ])
         .run(tauri::generate_context!())

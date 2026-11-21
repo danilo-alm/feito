@@ -141,9 +141,9 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
           )}
         </div>
         <div className="task-detail-tools">
-          <button type="button" className="icon-btn" aria-label="Mostrar tarefa anterior" title="Mostrar tarefa anterior"
+          <button type="button" className="icon-btn" aria-label="Mostrar tarefa anterior" data-tooltip="Mostrar tarefa anterior"
             disabled={!previousId} onClick={() => previousId && openRelatedTask(previousId, order)}><IconChevronUp /></button>
-          <button type="button" className="icon-btn" aria-label="Mostrar próxima tarefa" title="Mostrar próxima tarefa"
+          <button type="button" className="icon-btn" aria-label="Mostrar próxima tarefa" data-tooltip="Mostrar próxima tarefa"
             disabled={!nextId} onClick={() => nextId && openRelatedTask(nextId, order)}><IconChevronDown /></button>
           {task && <MenuButton key={task.id} label="Ações da tarefa" contextMenu={contextMenu} items={() => [
             { label: "Duplicar", icon: <IconCopy />, onSelect: () => void actions.duplicate(task) },

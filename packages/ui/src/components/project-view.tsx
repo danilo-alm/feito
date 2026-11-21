@@ -28,7 +28,7 @@ import { useTaskActions } from "./task-actions";
 import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
 import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
 import { Dialog, MenuButton, ReadFallback, useAutoGrow, useContextMenu, useIsMobile, useToast, type MenuItem } from "./ui";
-import { ShareMenu, useProjectShare } from "./share-menu";
+import { ShareMenu, useProjectShare, type ProjectSharing } from "./share-menu";
 import { LAYOUT_LABEL, SORT_LABEL, ViewMenu } from "./view-menu";
 
 const GROUP = (sectionId: string | null) => `group:${sectionId ?? "none"}`;
@@ -81,7 +81,7 @@ const collision: CollisionDetection = (args) => {
 
 type DragState = { activeId: string; byMouse: boolean; over: DropOver | null; plan: Plan | null };
 
-export function ProjectView({ projectId }: { projectId: string }) {
+export function ProjectView({ projectId, sharing }: { projectId: string; sharing?: ProjectSharing }) {
   const app = useApp();
   const projectDetails = useProjectDetailsDialog();
   const [sectionToEdit, setSectionToEdit] = useState<Section | null>(null);
@@ -351,14 +351,14 @@ export function ProjectView({ projectId }: { projectId: string }) {
 
   const crumb = project.isInbox ? "Captura e triagem" : <>Meus projetos <span aria-hidden="true">/</span></>;
   const compactTitle = showCompactTitle && (
-    <span className="compact-title" aria-hidden={!titleAboveView} title={project.name} onContextMenu={contextMenu.onContextMenu}>
+    <span className="compact-title" aria-hidden={!titleAboveView} data-tooltip={project.name} onContextMenu={contextMenu.onContextMenu}>
       <Glyph icon={project.icon} style={{ color: project.color ? colorValue(project.color) : tagColor(project.id) }} />
       <span>{project.name}</span>
     </span>
   );
   const tools = (visible: boolean) => (
     <>
-      {app.browserTools && !project.isInbox && <ShareMenu projectId={project.id} archived={archived} />}
+      {!project.isInbox && <ShareMenu projectId={project.id} archived={archived} sharing={sharing} />}
       {!archived && <ViewMenu page={page} onChange={(patch) => void changeView(patch)} />}
       {!project.isInbox && (
         <MenuButton label="Mais ações" tooltip="Mais ações" title={project.name} items={projectMenu} contextMenu={visible ? contextMenu : undefined}><IconMore /></MenuButton>
@@ -391,7 +391,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
               <ProjectHeading key={project.id} project={project} titleRef={projectTitle} />
               <div className="page-meta">
                 <PageTaskCount count={activeTasks} />
-                {app.browserTools && !project.isInbox && <PublicBadge projectId={project.id} />}
+                {!project.isInbox && !archived && !sharing?.unavailable && <PublicBadge projectId={project.id} origin={sharing?.origin} />}
               </div>
             </div>
             <Collapse open={archived} appear={false}>
@@ -440,8 +440,8 @@ export function ProjectView({ projectId }: { projectId: string }) {
 }
 
 /** Selo "Público" ao lado da contagem enquanto o link de compartilhamento está ativo. */
-function PublicBadge({ projectId }: { projectId: string }) {
-  const share = useProjectShare(projectId);
+function PublicBadge({ projectId, origin }: { projectId: string; origin?: string }) {
+  const share = useProjectShare(projectId, true, origin);
   if (!share.data?.enabled) return null;
   return <span className="pub-badge"><IconGlobe />Público</span>;
 }

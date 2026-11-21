@@ -179,11 +179,11 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
         <div ref={setActs} className="t-acts" style={variant === "card" ? { margin: "-4px -6px 0 0" } : undefined}>
           {showShortcuts && (
             <>
-              <button type="button" className="icon-btn desktop-only" aria-label={`Editar “${task.title}”`} title="Editar"
+              <button type="button" className="icon-btn desktop-only" aria-label={`Editar “${task.title}”`} data-tooltip="Editar"
                 onPointerDown={stop} onClick={(event) => { stop(event); edit(); }}>
                 <IconEdit />
               </button>
-              <button type="button" className="icon-btn desktop-only" aria-label={`Agendar “${task.title}”`} title="Data"
+              <button type="button" className="icon-btn desktop-only" aria-label={`Agendar “${task.title}”`} data-tooltip="Data"
                 aria-haspopup="dialog" aria-expanded={dateOpen}
                 onPointerDown={stop} onClick={(event) => { stop(event); setDateOpen((value) => !value); }}>
                 <IconCalendar />

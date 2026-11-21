@@ -83,7 +83,7 @@ function IconSidebar() {
 
 function WindowControls({ platform, maximized }: { platform: "windows" | "linux"; maximized: boolean }) {
   const control = (label: string, action: () => Promise<void>, glyph: ReactNode, kind: string) => (
-    <button type="button" className={`tb-win tb-win-${kind}`} aria-label={label} title={label}
+    <button type="button" className={`tb-win tb-win-${kind}`} aria-label={label} data-tooltip={label}
       onClick={() => { if (isTauri()) void action().catch(() => undefined); }}>
       {platform === "linux" ? <span className="tb-dot">{glyph}</span> : glyph}
     </button>
@@ -200,7 +200,7 @@ export function Titlebar({ platform, children }: { platform: TitlebarPlatform; c
               </button>
             )}
             {workspace && (
-              <button type="button" className="tb-btn tb-sidebar" aria-label={sidebarLabel} title={`${sidebarLabel} (${sidebarShortcut})`}
+              <button type="button" className="tb-btn tb-sidebar" aria-label={sidebarLabel} data-tooltip={`${sidebarLabel} (${sidebarShortcut})`}
                 aria-expanded={!collapsed} aria-keyshortcuts={mac ? "Meta+\\" : "Control+\\"} onClick={toggleSidebar}>
                 <IconSidebar />
               </button>
@@ -208,9 +208,9 @@ export function Titlebar({ platform, children }: { platform: TitlebarPlatform; c
           </div>
           <div className="tb-main">
             <div className="tb-nav tb-app">
-              <button type="button" className="tb-btn" aria-label="Voltar" title={`Voltar (${backKey})`} aria-disabled={!history.canGoBack}
+              <button type="button" className="tb-btn" aria-label="Voltar" data-tooltip={`Voltar (${backKey})`} aria-disabled={!history.canGoBack}
                 aria-keyshortcuts={mac ? "Meta+[" : "Alt+ArrowLeft"} onClick={() => history.back()}><IconChevronLeft /></button>
-              <button type="button" className="tb-btn" aria-label="Avançar" title={`Avançar (${forwardKey})`} aria-disabled={!history.canGoForward}
+              <button type="button" className="tb-btn" aria-label="Avançar" data-tooltip={`Avançar (${forwardKey})`} aria-disabled={!history.canGoForward}
                 aria-keyshortcuts={mac ? "Meta+]" : "Alt+ArrowRight"} onClick={() => history.forward()}><IconChevronRight /></button>
             </div>
             <div className="tb-title" ref={setTitle} />

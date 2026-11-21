@@ -279,7 +279,7 @@ function MonthScroller({ value, reference, onPick }: { value: string | null; ref
         <div className="cal-nav">
           <button type="button" className="icon-btn" aria-label="Mês anterior" disabled={index <= 0}
             onClick={() => scrollTo(months[index - 1])}><IconChevronLeft /></button>
-          <button type="button" className="icon-btn cal-today" aria-label="Voltar para hoje" title="Hoje"
+          <button type="button" className="icon-btn cal-today" aria-label="Voltar para hoje" data-tooltip="Hoje"
             onClick={() => scrollTo(monthStart(reference))}><span /></button>
           <button type="button" className="icon-btn" aria-label="Próximo mês" disabled={index >= months.length - 1}
             onClick={() => scrollTo(months[index + 1])}><IconChevronRight /></button>

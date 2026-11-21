@@ -97,21 +97,45 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
       {task.labels.map((label) => item(`label:${label.id}`, <><IconTag style={{ color: tagColor(label.id) }} />{label.name}</>, {
         field: editable ? "labels" : undefined, label: editable ? `Etiqueta: ${label.name}` : undefined,
       }))}
-      {destination && item("origin", <>{origin?.isInbox ? <IconInbox className="ic-inbox" /> : <ProjectGlyph id={task.projectId} />}{destination}</>, {
-        className: "m-origin", label: editable ? `Mover para… (atual: ${destination})` : undefined,
-        action: editable ? () => actions.openMove(task) : undefined,
-      })}
     </span>
   );
 
+  // A origem fica na linha do título para que tarefas sem outros metadados ocupem uma linha só.
+  const originContent = destination && origin && <>
+    {origin.isInbox ? <IconInbox className="ic-inbox" /> : <ProjectGlyph id={task.projectId} />}
+    {origin.isInbox || !origin.projectName ? <span className="t-origin-name">{destination}</span> : <>
+      <span className="t-origin-name">{origin.projectName}</span>
+      {origin.sectionName && <span className="t-origin-sec">/ {origin.sectionName}</span>}
+    </>}
+  </>;
+  const originLabel = (originContent || undefined) && (editable
+    ? <button type="button" className="t-origin" data-tooltip={destination ?? undefined}
+      aria-label={`Mover para… (atual: ${destination})`}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => { event.stopPropagation(); actions.openMove(task); }}>
+      {originContent}
+    </button>
+    : <span className="t-origin" data-tooltip={destination ?? undefined}>{originContent}</span>);
+
   const excerpt = showDescription ? task.descriptionExcerpt : null;
+  const title = <span className="t-title">{task.title}</span>;
   return (
     <div className="t-body">
-      <button type="button" className="t-click" disabled={temporary} onClick={() => (onOpen ?? app.openTask)(task.id)}>
-        <span className="t-title">{task.title}</span>
-        {excerpt && <span className="t-desc">{excerpt}</span>}
-        {!desktop && meta}
-      </button>
+      {desktop ? (
+        <div className="t-line">
+          <button type="button" className="t-click" disabled={temporary} onClick={() => (onOpen ?? app.openTask)(task.id)}>
+            {title}
+            {excerpt && <span className="t-desc">{excerpt}</span>}
+          </button>
+          {originLabel}
+        </div>
+      ) : (
+        <button type="button" className="t-click" disabled={temporary} onClick={() => (onOpen ?? app.openTask)(task.id)}>
+          {originLabel ? <span className="t-line">{title}{originLabel}</span> : title}
+          {excerpt && <span className="t-desc">{excerpt}</span>}
+          {meta}
+        </button>
+      )}
       {desktop && meta}
       <Popover anchor={openField?.anchor ?? null} open={desktop && !!openField} onClose={close}
         label={openField ? FIELD_LABELS[openField.field] : ""}>

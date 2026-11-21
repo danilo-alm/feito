@@ -25,6 +25,9 @@ const bridge = import.meta.env.DEV && !isTauri() ? previewBridge() : nativeBridg
 
 export const desktop = createDesktop(bridge, () => { void invalidate(); }, clearCache);
 
+export const openPublicProject = (origin: string, token: string) =>
+  invoke<void>("open_public_project", { origin, token });
+
 let eventCommands = Promise.resolve();
 
 export function watchServer(origin: string) {
