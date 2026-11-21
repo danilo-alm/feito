@@ -472,6 +472,6 @@ describe("preferência de idioma sincronizada", () => {
     const replica = await pullReplica(request("/api/v1/desktop-sync", { cookie }));
     expect(replica.status).toBe(200);
     expect(await replica.json()).toMatchObject({ workspace: { preferences: { locale: "en" } } });
-    await expectError(await patch(cookie, { locale: "es" }), 422, "VALIDATION_FAILED");
+    await expectError(await patch(cookie, { locale: "ja" }), 422, "VALIDATION_FAILED");
   });
 });
