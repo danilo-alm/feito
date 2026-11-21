@@ -1,4 +1,4 @@
-name: CI
+name: Web CI
 
 # Mantenha o check "test" em todos os PRs, inclusive em mudanças só do desktop.
 on:
