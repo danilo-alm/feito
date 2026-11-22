@@ -28,15 +28,21 @@ test.describe("rolagem do menu de idiomas", () => {
     expect(await scrollY()).toBe(before);
 
     await page.setViewportSize({ width: 390, height: 300 });
+    // Aguarda a superfície de toque emulada acompanhar o novo viewport.
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     const shortBox = (await dialog.boundingBox())!;
-    const bottom = shortBox.y + shortBox.height - 25;
+    const shortListBox = (await list.boundingBox())!;
+    const scrollPoint = {
+      x: shortListBox.x + shortListBox.width / 2,
+      y: Math.min(shortListBox.y + shortListBox.height / 2, shortBox.y + shortBox.height - 60),
+    };
     const scrollTop = () => dialog.evaluate((node) => node.scrollTop);
     const extent = await dialog.evaluate((node) => node.scrollHeight - node.clientHeight);
     expect(extent).toBeGreaterThan(0);
     const shortBefore = await scrollY();
-    await swipe(shortBox.x + shortBox.width / 2, bottom, -(extent + 32));
+    await swipe(scrollPoint.x, scrollPoint.y, -(extent + 32));
     await expect.poll(scrollTop).toBe(extent);
-    await swipe(shortBox.x + shortBox.width / 2, bottom);
+    await swipe(scrollPoint.x, scrollPoint.y);
     expect(await scrollY()).toBe(shortBefore);
 
     await dialog.getByRole("button", { name: "Fechar (Esc)" }).click();
