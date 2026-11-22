@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
+import { defaultLocale, defaultPreferences } from "@feito/core/domain/preferences";
 import { preferences, preferencesPatch } from "@feito/core/validation/preferences";
-import { getLocale, inSentence, languages, restoreLocale, setLocale, translate, translateMessage } from "@feito/ui/client/locale";
+import { getLocale, serverLocale, inSentence, languages, restoreLocale, setLocale, translate, translateMessage } from "@feito/ui/client/locale";
 import {
   completedLabel, dateInSentence, dateLabel, longDate, monthShort, monthTitle, parseDueInput, rangeLabel, weekdayShort, weekHead,
 } from "@feito/ui/client/dates";
@@ -21,7 +22,28 @@ const placeholders = (text: string) => [...text.matchAll(/\{\d+\}/g)].map(([toke
 const REF = "2026-11-19";
 
 describe("idiomas compartilhados", () => {
-  afterEach(() => { setLocale("pt-BR"); vi.unstubAllGlobals(); });
+  afterEach(async () => {
+    vi.stubGlobal("document", { documentElement: { lang: "en" } });
+    await setLocale(defaultLocale);
+    vi.unstubAllGlobals();
+  });
+
+  it("usa inglês sem preferência e preserva a escolha explícita de português", async () => {
+    expect(defaultPreferences.locale).toBe("en");
+    expect(serverLocale()).toBe("en");
+    const stored = new Map<string, string>();
+    vi.stubGlobal("document", { documentElement: { lang: "en" } });
+    vi.stubGlobal("localStorage", { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => stored.set(key, value) });
+    await restoreLocale();
+    expect(getLocale()).toBe("en");
+    expect(translate("Hoje")).toBe("Today");
+    expect(parseDueInput("tomorrow", REF)).toBe("2026-11-20");
+    stored.set("feito:locale", "pt-BR");
+    await restoreLocale();
+    expect(getLocale()).toBe("pt-BR");
+    expect(document.documentElement.lang).toBe("pt-BR");
+    expect(translate("Hoje")).toBe("Hoje");
+  });
 
   it("preserva preferências antigas e não acrescenta idioma a patches de outros campos", () => {
     expect(preferences.parse({ timezone: "UTC", theme: "system" })).toEqual({ timezone: "UTC", theme: "system" });
@@ -31,7 +53,7 @@ describe("idiomas compartilhados", () => {
     expect(languages.map(({ value }) => value)).toEqual(["pt-BR", "pt-PT", "en", "es", "fr", "it", "de"]);
   });
 
-  it("interpola sem traduzir conteúdo do usuário e tem fallback em português", () => {
+  it("interpola sem traduzir conteúdo do usuário e tem fallback em português", async () => {
     expect(translate("Excluir “{0}”?", ["Hoje"], "en")).toBe("Delete “Hoje”?");
     expect(translate("texto futuro", [], "en")).toBe("texto futuro");
     expect(translate("Hoje", [], "pt-BR")).toBe("Hoje");
@@ -49,35 +71,35 @@ describe("idiomas compartilhados", () => {
     expect(translateMessage("Mensagem nova do servidor.", "de")).toBe("Mensagem nova do servidor.");
   });
 
-  it("restaura só idiomas conhecidos do armazenamento local", () => {
+  it("restaura só idiomas conhecidos do armazenamento local", async () => {
     const stored = new Map<string, string>();
     vi.stubGlobal("document", { documentElement: { lang: "pt-BR" } });
     vi.stubGlobal("localStorage", { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => stored.set(key, value) });
     stored.set("feito:locale", "de");
-    restoreLocale();
+    await restoreLocale();
     expect(getLocale()).toBe("de");
     expect(document.documentElement.lang).toBe("de");
     stored.set("feito:locale", "klingon");
-    restoreLocale();
-    expect(getLocale()).toBe("pt-BR");
-    expect(stored.get("feito:locale")).toBe("pt-BR");
+    await restoreLocale();
+    expect(getLocale()).toBe("en");
+    expect(stored.get("feito:locale")).toBe("en");
   });
 
-  it("não altera o idioma global no servidor", () => {
-    setLocale("en");
-    expect(getLocale()).toBe("pt-BR");
+  it("não altera o idioma global no servidor", async () => {
+    await setLocale("pt-BR");
+    expect(getLocale()).toBe("en");
   });
 
-  it("formata datas no idioma escolhido, mantendo a data civil e o fuso", () => {
+  it("formata datas no idioma escolhido, mantendo a data civil e o fuso", async () => {
     vi.stubGlobal("document", { documentElement: { lang: "pt-BR" } });
-    setLocale("en");
+    await setLocale("en");
     expect(dateLabel(REF, REF)).toBe("Today");
     expect(dateLabel("2026-11-20", REF)).toBe("Tomorrow");
     expect(weekdayShort(REF)).toBe("Thu");
     expect(longDate(REF)).toBe("Thursday 19 November");
     expect(monthTitle(REF)).toBe("November 2026");
     expect(completedLabel("2026-11-20T01:30:00Z", REF, "America/Maceio")).toBe("Completed today, 22:30");
-    setLocale("pt-BR");
+    await setLocale("pt-BR");
     expect(dateLabel(REF, REF)).toBe("Hoje");
     expect(longDate(REF)).toBe("Quinta, 19 de novembro");
     expect(weekHead()).toEqual(["D", "S", "T", "Q", "Q", "S", "S"]);
@@ -89,9 +111,9 @@ describe("idiomas compartilhados", () => {
     ["fr", "Aujourd’hui", "Jeudi 19 novembre", "Novembre 2026", "Terminée aujourd’hui, 22:30"],
     ["it", "Oggi", "Giovedì 19 novembre", "Novembre 2026", "Completata oggi, 22:30"],
     ["de", "Heute", "Donnerstag, 19. November", "November 2026", "Heute erledigt, 22:30"],
-  ] as const)("formata datas em %s sem deslocar a data civil", (locale, today, long, month, completed) => {
+  ] as const)("formata datas em %s sem deslocar a data civil", async (locale, today, long, month, completed) => {
     vi.stubGlobal("document", { documentElement: { lang: "pt-BR" } });
-    setLocale(locale);
+    await setLocale(locale);
     expect(document.documentElement.lang).toBe(locale);
     expect(dateLabel(REF, REF)).toBe(today);
     expect(longDate(REF)).toBe(long);
@@ -103,15 +125,15 @@ describe("idiomas compartilhados", () => {
     expect(dateLabel("2026-11-20", REF)).toBe(translate("Amanhã", [], locale));
   });
 
-  it("ajusta maiúsculas no meio da frase conforme o idioma", () => {
+  it("ajusta maiúsculas no meio da frase conforme o idioma", async () => {
     vi.stubGlobal("document", { documentElement: { lang: "pt-BR" } });
-    setLocale("de");
+    await setLocale("de");
     expect(inSentence("Priorität")).toBe("Priorität");
     expect(dateInSentence("Fr. 27 Nov.")).toBe("Fr. 27 Nov.");
-    setLocale("es");
+    await setLocale("es");
     expect(inSentence("Prioridad")).toBe("prioridad");
     expect(dateInSentence("Vie 27 nov")).toBe("vie 27 nov");
-    setLocale("en");
+    await setLocale("en");
     expect(dateInSentence("Fri 27 Nov")).toBe("Fri 27 Nov");
   });
 

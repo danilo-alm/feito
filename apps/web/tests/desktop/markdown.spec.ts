@@ -1,12 +1,12 @@
 import { expect } from "@playwright/test";
-import { handleLocal, newWorkspace } from "../../../desktop/src/data/local";
+import { handleLocal } from "../../../desktop/src/data/local";
 import type { TaskDetail } from "@feito/core/types";
-import { mockDesktop, test } from "./fixtures";
+import { mockDesktop, newPortugueseWorkspace, test } from "./fixtures";
 
 const markdown = "# Plano\n\n**Comprar** e *medir*.\n\n- [x] Pronto\n- Pendente\n\n[Referência](https://example.com)\n\n```ts\nconst largura = 120;\n```\n\n| Material | Quantidade |\n| --- | --- |\n| Madeira | 2 |";
 
 test("formata a descrição ao sair do campo sem perder o rascunho", async ({ page }) => {
-  await mockDesktop(page, { generation: 1, value: { version: 1, active: "local", local: newWorkspace() } });
+  await mockDesktop(page, { generation: 1, value: { version: 1, active: "local", local: newPortugueseWorkspace() } });
   await page.goto("/#/entrada");
   await page.getByRole("button", { name: "Adicionar tarefa", exact: true }).first().click();
   const editor = page.getByRole("form", { name: "Adicionar tarefa", exact: true });
@@ -30,7 +30,7 @@ for (const narrow of [false, true]) {
   test(`barra de formatação em janela ${narrow ? "estreita" : "ampla"}`, async ({ page }) => {
     await page.setViewportSize({ width: narrow ? 390 : 1180, height: 844 });
     if (narrow) await page.emulateMedia({ reducedMotion: "reduce" });
-    const created = await handleLocal(newWorkspace(), {
+    const created = await handleLocal(newPortugueseWorkspace(), {
       method: "POST", path: "/tasks", body: { title: "Formatar descrição", description: "Selecionar texto" },
     });
     const task = created.body as TaskDetail;
@@ -89,7 +89,7 @@ for (const narrow of [false, true]) {
 
   test(`Markdown em janela ${narrow ? "estreita" : "ampla"}`, async ({ page }) => {
     await page.setViewportSize({ width: narrow ? 390 : 1180, height: 844 });
-    const created = await handleLocal(newWorkspace(), {
+    const created = await handleLocal(newPortugueseWorkspace(), {
       method: "POST", path: "/tasks", body: { title: "Tarefa com Markdown", description: markdown },
     });
     const task = created.body as TaskDetail;

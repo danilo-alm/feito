@@ -1,12 +1,11 @@
 import { expect } from "@playwright/test";
-import { newWorkspace } from "../../../desktop/src/data/local";
-import { mockDesktop, test } from "./fixtures";
+import { mockDesktop, newPortugueseWorkspace, test } from "./fixtures";
 
 test.use({ hasTouch: true });
 
 for (const shortcuts of [false, true]) {
   test(`toda a linha destacada abre o projeto ${shortcuts ? "com" : "sem"} atalhos`, async ({ page }) => {
-    const workspace = newWorkspace();
+    const workspace = newPortugueseWorkspace();
     const project = { ...workspace.projects[0], id: crypto.randomUUID(), isInbox: false,
       data: { ...workspace.projects[0].data, name: "Projeto de navegação" } };
     workspace.projects.push(project);

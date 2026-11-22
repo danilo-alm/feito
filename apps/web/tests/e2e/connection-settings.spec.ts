@@ -4,6 +4,7 @@ import { newWorkspace } from "@feito/core/product/local-executor";
 test("edita o acesso num diálogo e abre outra instalação sem enviar credenciais", async ({ page, isMobile }) => {
   const user = { id: "b1fa8244-3300-4383-abb7-80fd5216a6fb", email: "ana@example.test" };
   const workspace = newWorkspace();
+  workspace.preferences.locale = "pt-BR";
   const logins: unknown[] = [];
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;

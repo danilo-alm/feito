@@ -1,3 +1,4 @@
+import { openPortugueseLocalWorkspace } from "./fixtures";
 import { expect, test } from "@playwright/test";
 
 test.describe("rolagem do menu de idiomas", () => {
@@ -5,8 +6,7 @@ test.describe("rolagem do menu de idiomas", () => {
 
   test("mantém a página parada com uma lista curta ou no limite da lista", async ({ page }) => {
     await page.goto("/entrar");
-    await page.getByRole("button", { name: "Usar neste navegador, sem conta" }).click();
-    await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
+    await openPortugueseLocalWorkspace(page);
     await page.goto("/ajustes");
     const cdp = await page.context().newCDPSession(page);
     const swipe = async (x: number, y: number, distance = -160) => {
@@ -52,8 +52,7 @@ test("troca o idioma, preserva textos pessoais e reabre em inglês offline", asy
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/entrar");
-  await page.getByRole("button", { name: "Usar neste navegador, sem conta" }).click();
-  await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
+  await openPortugueseLocalWorkspace(page);
   await page.goto("/ajustes");
   await expect(page.getByRole("region", { name: "Acesso offline" }).getByRole("status"))
     .toHaveText("Pronto para uso offline neste navegador.", { timeout: 25_000 });

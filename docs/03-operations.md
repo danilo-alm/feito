@@ -125,14 +125,14 @@ O arquivo de ambiente precisa, além das chaves do app e das quatro URLs:
 
 Na rota do túnel (**Public Hostname**), use a Service URL `http://app:3000`. O HTTPS público termina na Cloudflare, e o `cloudflared` fala HTTP com o app pela rede do Compose. Não use `127.0.0.1` ou `localhost`: dentro do contêiner do `cloudflared`, esses endereços apontam para o próprio contêiner e a Cloudflare responde `502`. Mantenha só este conector no túnel. Outro conector no host ou em outro contêiner recebe parte das requisições e não alcança `app:3000`.
 
-Para uma instalação nova, gere o arquivo privado. Para o Supabase, use as [flags de geração do guia de instalação](../apps/web/README.md#b-supabase-com-cloudflare-tunnel) no comando `new-env.sh`.
+Para uma instalação nova, gere o arquivo privado. Para o Supabase, use as [flags de geração do guia de instalação](../apps/web/README.md#b-supabase-with-cloudflare-tunnel) no comando `new-env.sh`.
 
 ```sh
 FEITO_ENV="$HOME/.config/feito/prod.env"
 scripts/new-env.sh "$FEITO_ENV" --origin https://feito.example.org
 ```
 
-As flags `--supabase` e `--supabase-direct` já configuram as quatro URLs com o banco `postgres`, `sslmode=verify-full` e o caminho do certificado dentro do contêiner. Siga os passos do [guia de instalação para baixar e montar a CA](../apps/web/README.md#b-supabase-com-cloudflare-tunnel) antes de inicializar o banco. Num arquivo de ambiente antigo, gerado com `sslmode=require`, troque esse trecho por `sslmode=verify-full&sslrootcert=/run/config/feito-postgres-ca.crt` nas quatro URLs e coloque cada URL entre aspas simples, preservando as senhas e as chaves. Para outro provedor, ajuste o host, a porta, o banco e as opções de TLS, preservando a senha correspondente a cada role. A senha `POSTGRES_BOOTSTRAP_PASSWORD` gerada serve ao banco interno.
+As flags `--supabase` e `--supabase-direct` já configuram as quatro URLs com o banco `postgres`, `sslmode=verify-full` e o caminho do certificado dentro do contêiner. Siga os passos do [guia de instalação para baixar e montar a CA](../apps/web/README.md#b-supabase-with-cloudflare-tunnel) antes de inicializar o banco. Num arquivo de ambiente antigo, gerado com `sslmode=require`, troque esse trecho por `sslmode=verify-full&sslrootcert=/run/config/feito-postgres-ca.crt` nas quatro URLs e coloque cada URL entre aspas simples, preservando as senhas e as chaves. Para outro provedor, ajuste o host, a porta, o banco e as opções de TLS, preservando a senha correspondente a cada role. A senha `POSTGRES_BOOTSTRAP_PASSWORD` gerada serve ao banco interno.
 
 Em uma instalação nova, inicialize o banco uma vez. O script usa o destino de `MIGRATION_DATABASE_URL` e pede a senha administrativa no `psql` da imagem `postgres:18`. O usuário padrão é `postgres`, ou `postgres.<project-ref>` no Session pooler. Use `--admin-user USUÁRIO` para outro login. O script cria as quatro roles com as senhas do arquivo e concede ao migrador permissão para criar schemas no banco selecionado.
 
@@ -221,7 +221,7 @@ git tag -a v0.2.0 -m "Feito 0.2.0"
 git push origin v0.2.0
 ```
 
-O workflow web publica `feito:0.2.0` e `feito-tools:0.2.0` no GHCR. O workflow desktop anexa os 11 instaladores ao GitHub Releases. Os pushes para `main` e `dev` continuam publicando as imagens Docker com `latest` e `dev`, respectivamente. [Formatos dos instaladores](../apps/desktop/README.md#ci-e-releases)
+O workflow web publica `feito:0.2.0` e `feito-tools:0.2.0` no GHCR. O workflow desktop anexa os 11 instaladores ao GitHub Releases. Os pushes para `main` e `dev` continuam publicando as imagens Docker com `latest` e `dev`, respectivamente. [Formatos dos instaladores](../apps/desktop/README.md#ci-and-releases)
 
 ## Backup e chaves
 

@@ -2,6 +2,8 @@ import { expect } from "@playwright/test";
 import { newWorkspace } from "../../../desktop/src/data/local";
 import { mockDesktop, test } from "./fixtures";
 
+test.use({ storageState: { cookies: [], origins: [] } });
+
 for (const narrow of [false, true]) {
   test(`idioma compartilhado em janela ${narrow ? "estreita" : "ampla"}`, async ({ page }) => {
     await page.setViewportSize({ width: narrow ? 390 : 1180, height: 844 });
@@ -25,14 +27,18 @@ for (const narrow of [false, true]) {
       };
     });
     await page.goto("/#/ajustes");
-    const picker = page.getByRole("button", { name: "Idioma", exact: true });
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    const picker = page.getByRole("button", { name: "Language", exact: true });
     await picker.click();
-    await expect(page.getByRole("option", { name: "Português (Brasil)", exact: true })).toHaveAttribute("aria-selected", "true");
-    await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("option", { name: "English", exact: true })).toHaveAttribute("aria-selected", "true");
+    await page.keyboard.press("ArrowUp");
     await expect(page.getByRole("option", { name: "Português (Portugal)", exact: true })).toBeFocused();
-    await page.keyboard.press("ArrowDown");
-    await expect(page.getByRole("option", { name: "English", exact: true })).toBeFocused();
+    await page.keyboard.press("ArrowUp");
+    await expect(page.getByRole("option", { name: "Português (Brasil)", exact: true })).toBeFocused();
     await page.keyboard.press("Enter");
+    await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
+    await page.getByRole("button", { name: "Idioma", exact: true }).click();
+    await page.getByRole("option", { name: "English", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expect(page.getByRole("heading", { name: "Appearance", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Language", exact: true })).toBeFocused();

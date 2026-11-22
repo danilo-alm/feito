@@ -77,7 +77,7 @@ export type ProjectPage = {
 
 export type Label = { id: string; revision: number; name: string; activeCount: number };
 export type Locale = "pt-BR" | "pt-PT" | "en" | "es" | "fr" | "it" | "de";
-// Ausente nos documentos anteriores à internacionalização: usar pt-BR.
+// Ausente nos documentos anteriores à internacionalização: usar o idioma padrão.
 export type Preferences = { timezone: string; theme: Theme; locale?: Locale };
 export type User = { id: string; email: string };
 

@@ -60,7 +60,7 @@ describe("resolveDrop", () => {
     expect(plan).toMatchObject({
       valid: true,
       steps: [{ type: "position", projectId: "p", sectionId: null, parentId: null }],
-      message: "Movida para Entrada",
+      message: "Moved to Entrada",
     });
   });
 
@@ -99,13 +99,13 @@ describe("resolveDrop", () => {
       .toMatchObject({ valid: true, steps: [{ parentId: "a" }] });
     const nested = applyStep(fixture(), "e", { type: "position", projectId: "p", sectionId: "plan", parentId: "d" });
     expect(resolveDrop(nested, "c", { kind: "task", id: "e", zone: "center" }, "list"))
-      .toMatchObject({ valid: false, message: "Uma tarefa não pode ficar abaixo de suas subtarefas" });
+      .toMatchObject({ valid: false, message: "A task cannot be placed under its subtasks" });
     expect(resolveDrop(nested, "a", { kind: "task", id: "c", zone: "after" }, "list"))
       .toMatchObject({ indicator: { type: "line", id: "e", depth: 0 } });
     const page = fixture();
     page.tasks.find((item) => item.id === "a")!.recurrence = { frequency: "daily" };
     expect(resolveDrop(page, "e", { kind: "task", id: "a", zone: "center" }, "list"))
-      .toMatchObject({ valid: false, message: "Tarefa recorrente não recebe subtarefas" });
+      .toMatchObject({ valid: false, message: "Recurring tasks cannot have subtasks" });
   });
 
   it("moves a root to another column at the end", () => {
@@ -114,7 +114,7 @@ describe("resolveDrop", () => {
       valid: true,
       steps: [{ type: "position", sectionId: "buy", parentId: null }],
       indicator: { type: "group", sectionId: "buy" },
-      message: "Movida para Comprar",
+      message: "Moved to Comprar",
     });
     expect((plan as { steps: object[] }).steps[0]).not.toHaveProperty("afterId");
   });

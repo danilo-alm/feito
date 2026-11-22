@@ -1,13 +1,13 @@
 import { expect, type Page } from "@playwright/test";
-import { handleLocal, newWorkspace } from "../../../desktop/src/data/local";
-import { mockDesktop, test } from "./fixtures";
+import { handleLocal } from "../../../desktop/src/data/local";
+import { mockDesktop, newPortugueseWorkspace, test } from "./fixtures";
 
 const projectName = "Reforma da sala";
 const sectionName = "Planejar";
 const taskTitle = "Medir a parede";
 
 async function openProject(page: Page, layout: "list" | "board" = "list") {
-  let workspace = newWorkspace();
+  let workspace = newPortugueseWorkspace();
   async function write(path: string, body: object, method = "POST") {
     const result = await handleLocal(workspace, { method, path, body });
     expect(result.status).toBeLessThan(400);
@@ -38,8 +38,9 @@ test("bloqueia o menu nativo antes de abrir um espaço", async ({ page }, testIn
 test("cria o espaço local ao abrir uma instalação nova", async ({ page }) => {
   await mockDesktop(page, null);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Hoje", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Caixa de entrada" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Inbox" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 

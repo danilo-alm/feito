@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { login } from "./fixtures";
+import { login, usePortuguese } from "./fixtures";
 import { ACCOUNTS_FILE } from "./global-setup";
 
 test.describe("entrar", () => {
@@ -22,10 +22,12 @@ test.describe("entrar", () => {
     await page.getByLabel("Repita a nova senha").fill(next);
     await page.getByRole("button", { name: "Salvar nova senha" }).click();
     await page.waitForURL("**/hoje");
-    await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
+    await usePortuguese(page);
 
     // Sair encerra a sessão e protege as telas.
     await page.goto("/ajustes");
+    await expect(page.getByRole("region", { name: "Sincronização", exact: true })).toContainText("Nenhuma alteração pendente.");
     await page.getByRole("button", { name: "Sair" }).click();
     await page.waitForURL("**/entrar");
     await page.goto("/entrada");

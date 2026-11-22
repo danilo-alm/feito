@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { login, row } from "./fixtures";
+import { openPortugueseLocalWorkspace, login, row } from "./fixtures";
 import { ACCOUNTS_FILE } from "./global-setup";
 
 async function add(page: Page, isMobile: boolean, title: string) {
@@ -30,8 +30,7 @@ async function diskKeys(page: Page) {
 test("sair offline confirma o descarte, encerra as abas e preserva o espaço sem conta", async ({ page, context, isMobile }, info) => {
   const { active } = JSON.parse(readFileSync(ACCOUNTS_FILE, "utf8"));
   await page.goto("/entrar");
-  await page.getByRole("button", { name: "Usar neste navegador, sem conta" }).click();
-  await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
+  await openPortugueseLocalWorkspace(page);
   await page.goto("/entrada");
   await expect(page.getByRole("heading", { name: "Caixa de entrada", level: 1 })).toBeVisible();
   await add(page, isMobile, "Só neste navegador");

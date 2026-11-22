@@ -38,6 +38,7 @@ export default defineConfig({
   } : undefined,
   use: {
     baseURL: base,
+    storageState: { cookies: [], origins: [{ origin: url.origin, localStorage: [{ name: "feito:locale", value: "pt-BR" }] }] },
     browserName: "chromium",
     headless: true,
     locale: "pt-BR",

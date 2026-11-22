@@ -1,9 +1,9 @@
+import { openPortugueseLocalWorkspace } from "./fixtures";
 import { expect, test } from "@playwright/test";
 
 test("reabre e grava no espaço sem conta sem rede depois da preparação", async ({ page, context, isMobile }) => {
   await page.goto("/entrar");
-  await page.getByRole("button", { name: "Usar neste navegador, sem conta" }).click();
-  await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
+  await openPortugueseLocalWorkspace(page);
   await page.goto("/ajustes");
   const settings = page.getByRole("region", { name: "Acesso offline" });
   await expect(settings.getByRole("status")).toHaveText("Pronto para uso offline neste navegador.", { timeout: 25_000 });
@@ -69,8 +69,7 @@ test("reabre e grava no espaço sem conta sem rede depois da preparação", asyn
 test("aguarda as abas abertas para atualizar e preserva edições locais", async ({ page, context, request, isMobile }) => {
   test.skip(!process.env.FEITO_E2E_KEY && process.env.FEITO_E2E_LOCAL_SERVER !== "1", "A troca de versão usa o servidor HTTPS local dos testes.");
   await page.goto("/entrar");
-  await page.getByRole("button", { name: "Usar neste navegador, sem conta" }).click();
-  await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
+  await openPortugueseLocalWorkspace(page);
   await page.goto("/entrada");
   await expect(page.getByRole("heading", { name: "Caixa de entrada", level: 1 })).toBeVisible();
   if (isMobile) await page.locator("button[aria-label='Adicionar tarefa']").click();

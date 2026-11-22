@@ -82,7 +82,9 @@ test("recupera o conjunto de arquivos quando o navegador perde parte do cache", 
   env.setOnline(false);
   const unavailable = await env.fetch("/ajustes");
   expect(unavailable?.status).toBe(503);
-  expect(await unavailable?.text()).toContain("O Feito precisa de conexão");
+  const fallback = await unavailable?.text();
+  expect(fallback).toContain('<html lang="en">');
+  expect(fallback).toContain("<h1>Feito needs a connection</h1>");
   env.setOnline(true);
   expect(await (await env.fetch("/ajustes"))?.text()).toBe("Entrada genérica");
   expect(env.assets.has(origin + chunk)).toBe(true);

@@ -8,6 +8,7 @@ export default defineConfig({
   use: {
     baseURL, viewport: { width: 1180, height: 800 }, locale: "pt-BR", reducedMotion: "reduce",
     trace: "retain-on-failure",
+    storageState: { cookies: [], origins: [{ origin: baseURL, localStorage: [{ name: "feito:locale", value: "pt-BR" }] }] },
   },
   projects: [
     { name: "linux", use: { userAgent: "Mozilla/5.0 (X11; Linux x86_64)" } },

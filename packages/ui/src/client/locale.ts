@@ -1,4 +1,5 @@
-// Estado exclusivo do cliente. O servidor sempre começa em português para uma hidratação estável.
+// Estado exclusivo do cliente. O servidor sempre começa no idioma padrão para uma hidratação estável.
+import { defaultLocale } from "@feito/core/domain/preferences";
 import type { Locale } from "@feito/core/types";
 import { locales } from "@feito/core/validation/preferences";
 import german from "../i18n/de.json";
@@ -8,7 +9,7 @@ import french from "../i18n/fr.json";
 import italian from "../i18n/it.json";
 import portugal from "../i18n/pt-PT.json";
 
-export const DEFAULT_LOCALE: Locale = "pt-BR";
+export const DEFAULT_LOCALE: Locale = defaultLocale;
 // Cada idioma aparece com o próprio nome, para ser reconhecível em qualquer interface.
 export const languages: readonly { value: Locale; label: string }[] = [
   { value: "pt-BR", label: "Português (Brasil)" },

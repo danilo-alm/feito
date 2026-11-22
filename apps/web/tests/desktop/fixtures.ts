@@ -1,4 +1,5 @@
 import { expect, test as base, type Page } from "@playwright/test";
+import { newWorkspace } from "../../../desktop/src/data/local";
 import type { Bridge } from "../../../desktop/src/data/desktop";
 
 export const test = base.extend({
@@ -51,4 +52,11 @@ export async function mockDesktop(page: Page, initial: Awaited<ReturnType<Bridge
       __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: () => undefined },
     });
   }, { initial, simulateServer });
+}
+
+/** Existing interaction scenarios explicitly exercise the Portuguese interface. */
+export function newPortugueseWorkspace() {
+  const workspace = newWorkspace();
+  workspace.preferences.locale = "pt-BR";
+  return workspace;
 }

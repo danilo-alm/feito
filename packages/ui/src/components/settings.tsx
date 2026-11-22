@@ -1,4 +1,5 @@
 "use client";
+import { defaultLocale } from "@feito/core/domain/preferences";
 import { useT } from "./language";
 
 import { LanguagePicker } from "./language-picker";
@@ -97,7 +98,7 @@ export function AppearanceSettings() {
     <SettingsGroup id="aparencia" title={t("Aparência")}>
       <div className="set-card">
         <SettingsRow icon={<IconMonitor />} label={t("Idioma")} labelFor="language" hint={t("Idioma da interface neste espaço.")}
-          control={<LanguagePicker id="language" value={app.me.preferences.locale ?? "pt-BR"}
+          control={<LanguagePicker id="language" value={app.me.preferences.locale ?? defaultLocale}
             onChange={(locale) => save({ locale })} />} />
         <SettingsRow icon={<IconMonitor />} label={t("Tema")} hint={t("Claro, escuro ou igual ao sistema.")} control={
           <div className="seg compact" role="radiogroup" aria-label={t("Tema")}>

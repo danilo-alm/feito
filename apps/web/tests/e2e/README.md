@@ -1,11 +1,13 @@
-# Testes ponta a ponta
+# End-to-end tests
 
-A partir da raiz do monorepo, o Playwright usa o Chromium headless nos perfis desktop e celular. Prepare um PostgreSQL descartável, conforme o [guia de integração](../../../../docs/03-operations.md#testes), com `FEITO_ORIGIN=https://127.0.0.1:3100` no arquivo de ambiente.
+**English** | [Português (Brasil)](README.pt-br.md)
+
+From the monorepo root, Playwright uses headless Chromium with desktop and mobile profiles. Prepare a disposable PostgreSQL instance as described in the [integration guide](../../../../docs/03-operations.md#testes), with `FEITO_ORIGIN=https://127.0.0.1:3100` in the environment file.
 
 ```sh
 pnpm --filter @feito/web exec playwright install --only-shell chromium
 pnpm --filter @feito/web build
-FEITO_TEST_ENV=/caminho/privado/feito-e2e.env
+FEITO_TEST_ENV=/private/path/feito-e2e.env
 FEITO_TEST_TLS=$(mktemp -d)
 (umask 077
  openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
@@ -21,8 +23,8 @@ FEITO_TEST_TLS=$(mktemp -d)
 )
 ```
 
-Em Linux, use `pnpm --filter @feito/web exec playwright install --with-deps --only-shell chromium` para instalar também as dependências do sistema. Com `FEITO_E2E_KEY`, o Playwright serve o build de produção do Next.js em HTTPS, espera `/api/health` e encerra o servidor ao fim da suíte. Para usar um servidor de teste que já esteja rodando em HTTPS, omita `FEITO_E2E_KEY` e aponte a URL e os certificados para ele. O Chromium fixa a chave pública do certificado por `FEITO_E2E_CERT`, e o Node confia no certificado via `NODE_EXTRA_CA_CERTS`.
+On Linux, use `pnpm --filter @feito/web exec playwright install --with-deps --only-shell chromium` to also install system dependencies. With `FEITO_E2E_KEY`, Playwright serves the Next.js production build over HTTPS, waits for `/api/health`, and stops the server at the end of the suite. To use an HTTPS test server that is already running, omit `FEITO_E2E_KEY` and point the URL and certificates to it. Chromium pins the certificate's public key through `FEITO_E2E_CERT`, and Node trusts the certificate through `NODE_EXTRA_CA_CERTS`.
 
-O teste de atualização offline simula uma nova versão do service worker com `tests/e2e/serve.mjs`. Se esse servidor já estiver rodando quando a suíte começar, use `FEITO_E2E_LOCAL_SERVER=1` para incluir o teste.
+The offline update test simulates a new service worker version with `tests/e2e/serve.mjs`. If this server is already running when the suite starts, use `FEITO_E2E_LOCAL_SERVER=1` to include the test.
 
-O setup global cria contas novas pela camada de administração (`IDENTITY_ADMIN_DATABASE_URL`) e guarda os estados de sessão em `tests/e2e/.auth/`, fora do Git. Cada perfil (desktop e celular) reusa sua própria sessão. O teste de autenticação usa uma conta separada e percorre o login pela interface.
+Global setup creates new accounts through the administration layer (`IDENTITY_ADMIN_DATABASE_URL`) and stores session states in `tests/e2e/.auth/`, outside Git. Each profile (desktop and mobile) reuses its own session. The authentication test uses a separate account and goes through sign-in using the interface.

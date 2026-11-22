@@ -4,8 +4,8 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Feito",
     short_name: "Feito",
-    description: "Suas tarefas pessoais, nesta instalação.",
-    lang: "pt-BR",
+    description: "Your personal tasks, on this installation.",
+    lang: "en",
     start_url: "/hoje",
     display: "standalone",
     background_color: "#F6F4EF",

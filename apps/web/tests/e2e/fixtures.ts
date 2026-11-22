@@ -89,3 +89,19 @@ export async function mouseDrag(
   }
   await page.waitForTimeout(150);
 }
+
+/** Select Portuguese explicitly for existing interaction scenarios. */
+export async function usePortuguese(page: Page) {
+  const path = new URL(page.url()).pathname;
+  await page.goto("/ajustes");
+  await page.getByRole("button", { name: "Language", exact: true }).click();
+  await page.getByRole("option", { name: "Português (Brasil)", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
+  await page.goto(path);
+}
+
+export async function openPortugueseLocalWorkspace(page: Page) {
+  await page.getByRole("button", { name: "Usar neste navegador, sem conta" }).click();
+  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
+  await usePortuguese(page);
+}

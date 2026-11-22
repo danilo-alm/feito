@@ -51,19 +51,19 @@ describe("api client", () => {
 describe("dates", () => {
   const today = "2026-11-17";
   it("labels civil dates relative to the reference day", () => {
-    expect(dateLabel(today, today)).toBe("Hoje");
-    expect(dateLabel("2026-11-18", today)).toBe("Amanhã");
-    expect(dateLabel("2026-11-16", today)).toBe("Ontem");
-    expect(dateLabel("2026-11-20", today)).toBe("Sex 20 nov");
-    expect(dateLabel("2027-01-04", today)).toBe("Seg 4 jan 2027");
-    expect(dueLabel(today, "14:00", today)).toBe("Hoje 14:00");
+    expect(dateLabel(today, today)).toBe("Today");
+    expect(dateLabel("2026-11-18", today)).toBe("Tomorrow");
+    expect(dateLabel("2026-11-16", today)).toBe("Yesterday");
+    expect(dateLabel("2026-11-20", today)).toBe("Fri 20 Nov");
+    expect(dateLabel("2027-01-04", today)).toBe("Mon 4 Jan 2027");
+    expect(dueLabel(today, "14:00", today)).toBe("Today 14:00");
     expect(dueLabel(null, null, today)).toBeNull();
   });
 
   it("formats headers and ranges", () => {
-    expect(longDate(today)).toBe("Terça, 17 de novembro");
-    expect(rangeLabel("2026-11-18", "2026-11-24")).toBe("18 – 24 nov");
-    expect(rangeLabel("2026-11-29", "2026-12-05")).toBe("29 nov – 5 dez");
+    expect(longDate(today)).toBe("Tuesday 17 November");
+    expect(rangeLabel("2026-11-18", "2026-11-24")).toBe("18 – 24 Nov");
+    expect(rangeLabel("2026-11-29", "2026-12-05")).toBe("29 Nov – 5 Dec");
     expect(addDays("2026-02-28", 1)).toBe("2026-03-01");
     expect(nextWeek(today)).toBe("2026-11-23");
     expect(nextWeek("2026-11-23")).toBe("2026-11-30");

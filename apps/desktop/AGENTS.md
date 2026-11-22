@@ -1,63 +1,65 @@
-# Orientações para agentes no Feito desktop
+# Agent guidelines for Feito desktop
 
-## Projeto
+**English** | [Português (Brasil)](AGENTS.pt-br.md)
 
-O Feito desktop é o aplicativo de tarefas pessoais do Feito para macOS, Windows e Linux. Ele empacota a interface React do site com Vite e Tauri. O usuário pode usar um espaço local sem conta ou vincular espaços remotos a instalações Feito por HTTPS. Os espaços têm dados próprios. O desktop sincroniza o espaço remoto ativo e mantém as demais filas no computador.
+## Project
 
-O desktop mora em `apps/desktop` no monorepo. Ele usa [@feito/ui](../../packages/ui) e [@feito/core](../../packages/core) pelo workspace pnpm. Consulte o [AGENTS.md da raiz](../../AGENTS.md) para o web e os pacotes compartilhados. Confira a branch e a disponibilidade da API de sincronização antes de validar a integração.
+Feito desktop is Feito's personal task app for macOS, Windows, and Linux. It packages the website's React interface with Vite and Tauri. Users can use a local workspace without an account or link remote workspaces to Feito installations over HTTPS. Each workspace has its own data. The desktop app syncs the active remote workspace and keeps the other queues on the computer.
 
-Use **Node.js 24**, **pnpm 10** e **Rust estável**. Consulte [package.json](package.json), [pnpm-lock.yaml](../../pnpm-lock.yaml) e [Cargo.lock](src-tauri/Cargo.lock) para as versões adotadas. O app empacotado traz os assets locais. O modo local funciona sem conexão com um servidor.
+The desktop app lives in `apps/desktop` in the monorepo. It uses [@feito/ui](../../packages/ui) and [@feito/core](../../packages/core) through the pnpm workspace. See the [root AGENTS.md](../../AGENTS.md) for the web app and shared packages. Check the branch and sync API availability before validating integration.
 
-## Onde trabalhar
+Use **Node.js 24**, **pnpm 10**, and **stable Rust**. See [package.json](package.json), [pnpm-lock.yaml](../../pnpm-lock.yaml), and [Cargo.lock](src-tauri/Cargo.lock) for the versions in use. The packaged app includes local assets. Local mode works without a server connection.
 
-| Área | Caminho |
+## Where to work
+
+| Area | Path |
 | --- | --- |
-| Entrada, navegação e estilos do desktop | [main.tsx](src/main.tsx), [src/platform/](src/platform/), [desktop.css](src/desktop.css) |
-| Ajustes e gerenciamento dos espaços | [settings.tsx](src/settings.tsx), [spaces.tsx](src/spaces.tsx) |
-| Comandos e projeções do modo local | [Executor compartilhado](../../packages/core/src/product/local-executor.ts), [projeções locais](../../packages/core/src/product/local-workspace.ts) |
-| Estado dos espaços, fila e sincronização | [desktop.ts](src/data/desktop.ts), [native.ts](src/data/native.ts), [réplica compartilhada](../../packages/core/src/product/replica.ts) |
-| Janela, capacidades e configuração Tauri | [main.rs](src-tauri/src/main.rs), [desktop.json](src-tauri/capabilities/desktop.json), [tauri.conf.json](src-tauri/tauri.conf.json) |
-| Banco SQLite, criptografia e transporte HTTPS | [workspace.rs](src-tauri/src/workspace.rs), [server.rs](src-tauri/src/server.rs) |
-| Testes, automação e distribuição | [local.test.ts](src/data/local.test.ts), [desktop.test.ts](src/data/desktop.test.ts), [desktop.yml](../../.github/workflows/desktop.yml) |
+| Desktop entry point, navigation, and styles | [main.tsx](src/main.tsx), [src/platform/](src/platform/), [desktop.css](src/desktop.css) |
+| Settings and workspace management | [settings.tsx](src/settings.tsx), [spaces.tsx](src/spaces.tsx) |
+| Local-mode commands and projections | [Shared executor](../../packages/core/src/product/local-executor.ts), [local projections](../../packages/core/src/product/local-workspace.ts) |
+| Workspace state, queue, and sync | [desktop.ts](src/data/desktop.ts), [native.ts](src/data/native.ts), [shared replica](../../packages/core/src/product/replica.ts) |
+| Window, capabilities, and Tauri configuration | [main.rs](src-tauri/src/main.rs), [desktop.json](src-tauri/capabilities/desktop.json), [tauri.conf.json](src-tauri/tauri.conf.json) |
+| SQLite database, encryption, and HTTPS transport | [workspace.rs](src-tauri/src/workspace.rs), [server.rs](src-tauri/src/server.rs) |
+| Tests, automation, and distribution | [local.test.ts](src/data/local.test.ts), [desktop.test.ts](src/data/desktop.test.ts), [desktop.yml](../../.github/workflows/desktop.yml) |
 
-- Antes de editar, rastreie o comportamento desde a tela até os adaptadores, os comandos Rust, a API web e os testes que forem afetados. Confira a raiz, a branch e as alterações que já existem no checkout do monorepo.
-- Reutilize os componentes e as regras dos pacotes compartilhados. Faça mudanças no app web quando houver necessidade concreta de integração e preserve os contratos atuais.
-- Preserve os dados já gravados no SQLite. Trate campos novos, operações pendentes e atualizações de versão de acordo com os formatos anteriores.
+- Before editing, trace behavior from the screen through the adapters, Rust commands, web API, and affected tests. Check the root, branch, and existing changes in the monorepo checkout.
+- Reuse components and rules from the shared packages. Change the web app when there is a concrete integration need and preserve current contracts.
+- Preserve data already stored in SQLite. Handle new fields, pending operations, and version upgrades in accordance with previous formats.
 
-## Frontend e espaços
+## Frontend and workspaces
 
-- Use os tokens, os componentes comuns e as regras de movimento de `packages/ui`. Preserve foco, teclado, rótulos acessíveis e movimento reduzido. Confira mudanças de interface no WebView do Tauri e em larguras compatíveis com janelas estreitas.
-- Passe comandos do produto pelo cliente compartilhado e pelo adaptador local. Reutilize a validação, os tipos e as projeções compartilhados. Preserve os limites do bundle estático ao importar módulos que também são usados pelo servidor.
-- Mostre qual espaço está em uso, os endereços vinculados, o número de ações na fila e os estados de sincronização que exigem atenção. Confirme a exclusão do espaço local e preserve os espaços remotos e suas filas. Após a exclusão, permita criar um espaço local novo ou abrir um espaço remoto.
-- Mantenha a semântica das datas do Feito. Vencimento é data civil, horário é hora local e conclusão é instante. Use o fuso do espaço para agenda e recorrência.
+- Use the tokens, common components, and motion rules from `packages/ui`. Preserve focus, keyboard support, accessible labels, and reduced motion. Check interface changes in the Tauri WebView and at widths suitable for narrow windows.
+- Route product commands through the shared client and local adapter. Reuse shared validation, types, and projections. Preserve static bundle boundaries when importing modules also used by the server.
+- Show the workspace in use, linked addresses, queued action count, and sync states that require attention. Confirm deletion of the local workspace and preserve remote workspaces and their queues. After deletion, allow users to create a new local workspace or open a remote workspace.
+- Keep Feito's date semantics. Due dates are civil dates, times are local times, and completion is an instant. Use the workspace's time zone for scheduling and recurrence.
 
-## Persistência, sincronização e segurança
+## Persistence, sync, and security
 
-- Grave a alteração e a fila correspondente juntas, pelo mesmo comando de persistência. Preserve o controle de geração do SQLite, a validação da integridade do documento e a proteção da chave no cofre do sistema.
-- Separe os dados e as operações por espaço, origem HTTPS e conta vinculada. Confira a identidade remota antes de enviar a fila. Expiração de sessão, troca de espaço ou indisponibilidade do servidor preservam as operações pendentes.
-- Preserve os IDs das operações, a hora da autoria e os IDs das entidades criadas ao reenviar. Use a confirmação do servidor para retirar operações da fila. Aplique a base ou as mudanças recebidas junto com o cursor e reconcilie as ações ainda pendentes. Teste respostas perdidas e revisões fora de ordem.
-- Preserve a regra da edição mais recente nos campos em que o servidor a aplica, o controle de revisões nas mudanças estruturais e a idempotência por ocorrência nas tarefas recorrentes. Uma edição atrasada não pode recriar um item excluído.
-- Use os comandos IPC autorizados para armazenamento e transporte. Preserve o escopo da janela, a validação TLS, o bloqueio de redirecionamentos e a restrição às rotas da API Feito. Mantenha o cookie de sessão e a chave de dados no cofre do sistema. Evite registrar credenciais, cabeçalhos de autenticação ou dados de tarefas.
+- Save the change and its corresponding queue together, through the same persistence command. Preserve SQLite generation tracking, document integrity validation, and key protection in the system vault.
+- Separate data and operations by workspace, HTTPS origin, and linked account. Check remote identity before sending the queue. Session expiration, workspace switching, or server unavailability must preserve pending operations.
+- Preserve operation IDs, authoring timestamps, and IDs of created entities when resending. Use server acknowledgments to remove operations from the queue. Apply the received baseline or changes together with the cursor and reconcile still-pending actions. Test lost responses and out-of-order revisions.
+- Preserve the latest-edit-wins rule for fields where the server applies it, revision checks for structural changes, and per-occurrence idempotency for recurring tasks. A late edit must not recreate a deleted item.
+- Use authorized IPC commands for storage and transport. Preserve window scope, TLS validation, redirect blocking, and restriction to Feito API routes. Keep the session cookie and data key in the system vault. Avoid logging credentials, authentication headers, or task data.
 
-## Desenvolvimento e operação
+## Development and operations
 
-- Instale as dependências com `pnpm install --frozen-lockfile` na raiz do monorepo. Use `pnpm dev:desktop` na raiz ou `pnpm tauri dev` em `apps/desktop` para iniciar a janela nativa com Vite.
-- Para validar a sincronização real, use uma instalação HTTPS de teste com a API desktop, as migrações aplicadas e credenciais descartáveis. Use um perfil Tauri isolado para não misturar dados de validação com espaços de uso pessoal. Consulte o contrato HTTP e as instruções de operação na pasta [docs](../../docs).
-- O [workflow desktop](../../.github/workflows/desktop.yml) usa o checkout do monorepo. Em cada alvo, roda typecheck, testes TypeScript, build do frontend, formatação e testes Rust. Pushes de tags `vX.Y.Z` e execuções manuais também empacotam com Tauri e guardam os instaladores em `Artifacts` no GitHub Actions. Um push da tag compartilhada `vX.Y.Z` com a versão de `src-tauri/tauri.conf.json` publica a release depois que a matriz completa gera os 11 instaladores. Crie tags, publique releases ou altere credenciais de distribuição somente quando solicitado. [Matriz e instruções de release](README.md#ci-e-releases)
+- Install dependencies with `pnpm install --frozen-lockfile` from the monorepo root. Use `pnpm dev:desktop` from the root or `pnpm tauri dev` in `apps/desktop` to start the native window with Vite.
+- To validate real sync, use an HTTPS test installation with the desktop API, applied migrations, and disposable credentials. Use an isolated Tauri profile to avoid mixing validation data with personal workspaces. Consult the HTTP contract and operating instructions in the [docs](../../docs) folder.
+- The [desktop workflow](../../.github/workflows/desktop.yml) uses the monorepo checkout. For each target, it runs typecheck, TypeScript tests, the frontend build, Rust formatting, and Rust tests. Pushes of `vX.Y.Z` tags and manual runs also package with Tauri and store installers in GitHub Actions `Artifacts`. Pushing the shared `vX.Y.Z` tag matching the version in `src-tauri/tauri.conf.json` publishes the release after the full matrix generates all 11 installers. Create tags, publish releases, or change distribution credentials only when requested. [Matrix and release instructions](README.md#ci-and-releases)
 
-## Testes
+## Tests
 
-Execute os comandos abaixo em `apps/desktop`.
+Run the commands below in `apps/desktop`.
 
-- Os testes TypeScript usam uma ponte simulada para o modo local e a sincronização. Os testes Rust cobrem persistência e transporte nativos. Para conferir a interface do aplicativo, abra a janela do Tauri. Os testes Playwright do web usam Chromium.
-- Para correções, adicione a regressão na camada que reproduz o problema. Use dados sintéticos. Ao mexer no modo local, verifique gravação e reabertura. Ao mexer na sincronização, verifique interrupção, retomada, reenvio, isolamento entre espaços e atualizações do site.
-- Rode as verificações ligadas à mudança. Quando um contrato web mudar, valide também os testes de integração pertinentes no PostgreSQL descartável do site. Na entrega, registre o que passou e o que ficou pendente, com o motivo. Para documentação, revise o diff, os links e os comandos citados.
+- TypeScript tests use a simulated bridge for local mode and sync. Rust tests cover native persistence and transport. To check the app's interface, open the Tauri window. Web Playwright tests use Chromium.
+- For fixes, add a regression test at the layer that reproduces the problem. Use synthetic data. When changing local mode, check saving and reopening. When changing sync, check interruption, resumption, resending, workspace isolation, and website updates.
+- Run checks related to the change. When a web contract changes, also validate the relevant integration tests against the website's disposable PostgreSQL instance. In the handoff, record what passed and what remains pending, with reasons. For documentation, review the diff, links, and referenced commands.
 
-| Comando | Quando usar |
+| Command | When to use it |
 | --- | --- |
-| `pnpm typecheck` e `pnpm build` | Tipos, aliases, dependências compartilhadas e bundle estático. |
-| `pnpm test` | Regras locais, estado dos espaços e sincronização com ponte simulada. |
-| `cargo fmt --check --manifest-path src-tauri/Cargo.toml` | Formatação do código Rust. |
-| `cargo test --locked --manifest-path src-tauri/Cargo.toml` | Persistência, criptografia e contratos do transporte nativo. |
-| `pnpm tauri build --debug --no-bundle` | Compilação nativa sem empacotador, na plataforma disponível. |
-| `pnpm tauri build` | Empacotamento na plataforma de destino. |
+| `pnpm typecheck` and `pnpm build` | Types, aliases, shared dependencies, and static bundle. |
+| `pnpm test` | Local rules, workspace state, and sync with a simulated bridge. |
+| `cargo fmt --check --manifest-path src-tauri/Cargo.toml` | Rust code formatting. |
+| `cargo test --locked --manifest-path src-tauri/Cargo.toml` | Persistence, encryption, and native transport contracts. |
+| `pnpm tauri build --debug --no-bundle` | Native compilation without packaging, on the available platform. |
+| `pnpm tauri build` | Packaging on the target platform. |

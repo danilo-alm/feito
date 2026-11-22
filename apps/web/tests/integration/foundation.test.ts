@@ -208,7 +208,7 @@ describe("Phase 1 HTTP contract", () => {
     expect(a).toEqual({
       user: { id: identity.id, email: identity.email },
       mustChangePassword: true,
-      preferences: { timezone: "America/Maceio", theme: "system", locale: "pt-BR" },
+      preferences: { timezone: "America/Maceio", theme: "system", locale: "en" },
       referenceDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       inboxProjectId: expect.any(String),
     });
@@ -468,7 +468,7 @@ describe("preferência de idioma sincronizada", () => {
     expect((await patch(cookie, { locale: "en" })).status).toBe(200);
     expect((await patch(cookie, { theme: "dark" })).status).toBe(200);
     expect(await (await readMe(cookie)).json()).toMatchObject({ preferences: { locale: "en", theme: "dark" } });
-    expect(await (await readMe(otherCookie)).json()).toMatchObject({ preferences: { locale: "pt-BR" } });
+    expect(await (await readMe(otherCookie)).json()).toMatchObject({ preferences: { locale: "en" } });
     const replica = await pullReplica(request("/api/v1/desktop-sync", { cookie }));
     expect(replica.status).toBe(200);
     expect(await replica.json()).toMatchObject({ workspace: { preferences: { locale: "en" } } });

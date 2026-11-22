@@ -1,3 +1,4 @@
+import { defaultPreferences } from "@feito/core/domain/preferences";
 import { describe, expect, it } from "vitest";
 import { exportLocalWorkspace, localDestinationIsEmpty, restoreLocalWorkspace } from "@feito/core/portability/local";
 import { parseDocument } from "@feito/core/portability/validate";
@@ -134,6 +135,10 @@ describe("espaço local do Feito", () => {
     expect(parsed.errors).toEqual([]);
     const destination = newWorkspace();
     expect(localDestinationIsEmpty(destination)).toBe(true);
+    expect(localDestinationIsEmpty({ ...destination, preferences: { ...destination.preferences, locale: "pt-BR" } })).toBe(true);
+    const legacyDestination = structuredClone(destination);
+    delete legacyDestination.preferences.locale;
+    expect(localDestinationIsEmpty(legacyDestination)).toBe(true);
     const restored = restoreLocalWorkspace(destination, parsed.document!);
     expect(restored.projects[0].id).toBe(destination.projects[0].id);
     expect(restored.tasks.map(({ id }) => id)).not.toContain(recurring.id);
@@ -189,19 +194,20 @@ describe("réplica compartilhada", () => {
 describe("preferência de idioma", () => {
   it("preserva idioma em patches parciais, backup e restauração de documentos antigos", async () => {
     const workspace = newWorkspace();
-    const changed = await handleLocal(workspace, { method: "PATCH", path: "/preferences", body: { locale: "en" } });
+    expect(workspace.preferences.locale).toBe("en");
+    const changed = await handleLocal(workspace, { method: "PATCH", path: "/preferences", body: { locale: "pt-BR" } });
     expect(changed.status).toBe(200);
-    expect(changed.workspace.preferences).toMatchObject({ locale: "en", theme: "system" });
+    expect(changed.workspace.preferences).toMatchObject({ locale: "pt-BR", theme: "system" });
     const theme = await handleLocal(changed.workspace, { method: "PATCH", path: "/preferences", body: { theme: "dark" } });
-    expect(theme.workspace.preferences).toMatchObject({ locale: "en", theme: "dark" });
+    expect(theme.workspace.preferences).toMatchObject({ locale: "pt-BR", theme: "dark" });
     const { document } = exportLocalWorkspace(theme.workspace);
-    expect(restoreLocalWorkspace(newWorkspace(), document).preferences.locale).toBe("en");
+    expect(restoreLocalWorkspace(newWorkspace(), document).preferences.locale).toBe("pt-BR");
     const legacy = structuredClone(document);
     delete legacy.preferences.locale;
     const parsed = parseDocument(new TextEncoder().encode(JSON.stringify(legacy)));
     expect(parsed.errors).toEqual([]);
     const restored = restoreLocalWorkspace(newWorkspace(), parsed.document!);
-    expect(restored.preferences.locale ?? "pt-BR").toBe("pt-BR");
+    expect(restored.preferences.locale ?? defaultPreferences.locale).toBe("en");
     for (const locale of ["es", "pt-PT", "fr", "it", "de"]) {
       const saved = await handleLocal(workspace, { method: "PATCH", path: "/preferences", body: { locale } });
       expect(saved.status).toBe(200);

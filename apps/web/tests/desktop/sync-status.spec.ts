@@ -1,11 +1,10 @@
 import { expect } from "@playwright/test";
-import { newWorkspace } from "../../../desktop/src/data/local";
-import { mockDesktop, test } from "./fixtures";
+import { mockDesktop, newPortugueseWorkspace, test } from "./fixtures";
 
 for (const narrow of [false, true]) {
   test(`oculta o indicador em janela ${narrow ? "estreita" : "ampla"}`, async ({ page }) => {
     if (narrow) await page.setViewportSize({ width: 390, height: 844 });
-    const workspace = newWorkspace();
+    const workspace = newPortugueseWorkspace();
     await mockDesktop(page, { generation: 1, value: { version: 1, active: "server", server: {
       origin: "https://feito.example", user: { id: "b1fa8244-3300-4383-abb7-80fd5216a6fb", email: "ana@example.test" },
       confirmed: workspace, working: workspace, pending: [], cursor: 0,

@@ -19,7 +19,8 @@ export function localDestinationIsEmpty(workspace: Workspace) {
   const { preferences } = workspace;
   const { data } = inbox;
   return preferences.timezone === defaultPreferences.timezone && preferences.theme === defaultPreferences.theme
-    && (preferences.locale ?? "pt-BR") === defaultPreferences.locale
+    // Accept untouched workspaces created with either the current or former default language.
+    && (preferences.locale === undefined || preferences.locale === defaultPreferences.locale || preferences.locale === "pt-BR")
     && !data.archived && data.name === inboxName && !data.description
     && !data.defaultSectionName && data.color === null && data.icon === "hash"
     && data.view.layout === defaultsForView.layout && data.view.sortMode === defaultsForView.sortMode

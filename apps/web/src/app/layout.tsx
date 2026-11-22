@@ -11,7 +11,7 @@ const interTight = Inter_Tight({ subsets: ["latin"], weight: "600", variable: "-
 
 export const metadata: Metadata = {
   title: { default: "Feito", template: "%s · Feito" },
-  description: "Suas tarefas pessoais, nesta instalação.",
+  description: "Your personal tasks, on this installation.",
   robots: { index: false, follow: false },
 };
 
@@ -28,7 +28,7 @@ const systemTheme = `if(matchMedia("(prefers-color-scheme: dark)").matches)docum
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${inter.variable} ${interTight.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${interTight.variable}`} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: systemTheme }} /></head>
       <body>
         <LanguageProvider><SkipToContent /></LanguageProvider>

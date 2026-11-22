@@ -1,4 +1,5 @@
 "use client";
+import { defaultLocale } from "@feito/core/domain/preferences";
 import { LanguageProvider, useT } from "./language";
 
 import { createContext, useCallback, useContext, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -137,7 +138,7 @@ export function AppShell({
   if (nav.data) registerTagOrder(nav.data.projects, nav.data.labels.map((label) => label.id));
   useThemeSync(me.data?.preferences.theme, persistTheme);
   useEffect(() => {
-    if (me.data) setLocale(me.data.preferences.locale ?? "pt-BR");
+    if (me.data) setLocale(me.data.preferences.locale ?? defaultLocale);
   }, [me.data?.preferences.locale, !!me.data]);
 
   useEffect(() => {

@@ -1,10 +1,9 @@
 import { expect } from "@playwright/test";
-import { newWorkspace } from "../../../desktop/src/data/local";
-import { mockDesktop, test } from "./fixtures";
+import { mockDesktop, newPortugueseWorkspace, test } from "./fixtures";
 
 test("menu acompanha cada movimento sem animação ou destaque verde", async ({ page }, info) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await mockDesktop(page, { generation: 1, value: { version: 1, active: "local", local: newWorkspace() } });
+  await mockDesktop(page, { generation: 1, value: { version: 1, active: "local", local: newPortugueseWorkspace() } });
   await page.goto("/#/hoje");
   const separator = page.getByRole("separator", { name: "Redimensionar menu lateral" });
   await expect(separator).toBeVisible();
@@ -61,7 +60,7 @@ test("menu acompanha cada movimento sem animação ou destaque verde", async ({ 
 });
 
 test("menu redimensiona, preserva a largura e mantém ações e nomes longos acessíveis", async ({ page }, info) => {
-  const workspace = newWorkspace();
+  const workspace = newPortugueseWorkspace();
   const name = "Planejamento de todos os projetos pessoais e profissionais do próximo semestre";
   workspace.projects.push({ ...workspace.projects[0], id: crypto.randomUUID(), isInbox: false,
     data: { ...workspace.projects[0].data, name } });
@@ -124,7 +123,7 @@ test("menu redimensiona, preserva a largura e mantém ações e nomes longos ace
 
 for (const titlebar of [false, true]) {
   test(`menu com muitos projetos ${titlebar ? "com" : "sem"} faixa de título`, async ({ page }) => {
-    const workspace = newWorkspace();
+    const workspace = newPortugueseWorkspace();
     for (let index = 0; index < 35; index++) {
       workspace.projects.push({ ...workspace.projects[0], id: crypto.randomUUID(), isInbox: false,
         data: { ...workspace.projects[0].data, name: `Projeto ${index} com um nome que ocupa toda a largura disponível` } });

@@ -1,65 +1,69 @@
-# Feito para desktop
+# Feito for desktop
 
-O Feito desktop usa a mesma interface do site numa janela nativa. Ele funciona sem servidor, com as tarefas guardadas neste computador, ou sincroniza com uma [instalação web do Feito](../web/README.md).
+**English** | [Português (Brasil)](README.pt-br.md)
 
-## Instalar
+Feito desktop uses the same interface as the website in a native window. It works without a server, with tasks stored on this computer, or syncs with a [Feito web installation](../web/README.md).
 
-Baixe o instalador da sua plataforma na [página de releases](https://github.com/danilo-alm/feito/releases/latest):
+## Install
 
-| Sistema | Arquivo |
+Download the installer for your platform from the [releases page](https://github.com/danilo-alm/feito/releases/latest):
+
+| System | File |
 | --- | --- |
-| macOS (Intel ou Apple Silicon) | `.dmg` da sua arquitetura |
-| Windows x64 | `.msi` ou `-setup.exe` |
+| macOS (Intel or Apple Silicon) | `.dmg` for your architecture |
+| Windows x64 | `.msi` or `-setup.exe` |
 | Windows ARM64 | `-setup.exe` |
-| Linux x64 ou ARM64 | `.deb`, `.rpm` ou AppImage |
+| Linux x64 or ARM64 | `.deb`, `.rpm`, or AppImage |
 
-Os instaladores ainda não têm assinatura de distribuição:
+The installers are not yet signed for distribution:
 
-- **macOS**: na primeira abertura, o sistema bloqueia o app. Abra **Ajustes do Sistema → Privacidade e Segurança** e clique em **Abrir Mesmo Assim**. Se o macOS disser que o app está danificado, execute `xattr -dr com.apple.quarantine /Applications/Feito.app`.
-- **Windows**: no aviso do SmartScreen, clique em **Mais informações → Executar assim mesmo**.
-- **Linux**: o app guarda a chave de criptografia no Secret Service da sessão gráfica, como o GNOME Keyring ou o KWallet.
+- **macOS**: the system blocks the app on first launch. Open **System Settings → Privacy & Security** and click **Open Anyway**. If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/Feito.app`.
+- **Windows**: in the SmartScreen warning, click **More info → Run anyway**.
+- **Linux**: the app stores its encryption key in the desktop session's Secret Service, such as GNOME Keyring or KWallet.
 
-## Uso
+## Usage
 
-As descrições das tarefas aceitam Markdown, incluindo títulos, listas, links, código e tabelas. Clique na descrição formatada para editá-la. Ao sair do campo, a formatação reaparece. No detalhe, o campo é salvo ao perder o foco; ao criar uma tarefa ou editar em linha, confirme o formulário. O mesmo formato funciona no web e nos espaços locais sem conexão.
+The interface defaults to English. Change it in **Settings → Appearance → Language**. Previously selected languages are preserved. The labels below include the Brazilian Portuguese equivalents.
 
-- Abra o aplicativo para começar no espaço **Somente neste computador**. As tarefas ficam no SQLite, com conteúdo cifrado por uma chave guardada no cofre do sistema.
-- Em **Ajustes → Espaços de trabalho**, escolha **Conectar servidor**, informe a origem HTTPS da instalação e entre com sua conta Feito. A instalação precisa incluir a rota de sincronização e ter as migrações aplicadas. O certificado deve ser confiável para o sistema; numa instalação em `localhost`, [importe a autoridade local](../web/README.md#a-banco-no-docker). Senhas provisórias precisam ser trocadas no site.
-- Os espaços têm dados independentes. O vínculo carrega os dados da conta. As tarefas já criadas no espaço local continuam acessíveis pelos Ajustes. Use **Conectar outro servidor** para adicionar endereços e **Abrir espaço remoto** para alternar entre os espaços vinculados. O app sincroniza somente o espaço aberto e mantém as outras filas guardadas.
-- **Excluir espaço local** remove suas tarefas, projetos, etiquetas e preferências locais após confirmação. Os espaços remotos e suas filas continuam disponíveis. Você pode criar um novo espaço local vazio a qualquer momento.
-- As alterações no espaço sincronizado são gravadas localmente antes de serem enviadas. O servidor avisa o app sobre mudanças por SSE. O app também consulta ao ganhar foco, ao detectar retorno da rede e a cada 30 segundos se o canal de avisos estiver indisponível ou a sincronização precisar de nova tentativa. **Sincronizar agora** permite tentar de imediato. Encerrar a sessão preserva a fila e exige autenticação para voltar a enviá-la.
-- Se duas edições concorrerem no mesmo campo de uma tarefa, vence a mais recente, com desempate estável. Exclusões prevalecem sobre edições atrasadas. Operações que deixaram de ser aplicáveis são informadas nos Ajustes. Uma rejeição que bloqueie a fila pode ser descartada após confirmação. Alterações estruturais de projetos, seções e etiquetas ainda seguem as revisões usadas pelo site.
-- Em um projeto sincronizado, **Compartilhar** permite ativar ou desativar o link público da instalação vinculada, copiar o endereço e abri-lo no navegador. A ação precisa de uma conexão com o servidor. Em um espaço local, o botão indica que é preciso conectar-se a um servidor.
-- Importação e exportação, troca de senha e links de tarefas continuam disponíveis no website.
+Task descriptions support Markdown, including headings, lists, links, code, and tables. Click a formatted description to edit it. Formatting reappears when you leave the field. In the detail view, the field is saved when it loses focus; when creating a task or editing inline, submit the form. The same format works on the web and in local workspaces without a connection.
 
-## Desenvolvimento
+- Open the app to start in the **Only on this computer** (Somente neste computador) workspace. Tasks are stored in SQLite, with content encrypted using a key kept in the system vault.
+- In **Settings → Workspaces** (Ajustes → Espaços de trabalho), choose **Connect server** (Conectar servidor), enter the installation's HTTPS origin, and sign in with your Feito account. The installation must include the sync route and have migrations applied. The certificate must be trusted by the system; for a `localhost` installation, [import the local certificate authority](../web/README.md#a-database-in-docker). Temporary passwords must be changed on the website.
+- Workspaces have independent data. Linking loads the account's data. Tasks already created in the local workspace remain accessible through Settings. Use **Connect another server** (Conectar outro servidor) to add addresses and **Open remote workspace** (Abrir espaço remoto) to switch between linked workspaces. The app syncs only the open workspace and keeps the other queues stored locally.
+- **Delete local workspace** (Excluir espaço local) removes its tasks, projects, labels, and local preferences after confirmation. Remote workspaces and their queues remain available. You can create a new empty local workspace at any time.
+- Changes in the synced workspace are saved locally before being sent. The server notifies the app of changes through SSE. The app also checks when it gains focus, when the network returns, and every 30 seconds if the notification channel is unavailable or syncing needs a retry. **Sync now** (Sincronizar agora) lets you retry immediately. Signing out preserves the queue and requires authentication before sending it again.
+- If two edits compete for the same task field, the most recent wins, with a stable tie-breaker. Deletions take precedence over late edits. Operations that no longer apply are reported in Settings. A rejection blocking the queue can be discarded after confirmation. Structural changes to projects, sections, and labels still follow the revisions used by the website.
+- In a synced project, **Share** (Compartilhar) lets you enable or disable the linked installation's public link, copy the address, and open it in the browser. This action requires a server connection. In a local workspace, the button indicates that you need to connect to a server.
+- Import and export, password changes, and task links remain available on the website.
 
-Use Node.js 24, pnpm 10 e Rust estável. Instale os pré-requisitos do Tauri da plataforma de destino. No Linux, o armazenamento de credenciais requer um serviço Secret Service disponível na sessão gráfica. [Pré-requisitos do Tauri](https://v2.tauri.app/start/prerequisites/)
+## Development
 
-Da raiz do monorepo:
+Use Node.js 24, pnpm 10, and stable Rust. Install the Tauri prerequisites for the target platform. On Linux, credential storage requires a Secret Service available in the desktop session. [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
+
+From the monorepo root:
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm dev:desktop
 ```
 
-Em `apps/desktop`, para compilar, use `pnpm tauri build`. Para validar sem gerar um instalador, use `pnpm tauri build --debug --no-bundle`. Os comandos `pnpm typecheck`, `pnpm test`, `cargo fmt --check --manifest-path src-tauri/Cargo.toml` e `cargo test --locked --manifest-path src-tauri/Cargo.toml` verificam as duas camadas.
+In `apps/desktop`, use `pnpm tauri build` to build the app. To validate without generating an installer, use `pnpm tauri build --debug --no-bundle`. The commands `pnpm typecheck`, `pnpm test`, `cargo fmt --check --manifest-path src-tauri/Cargo.toml`, and `cargo test --locked --manifest-path src-tauri/Cargo.toml` check both layers.
 
-Na raiz, rode `pnpm --filter @feito/web exec playwright test -c playwright.desktop.config.ts` para verificar a abertura do espaço local e os menus de contexto com Chromium e uma ponte Tauri simulada. A suíte cobre as barras de título de Linux, Windows e macOS, além de uma janela estreita em tema escuro, e falha se houver erros JavaScript não tratados. A ponte fica em `apps/web/tests/desktop/fixtures.ts`; ao mudar a API nativa, atualize também essa simulação. Traces de falhas ficam em `apps/web/test-results/desktop/`, separados dos testes web em `apps/web/test-results/web/`.
+From the root, run `pnpm --filter @feito/web exec playwright test -c playwright.desktop.config.ts` to check opening the local workspace and using context menus with Chromium and a simulated Tauri bridge. To check production assets and on-demand screen loading, first run `pnpm --filter @feito/desktop build` and run the suite with `FEITO_DESKTOP_PREVIEW=1`. The suite covers Linux, Windows, and macOS title bars, as well as a narrow window in dark mode, and fails on unhandled JavaScript errors. The bridge is in `apps/web/tests/desktop/fixtures.ts`; when changing the native API, update this simulation too. Failure traces are stored in `apps/web/test-results/desktop/`, separate from web tests in `apps/web/test-results/web/`.
 
-## CI e releases
+## CI and releases
 
-O GitHub Actions roda os checks do desktop em pull requests, pushes para `main` e `dev`, pushes de tags de versão e execuções manuais. O empacotamento roda em pushes de tags `vX.Y.Z` e em execuções manuais. Para testar o empacotamento, abra **Actions → Desktop CI and Release → Run workflow**. Os instaladores ficam disponíveis como artefatos da execução.
+GitHub Actions runs desktop checks on pull requests, pushes to `main` and `dev`, version tag pushes, and manual runs. Packaging runs on `vX.Y.Z` tag pushes and manual runs. To test packaging, open **Actions → Desktop CI and Release → Run workflow**. Installers are available as workflow run artifacts. To publish or fix assets for an existing release, run the workflow on a branch whose `tauri.conf.json` matches the release version and provide the tag in `release_tag`.
 
-| Plataforma | Arquitetura | Pacotes |
+| Platform | Architecture | Packages |
 | --- | --- | --- |
-| Linux | x64 e ARM64 | `.deb`, `.rpm` e AppImage |
-| Windows | x64 | `.msi` e `-setup.exe` |
+| Linux | x64 and ARM64 | `.deb`, `.rpm`, and AppImage |
+| Windows | x64 | `.msi` and `-setup.exe` |
 | Windows | ARM64 | `-setup.exe` |
-| macOS | Intel e Apple Silicon | `.dmg` |
+| macOS | Intel and Apple Silicon | `.dmg` |
 
-Envie uma tag `vX.Y.Z` que corresponda ao campo `version` de `src-tauri/tauri.conf.json`. A mesma tag publica as imagens Docker versionadas da web. [Passo a passo de release](../../docs/03-operations.md#releases)
+Push a `vX.Y.Z` tag matching the `version` field in `src-tauri/tauri.conf.json`. The same tag publishes versioned web Docker images. [Release walkthrough](../../docs/03-operations.md#releases)
 
-Somente o push da tag publica a release no GitHub, depois que os seis alvos geram os 11 instaladores. Os pacotes macOS usam assinatura local (ad hoc), sem notarização da Apple. Os instaladores Windows não têm assinatura de distribuição.
+Pushing the tag publishes the GitHub release after the six targets generate all 11 installers. A manual run with `release_tag` also publishes or updates assets for an existing release. macOS packages use local (ad hoc) signing, without Apple notarization. Windows installers are not signed for distribution.
 
-[Guia de implementação](docs/tauri-implementation-guide.md)
+[Implementation guide](docs/tauri-implementation-guide.md)

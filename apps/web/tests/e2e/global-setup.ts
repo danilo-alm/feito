@@ -26,6 +26,9 @@ async function activate(base: string, name: string, email: string, provisional: 
       data: { currentPassword: provisional, newPassword: password },
     });
     if (change.status() !== 204) throw new Error(`Troca de senha de preparação falhou: ${change.status()}`);
+    // Existing interaction scenarios explicitly exercise Portuguese.
+    const preferences = await client.patch("/api/v1/preferences", { data: { locale: "pt-BR" } });
+    if (!preferences.ok()) throw new Error(`Preferências de preparação falharam: ${preferences.status()}`);
     writeFileSync(sessionFile(name), JSON.stringify(await client.storageState()), { mode: 0o600 });
   } finally {
     await client.dispose();

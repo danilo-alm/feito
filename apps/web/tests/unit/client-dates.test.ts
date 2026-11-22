@@ -21,11 +21,11 @@ describe("parseDueInput", () => {
     ["jan 4 2028", "2028-01-04"],
     ["2027-01-04", "2027-01-04"],
   ])("%s → %s", (input, expected) => {
-    expect(parseDueInput(input, REF)).toBe(expected);
+    expect(parseDueInput(input, REF, "pt-BR")).toBe(expected);
   });
 
   it.each(["", "banana", "31/02", "32 dez", "13/13"])("rejeita %j", (input) => {
-    expect(parseDueInput(input, REF)).toBeNull();
+    expect(parseDueInput(input, REF, "pt-BR")).toBeNull();
   });
 });
 
