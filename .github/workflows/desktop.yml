@@ -102,6 +102,19 @@ jobs:
           sudo apt-get install -y build-essential file libayatana-appindicator3-dev \
             librsvg2-dev libssl-dev libwebkit2gtk-4.1-dev libxdo-dev patchelf xdg-utils
 
+      # SQLCipher builds OpenSSL from source on Windows. Git Bash's MSYS Perl lacks modules that
+      # OpenSSL's Configure needs, so openssl-src must use Strawberry Perl instead.
+      - name: Use Strawberry Perl for the vendored OpenSSL
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $perl = 'C:\Strawberry\perl\bin\perl.exe'
+          if (-not (Test-Path $perl)) { choco install strawberryperl -y --no-progress }
+          if (-not (Test-Path $perl)) { throw "Strawberry Perl not found at $perl" }
+          & $perl -MLocale::Maketext::Simple -MIPC::Cmd -e 1
+          if ($LASTEXITCODE -ne 0) { throw 'Strawberry Perl is missing modules required by OpenSSL' }
+          "OPENSSL_SRC_PERL=$perl" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Install frontend dependencies
         run: pnpm --filter @feito/desktop... install --frozen-lockfile
 
