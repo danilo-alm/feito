@@ -3,7 +3,7 @@
 import { translate as t } from "../client/locale";
 import { useT } from "./language";
 
-import { forwardRef, useState, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
+import { forwardRef, useState, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type MouseEventHandler, type ReactNode } from "react";
 import { addDays, dayOfMonth, nextWeek, shortDate, weekend } from "../client/dates";
 import { editKey, openEditor, useEditorOpen } from "../client/editor-store";
 import { isTemporaryTask } from "../client/task-mutations";
@@ -173,9 +173,16 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
   const classes = [variant === "card" ? "card" : "task", sub ? "sub" : "", task.status === "completed" ? "done-t" : "", extraClass]
     .filter(Boolean).join(" ");
   const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
+  const handleContextMenu: MouseEventHandler<HTMLDivElement> = (event) => {
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.rangeCount > 0 && selection.getRangeAt(0).intersectsNode(event.currentTarget)) {
+      selection.removeAllRanges();
+    }
+    (onContextMenu ?? contextMenu.onContextMenu)?.(event);
+  };
   return (
     <div ref={ref} className={classes} data-task-id={noMenu ? undefined : task.id} onKeyDown={onKeyArrange} style={{ ...indent, ...style }}
-      onContextMenu={onContextMenu ?? contextMenu.onContextMenu} {...rest}>
+      onContextMenu={handleContextMenu} {...rest}>
       {grip && !temporary && variant === "row" && <span className="grip" aria-hidden="true"><IconGrip /></span>}
       <Checkbox task={task} disabled={temporary} onToggle={() => actions.toggle(task)} />
       <TaskContent task={task} actions={actions} showOrigin={showOrigin} timeOnly={timeOnly} preview={noMenu} showMoreSubtasks={showMoreSubtasks} />
