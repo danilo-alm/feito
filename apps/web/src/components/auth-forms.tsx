@@ -8,7 +8,7 @@ import { Logo } from "@feito/ui/components/icons";
 import { Dialog } from "@feito/ui/components/ui";
 import { BrowserLink as Link, browserRouter, safeNext, useBrowserRoute } from "@/browser/navigation";
 import { persistBrowserData, useBrowserStatus, workspace } from "@/browser/client";
-import { discardMessage } from "./settings";
+import { discardMessage } from "./sync-labels";
 
 function AuthFrame({ title, subtitle, children, footer }: { title: string; subtitle: string; children: ReactNode; footer?: ReactNode }) {
   return (

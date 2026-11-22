@@ -385,9 +385,11 @@ export function MenuButton({
   const mobile = useIsMobile();
   const closeContextMenu = contextMenu?.close;
   const close = useCallback(() => {
+    // Um diálogo aberto pela ação deve registrar o botão como retorno, não o item temporário do menu.
+    anchor?.focus();
     setButtonOpen(false);
     closeContextMenu?.();
-  }, [closeContextMenu]);
+  }, [anchor, closeContextMenu]);
   const open = buttonOpen || !!contextMenu?.activation;
   const point = contextMenu?.activation?.point;
   const list = open ? items() : [];

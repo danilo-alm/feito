@@ -945,5 +945,6 @@
   "Tarefa-pai: {0}": "Tarea principal: {0}",
   "{0}. Abrir ajustes": "{0}. Abrir ajustes",
   " · {0} na fila": " · {0} en cola",
-  "“{0}” reativado": "“{0}” reactivado"
+  "“{0}” reativado": "“{0}” reactivado",
+  "Não foi possível formatar a descrição.": "No se pudo dar formato a la descripción."
 }

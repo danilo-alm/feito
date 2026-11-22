@@ -2,21 +2,20 @@
 
 import { useT } from "./language";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { api, errorMessage } from "../client/api";
 import { exportFormats, type ExportFormat } from "@feito/core/domain/export-formats";
 import { IconCheck, IconDownload } from "./icons";
-import { DialogHead, Monogram, plural } from "./import-panel";
-import { Dialog, useToast } from "./ui";
+import { Monogram, plural, type ExportTarget as Target } from "./import-export-common";
+export { useExportDialog } from "./import-export-dialogs";
+import { useToast } from "./ui";
 import s from "./import-export.module.css";
-
-type Target = { id: string; name: string; activeCount?: number };
 
 const defaults = (format: ExportFormat) => Object.fromEntries(format.options.map((option) => [option.id, option.default]));
 // Mesma limpeza do nome que o servidor faz no Content-Disposition.
 const fileName = (name: string, format: ExportFormat) => `${name.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_")}.${format.extension}`;
 
-function ExportForm({ target, onDone }: { target: Target; onDone: () => void }) {
+export function ExportForm({ target, onDone }: { target: Target; onDone: () => void }) {
   const t = useT();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -93,24 +92,4 @@ function ExportForm({ target, onDone }: { target: Target; onDone: () => void }) 
       </div>
     </div>
   );
-}
-
-/** Diálogo para exportar um projeto num modelo de `exportFormats`. Devolve o elemento e a função que o abre. */
-export function useExportDialog(): [ReactNode, (target: Target) => void] {
-  const t = useT();
-  const [target, setTarget] = useState<Target | null>(null);
-  const [open, setOpen] = useState(false);
-  const [session, setSession] = useState(0);
-  const close = () => setOpen(false);
-  const element = (
-    <Dialog open={open} onClose={close} title={target ? t("Exportar {0}", [target.name]) : t("Exportar")} labelledBy="export-dialog-h" hideHeader width={540}>
-      {target && (
-        <>
-          <DialogHead eyebrow={t("Exportar")} title={target.name} id="export-dialog-h" onClose={close} />
-          <ExportForm key={`${target.id}:${session}`} target={target} onDone={close} />
-        </>
-      )}
-    </Dialog>
-  );
-  return [element, (next) => { setSession((value) => value + 1); setTarget(next); setOpen(true); }];
 }

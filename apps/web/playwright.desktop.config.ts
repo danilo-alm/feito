@@ -16,7 +16,9 @@ export default defineConfig({
     { name: "macos", use: { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" } },
   ],
   webServer: {
-    command: "pnpm --filter @feito/desktop dev --port 1421",
+    command: process.env.FEITO_DESKTOP_PREVIEW === "1"
+      ? "pnpm --filter @feito/desktop exec vite preview --host 127.0.0.1 --port 1421 --strictPort"
+      : "pnpm --filter @feito/desktop dev --port 1421",
     url: baseURL,
   },
 });

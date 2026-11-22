@@ -945,5 +945,6 @@
   "Tarefa-pai: {0}": "Attività superiore: {0}",
   "{0}. Abrir ajustes": "{0}. Apri impostazioni",
   " · {0} na fila": " · {0} in coda",
-  "“{0}” reativado": "“{0}” riattivato"
+  "“{0}” reativado": "“{0}” riattivato",
+  "Não foi possível formatar a descrição.": "Impossibile formattare la descrizione."
 }

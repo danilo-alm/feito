@@ -1,6 +1,6 @@
 "use client";
 import { defaultLocale } from "@feito/core/domain/preferences";
-import { LanguageProvider, useT } from "./language";
+import { LanguageLoadError, LanguageProvider, useLocale, useT } from "./language";
 
 import { createContext, useCallback, useContext, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "../navigation";
@@ -100,7 +100,7 @@ function visibleTaskOrder(id: string) {
 
 export function AppProviders({ children, contextMenus = false }: { children: ReactNode; contextMenus?: boolean }) {
   return (
-    <LanguageProvider><ContextMenusProvider value={contextMenus}>
+    <LanguageProvider wait><ContextMenusProvider value={contextMenus}>
       <ToastProvider>{children}</ToastProvider>
       <TooltipLayer />
     </ContextMenusProvider></LanguageProvider>
@@ -137,9 +137,25 @@ export function AppShell({
   const nav = useQuery<Navigation>(me.data ? "nav" : null, api.navigation);
   if (nav.data) registerTagOrder(nav.data.projects, nav.data.labels.map((label) => label.id));
   useThemeSync(me.data?.preferences.theme, persistTheme);
+  const locale = useLocale();
+  const workspaceLocale = me.data?.preferences.locale ?? defaultLocale;
+  const languageInitialized = useRef(false);
+  const [languageError, setLanguageError] = useState(false);
+  const [languageAttempt, setLanguageAttempt] = useState(0);
   useEffect(() => {
-    if (me.data) setLocale(me.data.preferences.locale ?? defaultLocale);
-  }, [me.data?.preferences.locale, !!me.data]);
+    if (!me.data) return;
+    let active = true;
+    setLanguageError(false);
+    void setLocale(workspaceLocale).catch(() => {
+      if (!active) return;
+      if (languageInitialized.current) {
+        toast(t("Não foi possível carregar o Feito."), {
+          bad: true, action: { label: t("Tentar de novo"), onClick: () => setLanguageAttempt((value) => value + 1) },
+        });
+      } else setLanguageError(true);
+    });
+    return () => { active = false; };
+  }, [workspaceLocale, !!me.data, languageAttempt, toast, t]);
 
   useEffect(() => {
     if (me.data?.mustChangePassword) router.replace("/trocar-senha");
@@ -284,6 +300,12 @@ export function AppShell({
       );
     }
     return <Spinner label={t("Carregando o Feito")} />;
+  }
+
+  if (!languageInitialized.current) {
+    if (languageError) return <LanguageLoadError onRetry={() => setLanguageAttempt((value) => value + 1)} />;
+    if (locale !== workspaceLocale) return <Spinner />;
+    languageInitialized.current = true;
   }
 
   return (

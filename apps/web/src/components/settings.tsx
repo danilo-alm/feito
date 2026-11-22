@@ -8,7 +8,8 @@ import { api, ApiFailure, errorMessage } from "@feito/ui/client/api";
 import type { ImportPreview, ImportResult } from "@feito/core/types";
 import { useApp } from "@feito/ui/components/app";
 import { IconAlert, IconClock, IconDownload, IconLock, IconLogout, IconMail, IconMonitor, IconRepeat, IconUpload } from "@feito/ui/components/icons";
-import { Monogram, useImportDialog } from "@feito/ui/components/import-panel";
+import { Monogram } from "@feito/ui/components/import-export-common";
+import { useImportDialog } from "@feito/ui/components/import-export-dialogs";
 import { AgendaSettings, AppearanceSettings, ArchivedSettings, SettingsGroup, SettingsLinkRow, SettingsRow, SettingsVersion } from "@feito/ui/components/settings";
 import { version } from "../../package.json";
 import { useToast } from "@feito/ui/components/ui";
@@ -17,28 +18,9 @@ import { PageHeader } from "@feito/ui/components/chrome";
 import { Link } from "@feito/ui/navigation";
 import { persistBrowserData, useBrowserStatus, workspace } from "@/browser/client";
 import { browserRouter } from "@/browser/navigation";
-import type { BrowserStatus } from "@/browser/workspace";
 import { OfflineStatus } from "./offline-status";
-import { SyncStatus } from "@feito/ui/components/sync-status";
 import { ConnectionSettings } from "./connection-settings";
-
-const syncLabels = {
-  local: "Espaço sem conta", syncing: "Sincronizando", current: "Sincronizado", offline: "Sem conexão",
-  login: "Entre novamente para sincronizar", error: "Sincronização interrompida",
-};
-
-function pendingLabel(count: number) {
-  return count === 1 ? t("1 alteração pendente") : t("{0} alterações pendentes", [count]);
-}
-
-export function discardMessage(count: number) {
-  return t("{0}. Ao sair, a cópia desta conta e as alterações pendentes serão apagadas deste navegador.", [pendingLabel(count)]);
-}
-
-export function SyncLink({ status }: { status: BrowserStatus }) {
-  const label = t(syncLabels[status.sync]) + (status.pending ? ` · ${pendingLabel(status.pending)}` : "");
-  return <SyncStatus state={status.sync} label={label} href="/ajustes#sincronizacao" />;
-}
+import { syncLabels, pendingLabel, discardMessage } from "./sync-labels";
 
 export function BrowserSettings() {
   const t = useT();

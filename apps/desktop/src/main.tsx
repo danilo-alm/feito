@@ -8,24 +8,20 @@ import { MobileChrome, Sidebar } from "@feito/ui/components/chrome";
 import { QuickAdd } from "@feito/ui/components/quick-add";
 import { Spinner } from "@feito/ui/components/ui";
 import { TaskDetailDialog } from "@feito/ui/components/task-detail";
-import { ProjectView } from "@feito/ui/components/project-view";
-import Today from "@feito/ui/screens/today";
-import Upcoming from "@feito/ui/screens/upcoming";
-import Inbox from "@feito/ui/screens/inbox";
-import Search from "@feito/ui/screens/search";
-import Browse from "@feito/ui/screens/browse";
-import Label from "@feito/ui/screens/label";
+import { Browse, Inbox, Label, ProjectView, Search, Today, Upcoming } from "@feito/ui/screens/deferred";
+import { lazyScreen } from "@feito/ui/components/lazy-screen";
 import { desktop, openPublicProject, watchServer } from "./data/native";
 import { usePathname, useRoute, useRouter } from "./platform/navigation";
 import Link from "./platform/link";
 import { SyncStatus } from "@feito/ui/components/sync-status";
-import { DesktopSettings } from "./settings";
 import { SpaceManager } from "./spaces";
 import { detectTitlebar, Titlebar } from "./titlebar";
 import "@feito/ui/globals.css";
 import "@fontsource-variable/inter/wght.css";
 import "@fontsource/inter-tight/latin-600.css";
 import "./desktop.css";
+
+const DesktopSettings = lazyScreen(async () => ({ default: (await import("./settings")).DesktopSettings }));
 
 const labels = new Map<string, Promise<{ id: string }>>();
 const syncLabels = {

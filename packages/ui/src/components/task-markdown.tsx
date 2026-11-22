@@ -1,23 +1,43 @@
 "use client";
 
-import Markdown, { defaultUrlTransform } from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { getMarkdown, loadMarkdown, serverMarkdown, subscribeMarkdown } from "../client/markdown";
+import { useT } from "./language";
 
-/** Renderiza apenas Markdown: HTML fornecido na descrição nunca é executado. */
+function useMarkdown(enabled: boolean) {
+  const state = useSyncExternalStore(subscribeMarkdown, getMarkdown, serverMarkdown);
+  useEffect(() => {
+    if (enabled) void loadMarkdown().catch(() => undefined);
+  }, [enabled]);
+  return state;
+}
+
+/** O texto continua legível e editável enquanto o formatador carrega. */
 export function TaskMarkdown({ children }: { children: string }) {
-  return (
-    <div className="task-markdown">
-      <Markdown remarkPlugins={[remarkGfm]} urlTransform={defaultUrlTransform} components={{
-        a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-        img: ({ node: _node, ...props }) => <img {...props} loading="lazy" referrerPolicy="no-referrer" />,
-        table: ({ node: _node, ...props }) => <div className="task-markdown-table"><table {...props} /></div>,
-      }}>{children}</Markdown>
-    </div>
-  );
+  const t = useT();
+  const state = useMarkdown(Boolean(children));
+  const content = useRef<HTMLDivElement>(null);
+  if (!children) return null;
+  return <div ref={content} className="task-markdown" tabIndex={-1} aria-busy={!state.renderer && state.status !== "error"}>
+    {state.renderer ? <state.renderer.TaskMarkdown>{children}</state.renderer.TaskMarkdown> : <>
+      <p>{children}</p>
+      {state.status === "error" ? <div className="hint">
+        <span role="alert">{t("Não foi possível formatar a descrição.")}</span>{" "}
+        <button type="button" className="btn" onClick={(event) => {
+          event.stopPropagation();
+          const preview = content.current?.closest<HTMLElement>(".task-description-preview");
+          (preview ?? content.current)?.focus();
+          void loadMarkdown().catch(() => undefined);
+        }}>{t("Tentar de novo")}</button>
+      </div> : <span className="sr-only" role="status">{t("Carregando descrição…")}</span>}
+    </>}
+  </div>;
 }
 
 /** O resumo aparece dentro do botão da tarefa e não pode conter outros controles. */
 export function TaskDescriptionExcerpt({ children }: { children: string }) {
-  return <span className="t-desc"><Markdown remarkPlugins={[remarkGfm]}
-    allowedElements={["strong", "em", "del", "code"]} unwrapDisallowed>{children}</Markdown></span>;
+  const state = useMarkdown(Boolean(children));
+  if (!children) return null;
+  if (state.renderer) return <state.renderer.TaskDescriptionExcerpt>{children}</state.renderer.TaskDescriptionExcerpt>;
+  return <span className="t-desc" aria-busy={state.status !== "error"}>{children}</span>;
 }

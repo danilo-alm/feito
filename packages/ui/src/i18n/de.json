@@ -945,5 +945,6 @@
   "Tarefa-pai: {0}": "Übergeordnete Aufgabe: {0}",
   "{0}. Abrir ajustes": "{0}. Einstellungen öffnen",
   " · {0} na fila": " · {0} in der Warteschlange",
-  "“{0}” reativado": "“{0}” reaktiviert"
+  "“{0}” reativado": "“{0}” reaktiviert",
+  "Não foi possível formatar a descrição.": "Die Beschreibung konnte nicht formatiert werden."
 }

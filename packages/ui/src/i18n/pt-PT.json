@@ -945,5 +945,6 @@
   "Tarefa-pai: {0}": "Tarefa-mãe: {0}",
   "{0}. Abrir ajustes": "{0}. Abrir definições",
   " · {0} na fila": " · {0} na fila",
-  "“{0}” reativado": "“{0}” reativado"
+  "“{0}” reativado": "“{0}” reativado",
+  "Não foi possível formatar a descrição.": "Não foi possível formatar a descrição."
 }

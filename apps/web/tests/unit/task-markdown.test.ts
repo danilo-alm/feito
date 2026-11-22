@@ -1,11 +1,24 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { TaskDescriptionExcerpt, TaskMarkdown } from "@feito/ui/components/task-markdown";
+import { TaskDescriptionExcerpt, TaskMarkdown } from "@feito/ui/components/markdown-renderer";
+import { TaskDescriptionExcerpt as DeferredExcerpt, TaskMarkdown as DeferredMarkdown } from "@feito/ui/components/task-markdown";
+import { getMarkdown } from "@feito/ui/client/markdown";
 
 const render = (text: string) => renderToStaticMarkup(createElement(TaskMarkdown, { children: text }));
 
 describe("Markdown das descrições compartilhado entre web e desktop", () => {
+  it("preserva texto escapado no HTML inicial sem carregar o formatador", () => {
+    const text = '<script>alert(1)</script> **Descrição** [link](javascript:alert%281%29)';
+    for (const Component of [DeferredMarkdown, DeferredExcerpt]) {
+      const html = renderToStaticMarkup(createElement(Component, { children: text }));
+      expect(html).toContain("&lt;script&gt;");
+      expect(html).toContain("**Descrição**");
+      expect(html).not.toMatch(/<(?:script|a|img|button)[ >]/);
+      expect(html).toContain('aria-busy="true"');
+    }
+    expect(getMarkdown().status).toBe("idle");
+  });
   it("formata o resumo sem inserir blocos ou controles dentro do botão da tarefa", () => {
     const html = renderToStaticMarkup(createElement(TaskDescriptionExcerpt, {
       children: "## **Plano** [link](https://example.com) e `código`",

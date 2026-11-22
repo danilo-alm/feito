@@ -945,5 +945,6 @@
   "Tarefa-pai: {0}": "Parent task: {0}",
   "{0}. Abrir ajustes": "{0}. Open settings",
   " · {0} na fila": " · {0} queued",
-  "“{0}” reativado": "“{0}” reactivated"
+  "“{0}” reativado": "“{0}” reactivated",
+  "Não foi possível formatar a descrição.": "Could not format the description."
 }

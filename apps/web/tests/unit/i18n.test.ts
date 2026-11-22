@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { defaultLocale, defaultPreferences } from "@feito/core/domain/preferences";
 import { preferences, preferencesPatch } from "@feito/core/validation/preferences";
-import { getLocale, serverLocale, inSentence, languages, restoreLocale, setLocale, translate, translateMessage } from "@feito/ui/client/locale";
+import { getLocale, serverLocale, inSentence, languages, loadLocale, restoreLocale, setLocale, translate, translateMessage } from "@feito/ui/client/locale";
 import {
   completedLabel, dateInSentence, dateLabel, longDate, monthShort, monthTitle, parseDueInput, rangeLabel, weekdayShort, weekHead,
 } from "@feito/ui/client/dates";
@@ -54,6 +54,7 @@ describe("idiomas compartilhados", () => {
   });
 
   it("interpola sem traduzir conteúdo do usuário e tem fallback em português", async () => {
+    await Promise.all(languages.map(({ value }) => loadLocale(value)));
     expect(translate("Excluir “{0}”?", ["Hoje"], "en")).toBe("Delete “Hoje”?");
     expect(translate("texto futuro", [], "en")).toBe("texto futuro");
     expect(translate("Hoje", [], "pt-BR")).toBe("Hoje");

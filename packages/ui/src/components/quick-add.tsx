@@ -28,6 +28,7 @@ export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | n
   const round = useRef(0);
   const titleRef = useRef<HTMLInputElement>(null);
   // Cada abertura começa um formulário novo (a chave remonta o editor).
+  // Rota, data e destino são capturados na abertura: navegar não pode apagar o rascunho.
   const session = useMemo(() => {
     if (!defaults) return null;
     const initial = Object.keys(defaults).length ? defaults : inferDefaults(pathname, app.reference);
@@ -38,7 +39,7 @@ export function QuickAdd({ defaults, onClose }: { defaults: QuickAddDefaults | n
       key: round.current, initial, draft: draftFromDefaults(initial, inboxId),
       after: Promise.resolve(initial.afterId) as Promise<string | undefined>,
     };
-  }, [defaults, pathname, app.reference, inboxId]);
+  }, [defaults]);
   const parentId = session?.initial.parentId ?? null;
   const parentTitle = parentId ? getQueryData<{ title: string }>(`task:${parentId}`)?.title : undefined;
 

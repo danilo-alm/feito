@@ -1,12 +1,13 @@
 "use client";
 import { defaultLocale } from "@feito/core/domain/preferences";
 import { useT } from "./language";
+import { loadLocale } from "../client/locale";
 
 import { LanguagePicker } from "./language-picker";
 import { Link } from "../navigation";
 import { type ReactNode } from "react";
 import { api } from "../client/api";
-import { setQueryData, useQuery } from "../client/store";
+import { cacheScope, setQueryData, useQuery } from "../client/store";
 import { setSyncIndicatorHidden, useSyncIndicatorHidden } from "../client/sync-indicator";
 import type { Me, ProjectSummary, Preferences } from "@feito/core/types";
 import { refreshProjects, useApp } from "./app";
@@ -81,7 +82,12 @@ function useSavePreferences() {
   const t = useT();
   const app = useApp();
   return async (patch: Partial<Preferences>) => {
-    const saved = await app.run(() => api.preferences(patch), {
+    const saved = await app.run(async () => {
+      const scope = cacheScope();
+      if (patch.locale) await loadLocale(patch.locale);
+      if (scope !== cacheScope()) return undefined;
+      return api.preferences(patch);
+    }, {
       success: patch.timezone ? t("Fuso horário atualizado") : undefined,
       revalidate: patch.timezone ? (key) => key === "me" || refreshProjects(key) : undefined,
     });

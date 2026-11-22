@@ -76,9 +76,13 @@ A sessão expirada conserva a cópia e a fila. Ajustes mostra os estados de cone
 
 ### Acesso offline, importação e exportação
 
-A interface recebe o caminho atual do navegador e carrega as telas do pacote compartilhado. O build de produção gera uma entrada pública genérica e um service worker com a lista versionada dos recursos do build. A preparação exige conexão inicial. Depois de preparada, a entrada abre os caminhos da aplicação e links diretos para projetos e tarefas sem renderização ou sessão remota. APIs, projetos públicos compartilhados e respostas de autenticação passam pela rede. Uma atualização termina de preparar o novo conjunto de arquivos em segundo plano e entra em uso quando as abas da versão anterior fecham.
+A interface recebe o caminho atual do navegador e carrega as telas do pacote compartilhado sob demanda, com os mesmos limites de carregamento usados pelo desktop. Navegação e diálogos permanecem montados durante o carregamento de uma tela. O build de produção gera uma entrada pública genérica e um service worker com a lista versionada dos recursos do build, incluindo os arquivos das telas ainda não visitadas. A preparação exige conexão inicial. Depois de preparada, a entrada abre os caminhos da aplicação e links diretos para projetos e tarefas sem renderização ou sessão remota. APIs, projetos públicos compartilhados e respostas de autenticação passam pela rede. Uma atualização termina de preparar o novo conjunto de arquivos em segundo plano e entra em uso quando as abas da versão anterior fecham.
 
 Backup JSON e exportação de projetos usam a cópia aberta, inclusive alterações pendentes gravadas. O espaço sem conta pode restaurar um backup Feito em um destino vazio e importar CSV do Todoist sem conexão. Na conta, as importações passam pelo servidor e requerem a fila em dia. Compartilhamento e troca de senha precisam de conexão e sessão válida. O espaço sem conta tem seus próprios dados, preferências e backups.
+
+O catálogo inglês acompanha a entrada; os outros cinco catálogos são carregados sob demanda pelo cliente compartilhado. Português do Brasil usa os próprios textos do código. Todos os catálogos entram no pacote offline e no instalador desktop. A restauração aguarda o idioma salvo antes de montar a interface, e uma troca carrega o catálogo antes de gravar a preferência. Falhas preservam o idioma anterior; carregamentos concorrentes compartilham o pedido, e uma resposta atrasada não substitui a escolha mais recente.
+
+Os formulários de importação e exportação também carregam apenas ao abrir o diálogo; o cabeçalho, o fechamento e o retorno de foco não dependem desse carregamento. A biblioteca Markdown só carrega quando aparece uma descrição ou um resumo. Durante a espera ou uma falha, o texto permanece legível e editável; a descrição completa oferece nova tentativa. Esses arquivos integram o mesmo pacote offline, inclusive antes do primeiro uso.
 
 ### Verificação
 

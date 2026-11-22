@@ -5,20 +5,18 @@ import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { NavigationProvider } from "@feito/ui/navigation";
 import { AppProviders, AppShell } from "@feito/ui/components/app";
 import { MobileChrome, Sidebar } from "@feito/ui/components/chrome";
-import { ProjectView } from "@feito/ui/components/project-view";
+import { lazyScreen } from "@feito/ui/components/lazy-screen";
 import { QuickAdd } from "@feito/ui/components/quick-add";
 import { TaskDetailDialog } from "@feito/ui/components/task-detail";
 import { Spinner } from "@feito/ui/components/ui";
-import Today from "@feito/ui/screens/today";
-import Inbox from "@feito/ui/screens/inbox";
-import Upcoming from "@feito/ui/screens/upcoming";
-import Search from "@feito/ui/screens/search";
-import Browse from "@feito/ui/screens/browse";
-import Label from "@feito/ui/screens/label";
+import { Browse, Inbox, Label, ProjectView, Search, Today, Upcoming } from "@feito/ui/screens/deferred";
 import { startBrowserWorkspace, useBrowserStatus, workspace } from "@/browser/client";
 import { BrowserLink, browserRouter, safeNext, useBrowserRoute } from "@/browser/navigation";
 import { ChangePasswordForm, LoginForm } from "./auth-forms";
-import { BrowserSettings, SyncLink } from "./settings";
+import { syncLabels, pendingLabel } from "./sync-labels";
+import { SyncStatus } from "@feito/ui/components/sync-status";
+
+const BrowserSettings = lazyScreen(async () => ({ default: (await import("./settings")).BrowserSettings }));
 
 const routes: Record<string, ReactNode> = {
   "/hoje": <Today />,
@@ -124,7 +122,8 @@ function BrowserContent() {
               }
               close("task");
             }} />
-          {status.space.kind === "account" && <SyncLink status={status} />}
+          {status.space.kind === "account" && <SyncStatus state={status.sync}
+            label={t(syncLabels[status.sync]) + (status.pending ? ` · ${pendingLabel(status.pending)}` : "")} href="/ajustes#sincronizacao" />}
         </>
       )}
     >{screen}</AppShell>;

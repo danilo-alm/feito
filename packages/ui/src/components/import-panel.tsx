@@ -4,40 +4,22 @@ import { translateMessage, translate as t } from "../client/locale";
 import { useT } from "./language";
 
 import { Link } from "../navigation";
-import { useState, type DragEvent, type ReactNode } from "react";
+import { useState, type DragEvent } from "react";
 import { api, ApiFailure, errorMessage } from "../client/api";
 import type { SourceImportPreview, SourceImportResult } from "@feito/core/types";
 import { useApp } from "./app";
 import {
-  IconAlert, IconCheck, IconChevronDown, IconChevronRight, IconFileUp, IconHash, IconLock, IconPlus, IconUpload, IconX,
+  IconAlert, IconCheck, IconChevronDown, IconChevronRight, IconFileUp, IconHash, IconLock, IconPlus, IconUpload,
 } from "./icons";
 import { Collapse } from "./motion";
-import { Dialog, useToast } from "./ui";
+import { useToast } from "./ui";
+import { Monogram, plural, type ImportTarget as Target } from "./import-export-common";
+export { DialogHead, Monogram, plural } from "./import-export-common";
+export { useImportDialog } from "./import-export-dialogs";
 import { importSources, type ImportSource } from "@feito/core/domain/import-sources";
 import s from "./import-export.module.css";
 
-export const plural = (count: number, one: string, many: string) => `${count} ${t(count === 1 ? one : many)}`;
-
-type Target = { id: string; name: string };
 type Variant = "panel" | "dialog";
-
-export function Monogram({ name, small }: { name: string; small?: boolean }) {
-  return <span className={`${s.monogram}${small ? ` ${s.small}` : ""}`} aria-hidden="true">{name.charAt(0).toUpperCase()}</span>;
-}
-
-/** Cabeçalho dos diálogos de importar e exportar: rótulo da ação, nome do projeto e fechar. */
-export function DialogHead({ eyebrow, title, id, onClose }: { eyebrow: string; title: string; id: string; onClose: () => void }) {
-  const t = useT();
-  return (
-    <div className={s.dialogHead}>
-      <div>
-        <span className={s.label}>{eyebrow}</span>
-        <h2 id={id}>{title}</h2>
-      </div>
-      <button type="button" className="icon-btn" onClick={onClose} aria-label={t("Fechar (Esc)")}><IconX /></button>
-    </div>
-  );
-}
 
 function SourceChoices({ selected, onSelect }: { selected: ImportSource["id"]; onSelect: (id: ImportSource["id"]) => void }) {
   const t = useT();
@@ -149,7 +131,7 @@ function projectChips(project: SourceImportPreview["projects"][number], target?:
 }
 
 /** Fluxo completo: escolher fonte e arquivos → revisar → resultado. Igual em Ajustes e no diálogo do projeto. */
-function ImportFlow({ variant, target, onClose }: { variant: Variant; target?: Target; onClose?: () => void }) {
+export function ImportFlow({ variant, target, onClose }: { variant: Variant; target?: Target; onClose?: () => void }) {
   const t = useT();
   const app = useApp();
   const toast = useToast();
@@ -366,32 +348,4 @@ function ImportFlow({ variant, target, onClose }: { variant: Variant; target?: T
       )}
     </div>
   );
-}
-
-/**
- * Diálogo de importação. Com `target`, acrescenta ao fim de um projeto existente; sem ele, cria projetos novos
- * (Ajustes). Devolve o elemento e a função que o abre.
- */
-export function useImportDialog(): [ReactNode, (target?: Target) => void] {
-  const t = useT();
-  const [target, setTarget] = useState<Target | null>(null);
-  const [open, setOpen] = useState(false);
-  const [session, setSession] = useState(0);
-  const close = () => setOpen(false);
-  const sourceNames = importSources.map((item) => item.name).join(", ");
-  const element = (
-    <Dialog open={open} onClose={close} title={target ? t("Importar para {0}", [target.name]) : t("Importar do {0}", [sourceNames])}
-      labelledBy="import-dialog-h" hideHeader width={600}>
-      {session > 0 && (
-        <>
-          <DialogHead eyebrow={target ? t("Importar para") : t("Importar de outro app")} title={target?.name ?? sourceNames}
-            id="import-dialog-h" onClose={close} />
-          <div className={s.dialogBody}>
-            <ImportFlow key={`${target?.id ?? "novo"}:${session}`} variant="dialog" target={target ?? undefined} onClose={close} />
-          </div>
-        </>
-      )}
-    </Dialog>
-  );
-  return [element, (next) => { setSession((value) => value + 1); setTarget(next ?? null); setOpen(true); }];
 }

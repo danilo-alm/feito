@@ -16,8 +16,7 @@ import {
   IconSearch, IconTag, IconToday, IconTrash, IconUpcoming, IconUpload, IconDownload,
 } from "./icons";
 import { ProjectGlyph } from "./project-style";
-import { useExportDialog } from "./export-dialog";
-import { useImportDialog } from "./import-panel";
+import { useExportDialog, useImportDialog } from "./import-export-dialogs";
 import { useProjectDetailsDialog } from "./named-details";
 import { useLabelMenu } from "./label-actions";
 import { MenuButton, useContextMenu, useToast, type MenuItem } from "./ui";

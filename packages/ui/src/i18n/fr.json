@@ -945,5 +945,6 @@
   "Tarefa-pai: {0}": "Tâche parente : {0}",
   "{0}. Abrir ajustes": "{0}. Ouvrir les réglages",
   " · {0} na fila": " · {0} en attente",
-  "“{0}” reativado": "“{0}” réactivé"
+  "“{0}” reativado": "“{0}” réactivé",
+  "Não foi possível formatar a descrição.": "Impossible de mettre en forme la description."
 }

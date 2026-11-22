@@ -2,12 +2,7 @@
 import { defaultLocale } from "@feito/core/domain/preferences";
 import type { Locale } from "@feito/core/types";
 import { locales } from "@feito/core/validation/preferences";
-import german from "../i18n/de.json";
 import english from "../i18n/en.json";
-import spanish from "../i18n/es.json";
-import french from "../i18n/fr.json";
-import italian from "../i18n/it.json";
-import portugal from "../i18n/pt-PT.json";
 
 export const DEFAULT_LOCALE: Locale = defaultLocale;
 // Cada idioma aparece com o próprio nome, para ser reconhecível em qualquer interface.
@@ -21,10 +16,29 @@ export const languages: readonly { value: Locale; label: string }[] = [
   { value: "de", label: "Deutsch" },
 ];
 // As chaves são os textos em pt-BR; uma chave ausente num catálogo cai no português.
-const catalogs: Record<Exclude<Locale, "pt-BR">, Readonly<Record<string, string>>> = {
-  "pt-PT": portugal, en: english, es: spanish, fr: french, it: italian, de: german,
+type Catalog = Readonly<Record<string, string>>;
+type DeferredLocale = Exclude<Locale, "pt-BR" | "en">;
+const catalogs: Partial<Record<Locale, Catalog>> = { en: english };
+const loaders: Record<DeferredLocale, () => Promise<{ default: Catalog }>> = {
+  "pt-PT": () => import("../i18n/pt-PT.json"),
+  es: () => import("../i18n/es.json"),
+  fr: () => import("../i18n/fr.json"),
+  it: () => import("../i18n/it.json"),
+  de: () => import("../i18n/de.json"),
 };
+const pending = new Map<Locale, Promise<void>>();
 const STORAGE_KEY = "feito:locale";
+
+/** Catálogos adicionais só são carregados ao usar o idioma; todos integram o pacote offline. */
+export function loadLocale(locale: Locale): Promise<void> {
+  if (locale === "pt-BR" || locale === "en" || catalogs[locale]) return Promise.resolve();
+  const existing = pending.get(locale);
+  if (existing) return existing;
+  const request = loaders[locale]().then(({ default: entries }) => { catalogs[locale] = entries; })
+    .finally(() => pending.delete(locale));
+  pending.set(locale, request);
+  return request;
+}
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === "string" && (locales as readonly string[]).includes(value);
@@ -35,6 +49,7 @@ export function intlLocale(locale: Locale = current) {
 }
 
 let current: Locale = DEFAULT_LOCALE;
+let localeRequest = 0;
 const listeners = new Set<() => void>();
 export const getLocale = () => current;
 export const serverLocale = () => DEFAULT_LOCALE;
@@ -42,21 +57,25 @@ export function subscribeLocale(listener: () => void) {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 }
-export function setLocale(locale: Locale) {
+export async function setLocale(locale: Locale): Promise<void> {
   // Nunca modifica estado global durante a renderização no servidor.
   if (typeof document === "undefined") return;
   if (!isLocale(locale)) locale = DEFAULT_LOCALE;
+  const request = ++localeRequest;
+  if (locale !== "pt-BR" && !catalogs[locale]) await loadLocale(locale);
+  if (request !== localeRequest) return;
   document.documentElement.lang = locale;
   try { localStorage.setItem(STORAGE_KEY, locale); } catch { /* Armazenamento opcional. */ }
   if (current === locale) return;
   current = locale;
   for (const listener of listeners) listener();
 }
-export function restoreLocale() {
+export function restoreLocale(): Promise<void> {
+  let stored: string | null = null;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    setLocale(isLocale(stored) ? stored : DEFAULT_LOCALE);
-  } catch { setLocale(DEFAULT_LOCALE); }
+    stored = localStorage.getItem(STORAGE_KEY);
+  } catch { /* Armazenamento opcional; o catálogo padrão já está disponível. */ }
+  return setLocale(isLocale(stored) ? stored : DEFAULT_LOCALE);
 }
 
 /** Coloca um rótulo no meio da frase. Substantivos em alemão mantêm a inicial maiúscula. */
