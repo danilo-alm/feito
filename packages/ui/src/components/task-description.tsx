@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from "react";
-import { formatDescription, type DescriptionFormat } from "../client/description-formatting";
+import { continueMarkdownBlock, formatDescription, type DescriptionFormat, type TextSelection } from "../client/description-formatting";
 import { IconBold, IconBulletList, IconCode, IconHeading, IconItalic, IconLink, IconNumberList, IconQuote, IconStrike, IconTaskList } from "./icons";
 import { useT } from "./language";
 import { Collapse } from "./motion";
@@ -69,8 +69,10 @@ export function TaskDescription({ value, defaultPreview = false, toolbar = false
 
   const format = (kind: DescriptionFormat) => {
     const element = editor.current;
-    if (!element) return;
-    const result = formatDescription(value, element.selectionStart, element.selectionEnd, kind, t("texto"));
+    if (element) apply(element, formatDescription(value, element.selectionStart, element.selectionEnd, kind, t("texto")));
+  };
+
+  const apply = (element: HTMLTextAreaElement, result: TextSelection) => {
     if (result.value.length > (props.maxLength ?? 10_000)) { setLimitError(true); element.focus(); return; }
     setLimitError(false);
     selection.current = result;
@@ -88,7 +90,9 @@ export function TaskDescription({ value, defaultPreview = false, toolbar = false
       element.focus();
       element.setSelectionRange(from, value.length - suffix);
       if (typeof document.execCommand === "function") {
-        document.execCommand("insertText", false, result.value.slice(from, result.value.length - suffix));
+        const text = result.value.slice(from, result.value.length - suffix);
+        if (text) document.execCommand("insertText", false, text);
+        else document.execCommand("delete");
       }
       onValueChange(result.value);
     }
@@ -132,7 +136,11 @@ export function TaskDescription({ value, defaultPreview = false, toolbar = false
           onKeyDown={(event) => {
             const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey
               ? ({ b: "bold", i: "italic", k: "link" } as const)[event.key.toLowerCase() as "b" | "i" | "k"] : undefined;
-            if (shortcut) { event.preventDefault(); event.stopPropagation(); format(shortcut); }
+            if (shortcut) { event.preventDefault(); event.stopPropagation(); format(shortcut); return; }
+            const plainEnter = event.key === "Enter" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey
+              && !event.nativeEvent.isComposing;
+            const block = plainEnter ? continueMarkdownBlock(value, event.currentTarget.selectionStart, event.currentTarget.selectionEnd) : null;
+            if (block) { event.preventDefault(); event.stopPropagation(); apply(event.currentTarget, block); }
             else props.onKeyDown?.(event);
           }} />
         {limitError && <p className="hint" role="status">{t("A descrição atingiu o limite de {0} caracteres.", [props.maxLength ?? 10_000])}</p>}

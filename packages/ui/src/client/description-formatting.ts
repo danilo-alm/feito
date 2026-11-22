@@ -88,3 +88,32 @@ export function formatDescription(value: string, start: number, end: number, for
   const content = selected || placeholder;
   return replace(start, end, before + content + after, before.length, before.length + content.length);
 }
+
+const quotePrefix = /^(?:[ \t]*> ?)*/;
+const listPrefix = /^([ \t]*)(?:([-+*])|(\d{1,9})([.)]))( +)(\[[ xX]\] +)?/;
+const fence = /^[ \t]{0,3}(?:```|~~~)/;
+
+/**
+ * Continua a lista ou citação da linha do cursor ao pressionar Enter. Um item vazio encerra o bloco.
+ * Devolve null quando o Enter deve inserir uma quebra de linha comum.
+ */
+export function continueMarkdownBlock(value: string, start: number, end: number): TextSelection | null {
+  if (start !== end) return null;
+  const from = start === 0 ? 0 : value.lastIndexOf("\n", start - 1) + 1;
+  const next = value.indexOf("\n", start);
+  const line = value.slice(from, next === -1 ? value.length : next);
+  const quote = quotePrefix.exec(line)![0];
+  const list = listPrefix.exec(line.slice(quote.length));
+  const prefix = quote + (list?.[0] ?? "");
+  if (!prefix.trim() || start - from < prefix.length) return null;
+  // Dentro de um bloco de código, as linhas não são marcadores.
+  if (value.slice(0, from).split("\n").filter((text) => fence.test(text)).length % 2 === 1) return null;
+
+  if (!line.slice(prefix.length).trim()) {
+    const kept = list ? quote : "";
+    return { value: value.slice(0, from) + kept + value.slice(from + line.length), start: from + kept.length, end: from + kept.length };
+  }
+  const marker = !list ? "" : list[1] + (list[2] ?? `${Number(list[3]) + 1}${list[4]}`) + list[5] + (list[6] ? "[ ] " : "");
+  const text = `\n${quote}${marker}`;
+  return { value: value.slice(0, start) + text + value.slice(start), start: start + text.length, end: start + text.length };
+}

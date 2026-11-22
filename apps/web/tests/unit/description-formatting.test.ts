@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDescription } from "@feito/ui/client/description-formatting";
+import { continueMarkdownBlock, formatDescription } from "@feito/ui/client/description-formatting";
 
 describe("formatação da descrição", () => {
   it("formata e remove a formatação da seleção preservando o texto em volta", () => {
@@ -63,5 +63,44 @@ describe("formatação da descrição", () => {
 
   it("permite título no começo de uma descrição que inicia com linha vazia", () => {
     expect(formatDescription("\nDepois", 0, 0, "heading", "texto").value).toBe("# texto\nDepois");
+  });
+});
+
+describe("continuação de blocos com Enter", () => {
+  const enter = (text: string) => {
+    const cursor = text.indexOf("|");
+    const value = text.replace("|", "");
+    const result = continueMarkdownBlock(value, cursor, cursor);
+    return result && result.value.slice(0, result.start) + "|" + result.value.slice(result.start);
+  };
+
+  it("continua listas, listas de tarefas e citações", () => {
+    expect(enter("- leite|")).toBe("- leite\n- |");
+    expect(enter("* leite|")).toBe("* leite\n* |");
+    expect(enter("9. leite|")).toBe("9. leite\n10. |");
+    expect(enter("1) leite|")).toBe("1) leite\n2) |");
+    expect(enter("- [x] feito|")).toBe("- [x] feito\n- [ ] |");
+    expect(enter("> citação|")).toBe("> citação\n> |");
+    expect(enter("> - item|")).toBe("> - item\n> - |");
+    expect(enter("Antes\n  - sub|\nDepois")).toBe("Antes\n  - sub\n  - |\nDepois");
+  });
+
+  it("leva para o novo item o texto depois do cursor", () => {
+    expect(enter("- ab|cd")).toBe("- ab\n- |cd");
+  });
+
+  it("encerra o bloco num item vazio", () => {
+    expect(enter("- um\n- |")).toBe("- um\n|");
+    expect(enter("- um\n- [ ] |")).toBe("- um\n|");
+    expect(enter("> - |")).toBe("> |");
+    expect(enter("> um\n> |")).toBe("> um\n|");
+  });
+
+  it("mantém a quebra comum fora de blocos, no marcador ou dentro de código", () => {
+    expect(enter("texto|")).toBeNull();
+    expect(enter("-| item")).toBeNull();
+    expect(enter("```\n- item|")).toBeNull();
+    expect(enter("```\nx\n```\n- item|")).toBe("```\nx\n```\n- item\n- |");
+    expect(continueMarkdownBlock("- item", 2, 6)).toBeNull();
   });
 });
