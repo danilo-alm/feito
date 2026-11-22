@@ -1,6 +1,7 @@
 import { expect, test as base, type Page } from "@playwright/test";
 import { newWorkspace } from "../../../desktop/src/data/local";
 import type { Bridge } from "../../../desktop/src/data/desktop";
+import type { SQLiteSelection, SQLiteTitleEdit } from "@feito/core/product/sqlite-batches";
 
 export const test = base.extend({
   page: async ({ page }, use) => {
@@ -15,6 +16,8 @@ export const test = base.extend({
 export async function mockDesktop(page: Page, initial: Awaited<ReturnType<Bridge["read"]>>, simulateServer = false) {
   await page.addInitScript(({ initial, simulateServer }) => {
     let stored = initial;
+    type Document = NonNullable<typeof initial>["value"];
+    const working = (value: Document) => value.server?.working ?? (value.active === "local" ? value.local : undefined);
     let callbackId = 0;
     Object.assign(window, {
       isTauri: true,
@@ -22,13 +25,33 @@ export async function mockDesktop(page: Page, initial: Awaited<ReturnType<Bridge
         metadata: { currentWindow: { label: "main" } },
         transformCallback: () => ++callbackId,
         unregisterCallback: () => undefined,
-        async invoke(command: string, args?: { generation: number | null; value: NonNullable<typeof initial>["value"]; path?: string; body?: { email: string }; origin?: string }) {
+        async invoke(command: string, args?: {
+          generation: number | null; value: Document; path?: string; body?: { email: string }; origin?: string;
+          selection?: SQLiteSelection; edit?: SQLiteTitleEdit;
+        }) {
           switch (command) {
             case "read_workspace": return structuredClone(stored);
             case "write_workspace": {
               if (!args || args.generation !== (stored?.generation ?? null)) throw new Error("Geração inválida");
               stored = { generation: (args.generation ?? 0) + 1, value: structuredClone(args.value) };
               return structuredClone(stored);
+            }
+            // The native store reads only the related rows; the whole working workspace is a superset for these routes.
+            case "read_workspace_context": {
+              if (!stored || args?.selection?.generation !== stored.generation) throw new Error("Geração inválida");
+              return structuredClone(working(stored.value) ?? null);
+            }
+            case "write_workspace_title": {
+              const edit = args?.edit;
+              if (!stored || !edit || edit.selection.generation !== stored.generation) throw new Error("Geração inválida");
+              const value = structuredClone(stored.value);
+              const task = working(value)?.tasks.find(({ id }) => id === edit.taskId);
+              if (!task || task.revision !== edit.revision) throw new Error("Conflito ao salvar");
+              task.data.title = edit.title;
+              task.revision += 1;
+              if (edit.operation) value.server?.pending.push(edit.operation);
+              stored = { generation: stored.generation + 1, value };
+              return stored.generation;
             }
             case "server_request": {
               if (!simulateServer) throw new Error("Servidor indisponível na prévia");
