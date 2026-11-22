@@ -27,6 +27,22 @@ for (const narrow of [false, true]) {
     await page.screenshot({ path: `/tmp/feito-sync-setting-${narrow ? "narrow" : "wide"}.png`, fullPage: true });
     await page.emulateMedia({ colorScheme: "dark" });
     await expect(page.locator("html")).toHaveClass(/dark/);
+    await indicator.focus();
+    const label = indicator.locator(".sync-status-label");
+    await expect(label).toHaveCSS("opacity", "1");
+    await expect(label).toHaveCSS("padding", "4px 10px");
+    await expect(label).toHaveCSS("border-radius", "999px");
+    const appBackground = await page.locator("html").evaluate((element) => getComputedStyle(element).backgroundColor);
+    await expect(label).toHaveCSS("background-color", appBackground);
+    if (narrow) {
+      const tabbar = page.getByRole("navigation", { name: "Navegação", exact: true });
+      const tabbarBox = (await tabbar.boundingBox())!;
+      const indicatorBox = (await indicator.boundingBox())!;
+      expect(indicatorBox.x).toBe(8);
+      expect(tabbarBox.y - (indicatorBox.y + indicatorBox.height)).toBe(indicatorBox.x);
+      await expect(indicator).toHaveCSS("background-color", appBackground);
+      await expect(indicator).toHaveCSS("border-radius", "50%");
+    }
     await page.screenshot({ path: `/tmp/feito-sync-setting-dark-${narrow ? "narrow" : "wide"}.png`, fullPage: true });
   });
 }
