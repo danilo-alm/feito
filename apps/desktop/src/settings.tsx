@@ -2,7 +2,8 @@ import { useT } from "@feito/ui/components/language";
 import { useSyncExternalStore } from "react";
 import { useApp } from "@feito/ui/components/app";
 import { PageHeader } from "@feito/ui/components/chrome";
-import { AgendaSettings, AppearanceSettings, ArchivedSettings } from "@feito/ui/components/settings";
+import { AgendaSettings, AppearanceSettings, ArchivedSettings, SettingsVersion } from "@feito/ui/components/settings";
+import { version } from "../src-tauri/tauri.conf.json";
 import { desktop } from "./data/native";
 import { SpaceManager } from "./spaces";
 
@@ -28,6 +29,7 @@ export function DesktopSettings() {
           <AppearanceSettings />
           <AgendaSettings />
           <ArchivedSettings />
+          <SettingsVersion version={version} />
         </div>
       </div>
     </>

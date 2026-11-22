@@ -9,7 +9,8 @@ import type { ImportPreview, ImportResult } from "@feito/core/types";
 import { useApp } from "@feito/ui/components/app";
 import { IconAlert, IconClock, IconDownload, IconLock, IconLogout, IconMail, IconMonitor, IconRepeat, IconUpload } from "@feito/ui/components/icons";
 import { Monogram, useImportDialog } from "@feito/ui/components/import-panel";
-import { AgendaSettings, AppearanceSettings, ArchivedSettings, SettingsGroup, SettingsLinkRow, SettingsRow } from "@feito/ui/components/settings";
+import { AgendaSettings, AppearanceSettings, ArchivedSettings, SettingsGroup, SettingsLinkRow, SettingsRow, SettingsVersion } from "@feito/ui/components/settings";
+import { version } from "../../package.json";
 import { useToast } from "@feito/ui/components/ui";
 import { importSources } from "@feito/core/domain/import-sources";
 import { PageHeader } from "@feito/ui/components/chrome";
@@ -55,6 +56,7 @@ export function BrowserSettings() {
         <OfflineStatus />
         <DataSettings />
         <ArchivedSettings />
+        <SettingsVersion version={version} />
       </div></div>
     </>
   );

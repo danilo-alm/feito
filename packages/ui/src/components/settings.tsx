@@ -18,6 +18,11 @@ import { ReadFallback } from "./ui";
 // Ajustes em grupos de linhas: ícone, nome e explicação à esquerda, controle à direita.
 // O web e o desktop montam a página com os mesmos grupos; o desktop acrescenta os espaços de trabalho.
 
+export function SettingsVersion({ version }: { version: string }) {
+  const t = useT();
+  return <p className="set-foot">Feito · {t("Versão")} {version}</p>;
+}
+
 export function SettingsGroup({ id, title, children, footer }: { id: string; title: string; children: ReactNode; footer?: ReactNode }) {
   return (
     <section id={id} className="set-group" aria-labelledby={`${id}-h`}>
