@@ -4,7 +4,7 @@
 
 Feito is a personal task app you host on your own computer or server. Capture tasks in Inbox, plan your day with Today and Upcoming, and organize projects in lists or boards. The app supports subtasks, labels, priorities, and recurring tasks, as well as Todoist imports and data exports. Task and project data is stored encrypted. The interface defaults to English, with other languages available in Settings.
 
-![Feito desktop in dark mode, showing Today with today's tasks, overdue items, times, and priorities](docs/screenshots/hoje.png)
+![Feito desktop in English and dark mode, showing Today with fictional tasks, overdue items, times, and priorities](docs/screenshots/today.png)
 
 ## Getting started
 
