@@ -12,11 +12,17 @@ use chacha20poly1305::{
     },
     XChaCha20Poly1305, XNonce,
 };
-use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+#[cfg(test)]
+use rusqlite::{params, TransactionBehavior};
+use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::State;
 use zeroize::Zeroizing;
+
+mod legacy;
+mod relational;
+mod title;
 
 const STORE_ERROR: &str = "Não foi possível acessar os dados locais.";
 const KEY_ERROR: &str = "Não foi possível acessar a chave do Feito no cofre do sistema.";
@@ -63,7 +69,7 @@ impl WorkspaceStore {
         Ok(key)
     }
 
-    fn open(&self) -> StoreResult<Connection> {
+    fn create_directory(&self) -> StoreResult<()> {
         let mut directory = fs::DirBuilder::new();
         directory.recursive(true);
         #[cfg(unix)]
@@ -71,7 +77,12 @@ impl WorkspaceStore {
             use std::os::unix::fs::DirBuilderExt;
             directory.mode(0o700);
         }
-        directory.create(&self.directory).map_err(|_| STORE_ERROR)?;
+        directory.create(&self.directory).map_err(|_| STORE_ERROR)
+    }
+
+    #[cfg(test)]
+    fn open(&self) -> StoreResult<Connection> {
+        self.create_directory()?;
         let database =
             Connection::open(self.directory.join("feito.sqlite3")).map_err(|_| STORE_ERROR)?;
         database
@@ -93,6 +104,7 @@ impl WorkspaceStore {
         Ok(database)
     }
 
+    #[cfg(test)]
     fn read(
         &self,
         load_key: impl FnOnce(bool) -> StoreResult<StoreKey>,
@@ -107,6 +119,7 @@ impl WorkspaceStore {
         Ok(Some(VersionedWorkspace { generation, value }))
     }
 
+    #[cfg(test)]
     fn write(
         &self,
         expected: Option<i64>,
@@ -156,14 +169,15 @@ impl WorkspaceStore {
     /// Reads a server session cookie. Sessions live in the local database, encrypted with the
     /// same system-vault key as the workspace, so the vault is unlocked once for both.
     pub fn read_session(&self, origin: &str) -> StoreResult<Option<Zeroizing<Vec<u8>>>> {
-        self.read_session_with(origin, |can_create| self.system_key(can_create))
+        self.read_relational_session(origin)
     }
 
     /// Stores a server session cookie, or removes it when `value` is `None`.
     pub fn write_session(&self, origin: &str, value: Option<&[u8]>) -> StoreResult<()> {
-        self.write_session_with(origin, value, |can_create| self.system_key(can_create))
+        self.write_relational_session(origin, value)
     }
 
+    #[cfg(test)]
     fn read_session_with(
         &self,
         origin: &str,
@@ -185,6 +199,7 @@ impl WorkspaceStore {
         open_sealed(&key, &session_aad(origin), &encrypted).map(Some)
     }
 
+    #[cfg(test)]
     fn write_session_with(
         &self,
         origin: &str,
@@ -217,6 +232,7 @@ fn session_aad(origin: &str) -> Vec<u8> {
     format!("session-v1:{origin}").into_bytes()
 }
 
+#[cfg(test)]
 fn seal(key: &StoreKey, aad: &[u8], plaintext: &[u8]) -> StoreResult<Vec<u8>> {
     let mut nonce = [0; NONCE_BYTES];
     OsRng.try_fill_bytes(&mut nonce).map_err(|_| STORE_ERROR)?;
@@ -297,7 +313,7 @@ pub async fn read_workspace(
 ) -> Result<Option<VersionedWorkspace>, String> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        store.read(|can_create| store.system_key(can_create))
+        store.read_relational(|can_create| store.system_key(can_create))
     })
     .await
     .map_err(|_| STORE_ERROR)?
@@ -312,7 +328,68 @@ pub async fn write_workspace(
 ) -> Result<VersionedWorkspace, String> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        store.write(generation, value, |can_create| store.system_key(can_create))
+        store.write_relational(generation, value, |can_create| store.system_key(can_create))
+    })
+    .await
+    .map_err(|_| STORE_ERROR)?
+    .map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn read_workspace_context(
+    store: State<'_, WorkspaceStore>,
+    selection: Value,
+    kind: String,
+    id: String,
+) -> Result<Option<Value>, String> {
+    let store = store.inner().clone();
+    let selection: title::Selection = serde_json::from_value(selection).map_err(|_| STORE_ERROR)?;
+    let query = match kind.as_str() {
+        "task" => include_str!("../../../../packages/core/sqlite/queries/task-context.sql"),
+        "project" => {
+            include_str!("../../../../packages/core/sqlite/queries/project-context.sql")
+        }
+        _ => return Err(STORE_ERROR.into()),
+    };
+    tauri::async_runtime::spawn_blocking(move || -> StoreResult<Option<Value>> {
+        let mut db = store.open_relational(|can_create| store.system_key(can_create))?;
+        let tx = db.transaction().map_err(|_| STORE_ERROR)?;
+        if title::generation(&tx, &selection).map_err(|_| STORE_ERROR)?
+            != Some(selection.generation)
+        {
+            return Err(SAVE_CONFLICT);
+        }
+        let json: Option<String> = tx
+            .query_row(query, [&selection.space_id, "working", &id], |row| {
+                row.get(0)
+            })
+            .optional()
+            .map_err(|_| STORE_ERROR)?;
+        tx.commit().map_err(|_| STORE_ERROR)?;
+        json.map(|json| serde_json::from_str(&json).map_err(|_| STORE_ERROR))
+            .transpose()
+    })
+    .await
+    .map_err(|_| STORE_ERROR)?
+    .map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn write_workspace_title(
+    store: State<'_, WorkspaceStore>,
+    edit: Value,
+) -> Result<i64, String> {
+    let store = store.inner().clone();
+    let edit: title::TitleEdit = serde_json::from_value(edit).map_err(|_| STORE_ERROR)?;
+    if edit.title.trim().is_empty() || edit.title.chars().count() > 500 || edit.revision < 1 {
+        return Err(STORE_ERROR.into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut db = store.open_relational(|can_create| store.system_key(can_create))?;
+        match title::commit_title(&mut db, edit).map_err(|_| STORE_ERROR)? {
+            title::Commit::Applied { generation, .. } => Ok(generation),
+            _ => Err(SAVE_CONFLICT),
+        }
     })
     .await
     .map_err(|_| STORE_ERROR)?
@@ -467,4 +544,123 @@ mod tests {
         assert_eq!(&store.system_key(false).unwrap()[..], &[9; 32]);
         assert_eq!(&store.clone().system_key(false).unwrap()[..], &[9; 32]);
     }
+}
+
+#[cfg(all(test, feature = "sqlite-proof"))]
+#[path = "../tests/support/cipher.rs"]
+mod proof_cipher;
+
+#[cfg(all(test, feature = "sqlite-proof"))]
+#[test]
+fn converts_an_authenticated_legacy_file_in_a_separate_encrypted_destination() {
+    use serde_json::json;
+
+    const INITIAL: &str =
+        include_str!("../../../../packages/core/sqlite/migrations/001-initial.sql");
+    const IMPORT: &str =
+        include_str!("../../../../packages/core/sqlite/migrations/002-import-layer.sql");
+    const IMPORT_PROFILE: &str =
+        include_str!("../../../../packages/core/sqlite/queries/import-profile.sql");
+    let directory = tempfile::tempdir().unwrap();
+    let store = WorkspaceStore::new(
+        directory.path().to_path_buf(),
+        "app.feito.desktop.test".into(),
+    );
+    let workspace = json!({
+        "preferences": { "theme": "dark", "timezone": "America/Maceio", "locale": "pt-BR" },
+        "projects": [{
+            "id": "inbox", "revision": 7, "isInbox": true,
+            "data": { "name": "Inbox", "archived": false, "view": { "layout": "list", "sortMode": "manual", "showCompleted": false } }
+        }],
+        "sections": [], "tasks": [], "labels": [], "taskLabels": [], "occurrences": [],
+    });
+    let linked = |origin, id, queue_id| {
+        json!({
+            "origin": origin, "user": { "id": id, "email": "synthetic@example.invalid" },
+            "confirmed": workspace, "working": workspace, "cursor": 400,
+            "pending": [{ "id": queue_id, "method": "POST", "path": "/tasks", "authoredAt": "2026-11-22T12:00:00Z",
+                "body": { "title": "Queued task" }, "generatedIds": ["preserved-task-id"] }],
+        })
+    };
+    let document = json!({
+        "version": 1, "active": "local", "local": workspace,
+        "server": linked("https://current.invalid", "current", "queued-current"),
+        "previousServers": [
+            linked("https://previous.invalid", "previous", "queued-previous"),
+            linked("https://oldest.invalid", "oldest", "queued-oldest"),
+        ],
+    });
+
+    let key = |_| Ok(Zeroizing::new([7; 32]));
+    store.write(None, document.clone(), key).unwrap();
+    let source = directory.path().join("feito.sqlite3");
+    let before = fs::read(&source).unwrap();
+    assert_eq!(store.read(|_| Err(KEY_ERROR)).err(), Some(KEY_ERROR));
+    assert_eq!(
+        store.read(|_| Ok(Zeroizing::new([8; 32]))).err(),
+        Some(DECRYPTION_ERROR)
+    );
+
+    let legacy = store.read(key).unwrap().unwrap();
+    let profile = legacy::profile(legacy.value, legacy.generation).unwrap();
+    let destination = directory.path().join("relational.sqlite3");
+    let mut db = proof_cipher::open(&destination, &[9; 32]).unwrap();
+    let tx = db.transaction().unwrap();
+    tx.execute_batch(INITIAL).unwrap();
+    tx.execute_batch(IMPORT).unwrap();
+    tx.pragma_update(None, "user_version", 2).unwrap();
+    tx.commit().unwrap();
+    {
+        let tx = db.transaction().unwrap();
+        tx.execute(IMPORT_PROFILE, [profile.to_string()]).unwrap();
+        // Dropping the transaction simulates interruption before SQLite commits.
+    }
+    drop(db);
+    let mut db = proof_cipher::open(&destination, &[9; 32]).unwrap();
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM spaces", [], |row| row
+            .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    let tx = db.transaction().unwrap();
+    tx.execute(IMPORT_PROFILE, [profile.to_string()]).unwrap();
+    tx.commit().unwrap();
+    drop(db);
+
+    let db = proof_cipher::open(&destination, &[9; 32]).unwrap();
+    let operations = db.prepare(
+        "SELECT pending_operations.id FROM pending_operations JOIN spaces ON pending_operations.space_id = spaces.id
+         ORDER BY server_order, sequence",
+    ).unwrap().query_map([], |row| row.get::<_, String>(0)).unwrap().collect::<rusqlite::Result<Vec<_>>>().unwrap();
+    assert_eq!(
+        operations,
+        ["queued-current", "queued-previous", "queued-oldest"]
+    );
+    let selection: (String, String, i64) = db
+        .query_row(
+            "SELECT space_id, current_server_id, generation FROM selection",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        selection,
+        (
+            "inbox".into(),
+            "remote:https://current.invalid:current".into(),
+            1
+        )
+    );
+    assert_eq!(
+        db.query_row(
+            "SELECT revision FROM projects WHERE space_id = 'inbox'",
+            [],
+            |row| row.get::<_, i64>(0)
+        )
+        .unwrap(),
+        7
+    );
+    assert_eq!(fs::read(source).unwrap(), before);
+    assert_eq!(store.read(key).unwrap().unwrap().value, document);
 }

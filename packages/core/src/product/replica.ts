@@ -81,10 +81,8 @@ export function canSync(method: string, path: string) {
   return method === "PATCH" && /^\/projects\/[^/]+\/view$/.test(pathname);
 }
 
-export function queueOperation(
-  replica: Replica, request: LocalRequest & { id?: string; authoredAt: string }, result: LocalResult,
-): Replica {
-  const operation: Operation = {
+export function operationFor(request: LocalRequest & { id?: string; authoredAt: string }, result: LocalResult): Operation {
+  return {
     id: request.id ?? globalThis.crypto.randomUUID(),
     method: request.method,
     path: request.path,
@@ -92,6 +90,12 @@ export function queueOperation(
     body: result.operationBody ?? request.body,
     generatedIds: result.generatedIds,
   };
+}
+
+export function queueOperation(
+  replica: Replica, request: LocalRequest & { id?: string; authoredAt: string }, result: LocalResult,
+): Replica {
+  const operation = operationFor(request, result);
   return { ...replica, working: result.workspace, pending: [...replica.pending, operation] };
 }
 

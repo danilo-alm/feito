@@ -56,7 +56,7 @@ CMD ["pnpm", "db:migrate"]
 FROM source AS dev
 ENV NODE_ENV=development
 EXPOSE 3000
-CMD ["pnpm", "--filter", "@feito/web", "exec", "next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
+CMD ["pnpm", "--filter", "@feito/web", "dev:container"]
 
 # ---------------------------------------------------------------------------
 FROM source AS build

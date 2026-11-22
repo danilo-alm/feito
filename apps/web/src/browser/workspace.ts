@@ -6,7 +6,7 @@ import {
 } from "@feito/core/product/replica";
 import type { Session } from "@feito/core/types";
 import { ApiFailure } from "@feito/ui/client/api";
-import { accountReplica, localSpace, type BrowserRecord, type BrowserStorage, type BrowserUpdate } from "./storage";
+import { accountReplica, localSpace, type BrowserRecord, type BrowserSummary, type BrowserStorage, type BrowserUpdate } from "./storage";
 import { isLocalPortability, localPortability, type Preview } from "./portability";
 
 const apiPrefix = "/api/v1";
@@ -77,7 +77,7 @@ export function createBrowserWorkspace({
     listeners.forEach((listener) => listener());
   }
 
-  function observe(record: BrowserRecord, refresh = false) {
+  function observe(record: BrowserRecord | BrowserSummary, refresh = false) {
     if (record.generation < seenGeneration) return;
     const { space, epoch } = record.selection;
     const generationChanged = seenGeneration !== record.generation;
@@ -90,21 +90,23 @@ export function createBrowserWorkspace({
       previews.clear();
       onSwitch();
     }
-    const account = accountReplica(record);
+    const projection = "loaded" in record ? record : {
+      loaded: !!record.data, pending: accountReplica(record)?.pending.length ?? 0, notice: accountReplica(record)?.notice,
+    };
     if (!generationChanged && status.ready && !status.storageError) return;
     publish({
       ...(switched ? initialStatus : status),
-      ready: true, epoch, space, loaded: !!record.data,
+      ready: true, epoch, space, loaded: projection.loaded,
       discovering: record.selection.discoverSession && space.kind === "none" && (status.discovering ?? true),
       sync: space.kind !== "account" ? "local" : switched ? "syncing" : status.sync,
-      pending: account?.pending.length ?? 0, notice: account?.notice, storageError: false,
+      pending: projection.pending, notice: projection.notice, storageError: false,
     });
-    if (refresh && !switched && generationChanged && record.data) onData();
+    if (refresh && !switched && generationChanged && projection.loaded) onData();
   }
 
   async function refresh() {
     try {
-      observe(await storage.read(), true);
+      observe(await (storage.summary?.() ?? storage.read()), true);
     } catch {
       publish({ ...status, storageError: true, error: storageMessage });
     }
@@ -384,6 +386,20 @@ export function createBrowserWorkspace({
       const method = init.method ?? "GET";
       const path = input.slice(apiPrefix.length);
       const [pathname] = path.split("?");
+      if (storage.product && !remoteProduct.test(pathname) && !isLocalPortability(pathname, false)) {
+        const read = method === "GET" || (method === "POST" && path === "/search");
+        const reply = await storage.product({
+          epoch, method, path, read, id: read ? undefined : crypto.randomUUID(), authoredAt: new Date().toISOString(),
+          body: typeof init.body === "string" ? JSON.parse(init.body) as unknown : undefined,
+          taskChanges: new Headers(init.headers).get("X-Feito-Task-Changes") === "1",
+        });
+        if (reply.committed) changed();
+        const latest = await (storage.summary?.() ?? Promise.resolve(reply.summary));
+        observe(latest, !reply.committed || latest.generation !== reply.summary.generation);
+        if (latest.selection.epoch !== epoch || status.epoch !== epoch) throw signedOut();
+        if (reply.committed && reply.summary.selection.space.kind === "account") void sync();
+        return reply.status === 204 ? new Response(null, { status: 204 }) : Response.json(reply.body, { status: reply.status });
+      }
       const record = await readBound(epoch);
       const account = accountReplica(record);
       const local = localSpace(record);

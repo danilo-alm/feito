@@ -35,7 +35,7 @@ Use **Node.js 24**, **pnpm 10** e **Rust estável**. Consulte [package.json](pac
 
 ## Persistência, sincronização e segurança
 
-- Grave a alteração e a fila correspondente juntas, pelo mesmo comando de persistência. Preserve o controle de geração do SQLite, a validação da integridade do documento e a proteção da chave no cofre do sistema.
+- Grave a alteração e a fila correspondente juntas, pelo mesmo comando de persistência. Preserve o controle de geração do SQLite, a autenticação das páginas e a migração do documento legado e a proteção da chave no cofre do sistema.
 - Separe os dados e as operações por espaço, origem HTTPS e conta vinculada. Confira a identidade remota antes de enviar a fila. Expiração de sessão, troca de espaço ou indisponibilidade do servidor preservam as operações pendentes.
 - Preserve os IDs das operações, a hora da autoria e os IDs das entidades criadas ao reenviar. Use a confirmação do servidor para retirar operações da fila. Aplique a base ou as mudanças recebidas junto com o cursor e reconcilie as ações ainda pendentes. Teste respostas perdidas e revisões fora de ordem.
 - Preserve a regra da edição mais recente nos campos em que o servidor a aplica, o controle de revisões nas mudanças estruturais e a idempotência por ocorrência nas tarefas recorrentes. Uma edição atrasada não pode recriar um item excluído.

@@ -2,6 +2,7 @@
 .github
 **/.next
 apps/web/dist-tools
+apps/web/public/sqlite-dev
 **/node_modules
 **/coverage
 **/test-results

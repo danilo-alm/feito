@@ -19,7 +19,7 @@ As descrições das tarefas aceitam Markdown: títulos, negrito, itálico, lista
 
 Na tela **Entrar**, escolha **Usar neste navegador, sem conta** ou entre na sua conta Feito. O espaço sem conta fica separado da cópia sincronizada da conta. Depois que **Ajustes → Acesso offline** indicar que a preparação terminou, o Feito pode ser reaberto sem conexão. A preparação inicial usa a rede e funciona no build de produção.
 
-O navegador guarda a cópia e as alterações pendentes no IndexedDB. Na conta, as alterações sincronizam quando a conexão volta. A sessão expirada pede um novo login e preserva a fila. A ação **Sair** apaga a cópia dessa conta e pede confirmação se houver pendências. Use **Ajustes → Dados** para exportar um backup do espaço aberto. [Implementação dos espaços no navegador](../../docs/06-browser-local-first-implementation.md#implementa%C3%A7%C3%A3o).
+O navegador guarda a cópia e as alterações pendentes no SQLite em OPFS. A primeira abertura na mesma origem copia o espaço anterior e sua fila do IndexedDB para o SQLite. Na conta, as alterações sincronizam quando a conexão volta. A sessão expirada pede um novo login e preserva a fila. A ação **Sair** apaga a cópia dessa conta e pede confirmação se houver pendências. Use **Ajustes → Dados** para exportar um backup do espaço aberto. [Implementação dos espaços no navegador](../../docs/06-browser-local-first-implementation.md#implementa%C3%A7%C3%A3o).
 
 ## Requisitos
 

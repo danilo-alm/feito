@@ -8,7 +8,7 @@ import { clearCache, invalidate } from "@feito/ui/client/store";
 import { clearTaskMutationQueues } from "@feito/ui/client/task-mutations";
 import { applyTheme } from "@feito/ui/components/app";
 import { clearInlineCreateQueues } from "@feito/ui/components/task-editor";
-import { createBrowserStorage } from "./storage";
+import { createBrowserSqliteStorage } from "./sqlite/client";
 import { createBrowserWorkspace, initialStatus } from "./workspace";
 
 const channelName = "feito:browser:changed";
@@ -33,7 +33,7 @@ function clearMemory() {
 }
 
 export const workspace = createBrowserWorkspace({
-  storage: createBrowserStorage(),
+  storage: createBrowserSqliteStorage(process.env.FEITO_SQLITE_WORKER!),
   exclusive: async (name, run) => await (navigator.locks ? navigator.locks.request("feito:browser:" + name, run) : run()),
   changed: signalChange,
   onData: () => { void invalidate(undefined, { retainInactive: true }); },

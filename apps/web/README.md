@@ -19,7 +19,7 @@ Task descriptions support Markdown: headings, bold, italics, lists, links, block
 
 On the **Sign in** (Entrar) screen, choose **Use in this browser without an account** (Usar neste navegador, sem conta) or sign in to your Feito account. The workspace without an account is separate from the account's synced copy. Once **Settings → Offline access** (Ajustes → Acesso offline) indicates that preparation is complete, Feito can be reopened without a connection. Initial preparation requires a network connection and works in the production build.
 
-The browser stores the copy and pending changes in IndexedDB. For accounts, changes sync when the connection returns. An expired session prompts you to sign in again and preserves the queue. **Sign out** (Sair) deletes that account's copy and asks for confirmation if there are pending changes. Use **Settings → Data** (Ajustes → Dados) to export a backup of the open workspace. [Browser workspace implementation](../../docs/06-browser-local-first-implementation.md#implementa%C3%A7%C3%A3o).
+The browser stores its copy and pending changes in SQLite in OPFS. The first opening on the same origin copies a previous IndexedDB workspace and its queue into SQLite. For accounts, changes sync when the connection returns. An expired session prompts you to sign in again and preserves the queue. **Sign out** (Sair) deletes that account's copy and asks for confirmation if there are pending changes. Use **Settings → Data** (Ajustes → Dados) to export a backup of the open workspace. [Browser workspace implementation](../../docs/06-browser-local-first-implementation.md#implementa%C3%A7%C3%A3o).
 
 ## Requirements
 

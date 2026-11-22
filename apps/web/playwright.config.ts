@@ -8,6 +8,8 @@ const base = process.env.FEITO_E2E_URL ?? "https://127.0.0.1:3100";
 const cert = process.env.FEITO_E2E_CERT;
 const key = process.env.FEITO_E2E_KEY;
 const url = new URL(base);
+const configuredBrowser = process.env.FEITO_E2E_BROWSER;
+const browser = configuredBrowser === "firefox" || configuredBrowser === "webkit" ? configuredBrowser : "chromium";
 if (key && (!cert || url.protocol !== "https:" || url.hostname !== "127.0.0.1" || !url.port)) {
   throw new Error("Para iniciar o servidor, configure FEITO_E2E_CERT e uma URL HTTPS em 127.0.0.1 com porta explícita.");
 }
@@ -39,7 +41,9 @@ export default defineConfig({
   use: {
     baseURL: base,
     storageState: { cookies: [], origins: [{ origin: url.origin, localStorage: [{ name: "feito:locale", value: "pt-BR" }] }] },
-    browserName: "chromium",
+    browserName: browser,
+    // Non-Chromium replay uses only the disposable loopback endpoint.
+    ignoreHTTPSErrors: browser !== "chromium" && url.hostname === "127.0.0.1" && !!cert,
     headless: true,
     locale: "pt-BR",
     timezoneId: "America/Maceio",
@@ -47,10 +51,10 @@ export default defineConfig({
     // Movimento reduzido: sem animações, a suíte fica rápida e determinística. O motion.spec.ts liga o
     // movimento de volta para validar saída animada e interrupções (docs/04-motion-and-interaction.md).
     reducedMotion: "reduce",
-    launchOptions: { args: spki ? [`--ignore-certificate-errors-spki-list=${spki}`] : [] },
+    launchOptions: { args: spki && browser === "chromium" ? [`--ignore-certificate-errors-spki-list=${spki}`] : [] },
   },
   projects: [
     { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
-    { name: "celular", use: { ...devices["Pixel 7"], viewport: { width: 390, height: 844 } } },
+    ...(browser === "chromium" ? [{ name: "celular", use: { ...devices["Pixel 7"], viewport: { width: 390, height: 844 } } }] : []),
   ],
 });

@@ -12,19 +12,26 @@ async function add(page: Page, isMobile: boolean, title: string) {
 }
 
 async function diskKeys(page: Page) {
-  return page.evaluate(() => new Promise<string[]>((resolve, reject) => {
-    const request = indexedDB.open("feito-browser");
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const database = request.result;
-      const query = database.transaction("records").objectStore("records").getAllKeys();
-      query.onsuccess = () => {
-        resolve(query.result.map(String));
-        database.close();
-      };
-      query.onerror = () => reject(query.error);
-    };
-  }));
+  const build = readFileSync(".next/BUILD_ID", "utf8").trim();
+  return page.evaluate((path) => new Promise<string[]>((resolve, reject) => {
+    const url = URL.createObjectURL(new Blob([`
+      import init from ${JSON.stringify(new URL(path, location.origin).href)};
+      const sqlite = await init();
+      const db = new sqlite.oo1.OpfsDb("/feito-workspace.sqlite3", "r");
+      try {
+        postMessage(db.selectValues("SELECT id FROM spaces UNION ALL SELECT 'meta' FROM selection ORDER BY 1"));
+      } finally {
+        db.close();
+      }
+    `], { type: "text/javascript" }));
+    const worker = new Worker(url, { type: "module" });
+    function close() {
+      URL.revokeObjectURL(url);
+      worker.terminate();
+    }
+    worker.onmessage = ({ data }) => { close(); resolve(data); };
+    worker.onerror = ({ message }) => { close(); reject(new Error(message)); };
+  }), `/_next/static/${build}/sqlite/index.mjs`);
 }
 
 test("sair offline confirma o descarte, encerra as abas e preserva o espaço sem conta", async ({ page, context, isMobile }, info) => {

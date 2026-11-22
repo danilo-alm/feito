@@ -35,7 +35,7 @@ Use **Node.js 24**, **pnpm 10**, and **stable Rust**. See [package.json](package
 
 ## Persistence, sync, and security
 
-- Save the change and its corresponding queue together, through the same persistence command. Preserve SQLite generation tracking, document integrity validation, and key protection in the system vault.
+- Save the change and its corresponding queue together, through the same persistence command. Preserve SQLite generation tracking, authenticated page integrity and the legacy document migration, and key protection in the system vault.
 - Separate data and operations by workspace, HTTPS origin, and linked account. Check remote identity before sending the queue. Session expiration, workspace switching, or server unavailability must preserve pending operations.
 - Preserve operation IDs, authoring timestamps, and IDs of created entities when resending. Use server acknowledgments to remove operations from the queue. Apply the received baseline or changes together with the cursor and reconcile still-pending actions. Test lost responses and out-of-order revisions.
 - Preserve the latest-edit-wins rule for fields where the server applies it, revision checks for structural changes, and per-occurrence idempotency for recurring tasks. A late edit must not recreate a deleted item.

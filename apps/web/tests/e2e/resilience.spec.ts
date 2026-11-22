@@ -13,7 +13,7 @@ test.describe("recuperação e concorrência na interface", () => {
     await page.goto("/hoje");
     const alert = page.getByRole("main").getByRole("alert");
     await expect(alert).toHaveText("Agenda temporariamente indisponível.");
-    await page.getByRole("button", { name: /Tentar de novo|Tentar novamente|Sincronizar agora/ }).click();
+    await page.getByRole("button", { name: /Try again|Tentar de novo/ }).click();
     await expect(row(page, title)).toBeVisible();
     await expect(alert).toHaveCount(0);
   });

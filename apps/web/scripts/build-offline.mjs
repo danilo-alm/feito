@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stageSqlite } from "./build-sqlite.mjs";
 
 const web = fileURLToPath(new URL("../", import.meta.url));
 const output = join(web, ".next");
@@ -10,6 +11,11 @@ const pages = join(output, "server", "app");
 const build = (await readFile(join(output, "BUILD_ID"), "utf8")).trim();
 const shell = `/_next/static/${build}/feito-shell.html`;
 const publicDir = join(web, "public");
+await stageSqlite(join(staticDir, build, "sqlite"));
+if (["opfs", "opfs-sahpool"].includes(process.env.FEITO_SQLITE_PROOF)) {
+  const { stageSqliteProof } = await import("../tests/sqlite-proof/assets.mjs");
+  await stageSqliteProof(join(staticDir, build, "sqlite-proof"));
+}
 
 // O mesmo build fornece o HTML genérico e seus recursos imutáveis. Um deploy
 // que troque de versão durante o download não pode misturar os dois conjuntos.

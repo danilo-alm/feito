@@ -70,7 +70,15 @@ async function serveAsset(request, path) {
   try {
     const cache = await caches.open(cacheName);
     const asset = await cache.match(path);
-    if (asset) return asset;
+    if (asset) {
+      if (!new URL(request.url).search) return asset;
+      // The cached response URL omits the query. Workers use their script URL
+      // for configuration, so let Fetch retain the URL of the original request.
+      const headers = new Headers(asset.headers);
+      headers.delete("Content-Encoding");
+      headers.delete("Content-Length");
+      return new Response(asset.body, { status: asset.status, headers });
+    }
   } catch {
     // O servidor ainda pode fornecer o arquivo público.
   }

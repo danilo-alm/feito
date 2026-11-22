@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --experimental-https --hostname 127.0.0.1",
+    "dev": "node scripts/build-sqlite.mjs --dev && next dev --experimental-https --hostname 127.0.0.1",
+    "dev:container": "node scripts/build-sqlite.mjs --dev && next dev --hostname 0.0.0.0 --port 3000",
     "build": "next build && node scripts/build-offline.mjs",
     "build:tools": "node scripts/build-tools.mjs",
     "start": "next start",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.65.1",
+    "@sqlite.org/sqlite-wasm": "3.54.1-build1",
     "@types/node": "^24.0.0",
     "@types/pg": "8.23.1",
     "@types/react": "19.3.0",

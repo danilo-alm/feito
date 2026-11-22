@@ -569,3 +569,37 @@ it("mantém o idioma na reabertura offline e o envia com a fila do espaço remot
   const saved = await server.bridge.read();
   expect(saved?.value.server?.confirmed?.preferences.locale).toBe("en");
 });
+
+it("commits a title through the bounded native command before publishing the updated task", async () => {
+  const workspace = newWorkspace();
+  const created = await handleLocal(workspace, { method: "POST", path: "/tasks", body: { title: "Antes" } });
+  const task = created.body as TaskDetail;
+  const existing = { generation: 5, value: {
+    version: 1 as const, active: "local" as const, local: created.workspace,
+  } };
+  const confirmation = Promise.withResolvers<number>();
+  const arrived = Promise.withResolvers<void>();
+  const writeTitle = vi.fn(async () => {
+    arrived.resolve();
+    return confirmation.promise;
+  });
+  const write = vi.fn<Bridge["write"]>();
+  const client = createDesktop({
+    read: async () => existing, write, writeTitle,
+    request: async () => { throw new Error("Offline"); },
+  }, vi.fn());
+  await client.initialize();
+  const change = client.fetch(`/api/v1/tasks/${task.id}`, {
+    method: "PATCH", body: JSON.stringify({ revision: task.revision, title: "Depois" }),
+  });
+  await arrived.promise;
+  expect(write).not.toHaveBeenCalled();
+  expect(writeTitle).toHaveBeenCalledWith({
+    selection: { spaceId: workspace.projects[0].id, generation: 5, epoch: "" },
+    taskId: task.id, revision: task.revision, title: "Depois", operation: undefined,
+  });
+  confirmation.resolve(6);
+  const reply = await change;
+  expect(await reply.json()).toMatchObject({ title: "Depois", revision: task.revision + 1 });
+  expect(await (await readTask(client, task.id)).json()).toMatchObject({ title: "Depois" });
+});

@@ -32,32 +32,25 @@ type TestWindow = Window & { feitoWriteGate?: WriteGate };
 
 async function holdWrite(page: Page, method: string, path: string, fail = false) {
   await page.evaluate(({ method, path, fail }) => {
-    const put = IDBObjectStore.prototype.put;
-    let released = false;
-    const gate: WriteGate = {
-      arrived: false,
-      release() {
-        released = true;
-        IDBObjectStore.prototype.put = put;
-      },
-    };
-    (window as TestWindow).feitoWriteGate = gate;
-    IDBObjectStore.prototype.put = function (value: { pending?: Push[] }, key?: IDBValidKey) {
-      const request = put.call(this, value, key);
-      const operation = value.pending?.at(-1);
-      if (operation?.method !== method || operation.path !== path || gate.arrived || key === undefined) return request;
-      gate.arrived = true;
-      // O IndexedDB pode concluir a transação ao voltar ao event loop. Mantenha uma leitura
-      // real pendente até o teste liberar a confirmação ou o abort da gravação.
-      const waitForRelease = () => {
-        if (released) {
-          if (fail) this.transaction.abort();
-        } else {
-          this.count().addEventListener("success", waitForRelease, { once: true });
-        }
+    const post = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message: { action?: string; id: number; request?: Push }) {
+      const command = message.request;
+      if (message.action !== "product" || command?.method !== method || command.path !== path) {
+        return post.call(this, message);
+      }
+      const worker = this;
+      const gate: WriteGate = {
+        arrived: true,
+        release() {
+          if (Worker.prototype.postMessage === post) return;
+          Worker.prototype.postMessage = post;
+          if (fail) worker.dispatchEvent(new MessageEvent("message", {
+            data: { id: message.id, error: "Synthetic local write failure" },
+          }));
+          else post.call(worker, message);
+        },
       };
-      waitForRelease();
-      return request;
+      (window as TestWindow).feitoWriteGate = gate;
     };
   }, { method, path, fail });
   return {

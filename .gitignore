@@ -11,6 +11,7 @@ test-results/
 playwright-report/
 /apps/web/tests/e2e/.auth/
 /apps/web/public/service-worker.js
+/apps/web/public/sqlite-dev/
 /apps/web/dist-tools/
 *.crt
 .claude/

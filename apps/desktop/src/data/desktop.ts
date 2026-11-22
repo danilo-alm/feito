@@ -1,4 +1,5 @@
 import { handleLocal, newWorkspace, type Workspace } from "./local";
+import type { SQLiteSelection, SQLiteTitleEdit } from "@feito/core/product/sqlite-batches";
 import type { Session } from "@feito/core/types";
 import { entityId } from "@feito/core/validation/product";
 
@@ -44,6 +45,8 @@ export type DesktopStatus = {
 export type Bridge = {
   read(): Promise<Record | null>;
   write(generation: number | null, value: Document): Promise<Record>;
+  readContext?(selection: SQLiteSelection, kind: "task" | "project", id: string): Promise<Workspace | null>;
+  writeTitle?(edit: SQLiteTitleEdit): Promise<number>;
   request(origin: string, method: string, path: string, body?: unknown): Promise<SyncReply>;
 };
 
@@ -446,14 +449,40 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
         if (server && !read && !canSync(method, path)) {
           return apiError(422, "Esta ação ainda não está disponível no espaço sincronizado.");
         }
+        const spaceId = server ? `remote:${server.origin}:${server.user.id}` : workspaceIdentity(value);
+        if (bridge.readContext && method === "GET" && spaceId) {
+          const scope = /^\/(tasks|projects)\/([^/?]+)(?:\?|$)/.exec(path);
+          const id = scope && entityId.safeParse(scope[2]).data;
+          if (scope && id) {
+            const context = await bridge.readContext(
+              { spaceId, epoch: "", generation }, scope[1] === "tasks" ? "task" : "project", id,
+            );
+            return context ? response(await handleLocal(context, { method, path }))
+              : apiError(404, "Recurso não encontrado.", "NOT_FOUND");
+          }
+        }
         const authoredAt = read ? undefined : new Date().toISOString();
         const result = await handleLocal(workspace, { method, path, body, taskChanges, authoredAt, revision: generation });
         if (result.status < 400 && !read) {
-          if (server && authoredAt) {
-            const replica = queueOperation(server, { method, path, authoredAt, body }, result);
-            await commit({ ...value, server: { ...replica, origin: server.origin } });
+          const replica = server && authoredAt
+            ? queueOperation(server, { method, path, authoredAt, body }, result) : undefined;
+          const next = replica && server
+            ? { ...value, server: { ...replica, origin: server.origin } }
+            : { ...value, local: result.workspace };
+          const taskSegment = method === "PATCH" && /^\/tasks\/([^/]+)$/.exec(path)?.[1];
+          const taskId = taskSegment && entityId.safeParse(taskSegment).data;
+          const fields = body && typeof body === "object" ? body as { title?: unknown; revision?: unknown } : undefined;
+          if (bridge.writeTitle && taskId && fields && Object.keys(fields).length === 2
+            && typeof fields.title === "string" && typeof fields.revision === "number") {
+            const task = result.workspace.tasks.find(({ id }) => id === taskId);
+            if (!spaceId || !task) throw new Error("Espaço ou tarefa mudou durante a ação.");
+            const persisted = await bridge.writeTitle({
+              selection: { spaceId, epoch: "", generation }, taskId, revision: fields.revision,
+              title: task.data.title, operation: replica?.pending.at(-1),
+            });
+            saved = { value: next, generation: persisted };
           } else {
-            await commit({ ...value, local: result.workspace });
+            await commit(next);
           }
           publish(status.sync, status.error, status.blocked);
           if (server && authentication !== "required") void sync();

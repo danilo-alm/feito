@@ -89,3 +89,23 @@ test("recupera o conjunto de arquivos quando o navegador perde parte do cache", 
   expect(await (await env.fetch("/ajustes"))?.text()).toBe("Entrada genérica");
   expect(env.assets.has(origin + chunk)).toBe(true);
 });
+
+test("mantém a URL da requisição para módulos de worker com configuração na query", async () => {
+  const env = setup();
+  await env.lifecycle("install");
+  env.assets.set(origin + chunk, new Response("Worker", {
+    headers: {
+      "Content-Type": "text/javascript",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+      "Content-Encoding": "gzip",
+      "Content-Length": "100",
+    },
+  }));
+  env.setOnline(false);
+  const response = await env.fetch(chunk + "?vfs=opfs", "same-origin");
+  expect(response?.url).toBe("");
+  expect(response?.headers.get("Content-Type")).toBe("text/javascript");
+  expect(response?.headers.get("Cross-Origin-Embedder-Policy")).toBe("require-corp");
+  expect(response?.headers.has("Content-Encoding")).toBe(false);
+  expect(await response?.text()).toBe("Worker");
+});
