@@ -1,56 +1,73 @@
 import { openPortugueseLocalWorkspace } from "./fixtures";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function swipeUp(page: Page, x: number, y: number, distance = 160) {
+  const cdp = await page.context().newCDPSession(page);
+  const touchPoints = (touchY: number) => [{ x, y: touchY }];
+  try {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: touchPoints(y) });
+    const steps = 10;
+    for (let step = 1; step <= steps; step++) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: touchPoints(y - (distance * step) / steps),
+      });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await cdp.detach();
+  }
+}
+
+async function openLanguageDialog(page: Page) {
+  await page.goto("/entrar");
+  await openPortugueseLocalWorkspace(page);
+  await page.goto("/ajustes");
+  await page.getByRole("button", { name: "Idioma", exact: true }).click();
+  return page.getByRole("dialog", { name: "Idioma" });
+}
+
+function scrollY(page: Page) {
+  return page.evaluate(() => window.scrollY);
+}
 
 test.describe("rolagem do menu de idiomas", () => {
   test.skip(({ isMobile }) => !isMobile, "Somente no perfil de celular");
 
-  test("mantém a página parada com uma lista curta ou no limite da lista", async ({ page }) => {
-    await page.goto("/entrar");
-    await openPortugueseLocalWorkspace(page);
-    await page.goto("/ajustes");
-    const cdp = await page.context().newCDPSession(page);
-    const swipe = async (x: number, y: number, distance = -160) => {
-      await cdp.send("Input.synthesizeScrollGesture", {
-        x, y, yDistance: distance, gestureSourceType: "touch", preventFling: true,
-      });
-    };
-    const scrollY = () => page.evaluate(() => window.scrollY);
-    const picker = page.getByRole("button", { name: "Idioma", exact: true });
-    await picker.click();
-    const dialog = page.getByRole("dialog", { name: "Idioma" });
+  test("mantém a página parada com uma lista curta", async ({ page }) => {
+    const dialog = await openLanguageDialog(page);
     const list = dialog.getByRole("listbox");
     await expect(list.getByRole("option").last()).toBeInViewport();
     expect(await dialog.evaluate((node) => node.scrollHeight - node.clientHeight)).toBe(0);
-    const before = await scrollY();
+    const before = await scrollY(page);
     expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeGreaterThan(before);
     const box = (await list.boundingBox())!;
-    await swipe(box.x + box.width / 2, box.y + box.height - 20);
-    expect(await scrollY()).toBe(before);
+    await swipeUp(page, box.x + box.width / 2, box.y + box.height - 20);
+    expect(await scrollY(page)).toBe(before);
+  });
 
+  test("rola o diálogo sem mover a página no limite da lista", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 300 });
-    // Aguarda a superfície de toque emulada acompanhar o novo viewport.
-    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    const shortBox = (await dialog.boundingBox())!;
-    const shortListBox = (await list.boundingBox())!;
-    const scrollPoint = {
-      x: shortListBox.x + shortListBox.width / 2,
-      y: Math.min(shortListBox.y + shortListBox.height / 2, shortBox.y + shortBox.height - 60),
-    };
+    const dialog = await openLanguageDialog(page);
+    await expect(dialog).toBeVisible();
+    const dialogBox = (await dialog.boundingBox())!;
+    const listBox = (await dialog.getByRole("listbox").boundingBox())!;
+    const x = listBox.x + listBox.width / 2;
+    const y = Math.min(listBox.y + listBox.height, dialogBox.y + dialogBox.height) - 20;
     const scrollTop = () => dialog.evaluate((node) => node.scrollTop);
     const extent = await dialog.evaluate((node) => node.scrollHeight - node.clientHeight);
     expect(extent).toBeGreaterThan(0);
-    const shortBefore = await scrollY();
-    await swipe(scrollPoint.x, scrollPoint.y, -(extent + 32));
+    const before = await scrollY(page);
+    await swipeUp(page, x, y);
     await expect.poll(scrollTop).toBe(extent);
-    await swipe(scrollPoint.x, scrollPoint.y);
-    expect(await scrollY()).toBe(shortBefore);
+    await swipeUp(page, x, y);
+    expect(await scrollY(page)).toBe(before);
 
     await dialog.getByRole("button", { name: "Fechar (Esc)" }).click();
     await expect(dialog).toHaveCount(0);
-    const afterClose = await scrollY();
-    await swipe(195, 230);
-    await expect.poll(scrollY).toBeGreaterThan(afterClose);
-    await cdp.detach();
+    const afterClose = await scrollY(page);
+    await swipeUp(page, 195, 230);
+    await expect.poll(() => scrollY(page)).toBeGreaterThan(afterClose);
   });
 });
 
