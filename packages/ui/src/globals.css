@@ -430,11 +430,12 @@ input,textarea,select{font:inherit;color:inherit}
 .banner.error{background:var(--p1-soft);color:var(--late)}
 .field-error{color:var(--late);font-size:12.5px}
 .pop{z-index:40}
-.popover{position:fixed;z-index:60;max-height:var(--pop-max,none);overflow-y:auto;scrollbar-width:none}
+.popover{position:fixed;z-index:60;max-height:var(--pop-max,none);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
 .menu .mi:disabled{opacity:.45;cursor:not-allowed}
+html:has(>body>.dialog-wrap:not([data-state=exiting])){overflow:hidden}
 .dialog-wrap{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
-.dialog-wrap .scrim{position:fixed}
-.dialog{position:relative;z-index:51;width:min(560px,100%);max-height:calc(100dvh - 32px);overflow:auto;display:flex;flex-direction:column}
+.dialog-wrap .scrim{position:fixed;touch-action:none}
+.dialog{position:relative;z-index:51;width:min(560px,100%);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column}
 .dialog.wide{width:min(840px,100%)}
 .dialog-h{display:flex;align-items:center;gap:8px;padding:12px 12px 12px 22px;border-bottom:1px solid var(--border)}
 .dialog-h h2{font-size:16px;font-weight:700;flex:1}

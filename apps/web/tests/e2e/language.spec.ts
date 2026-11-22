@@ -1,5 +1,53 @@
 import { expect, test } from "@playwright/test";
 
+test.describe("rolagem do menu de idiomas", () => {
+  test.skip(({ isMobile }) => !isMobile, "Somente no perfil de celular");
+
+  test("mantém a página parada com uma lista curta ou no limite da lista", async ({ page }) => {
+    await page.goto("/entrar");
+    await page.getByRole("button", { name: "Usar neste navegador, sem conta" }).click();
+    await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
+    await page.goto("/ajustes");
+    const cdp = await page.context().newCDPSession(page);
+    const swipe = async (x: number, y: number, distance = -160) => {
+      await cdp.send("Input.synthesizeScrollGesture", {
+        x, y, yDistance: distance, gestureSourceType: "touch", preventFling: true,
+      });
+    };
+    const scrollY = () => page.evaluate(() => window.scrollY);
+    const picker = page.getByRole("button", { name: "Idioma", exact: true });
+    await picker.click();
+    const dialog = page.getByRole("dialog", { name: "Idioma" });
+    const list = dialog.getByRole("listbox");
+    await expect(list.getByRole("option").last()).toBeInViewport();
+    expect(await dialog.evaluate((node) => node.scrollHeight - node.clientHeight)).toBe(0);
+    const before = await scrollY();
+    expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeGreaterThan(before);
+    const box = (await list.boundingBox())!;
+    await swipe(box.x + box.width / 2, box.y + box.height - 20);
+    expect(await scrollY()).toBe(before);
+
+    await page.setViewportSize({ width: 390, height: 300 });
+    const shortBox = (await dialog.boundingBox())!;
+    const bottom = shortBox.y + shortBox.height - 25;
+    const scrollTop = () => dialog.evaluate((node) => node.scrollTop);
+    const extent = await dialog.evaluate((node) => node.scrollHeight - node.clientHeight);
+    expect(extent).toBeGreaterThan(0);
+    const shortBefore = await scrollY();
+    await swipe(shortBox.x + shortBox.width / 2, bottom, -(extent + 32));
+    await expect.poll(scrollTop).toBe(extent);
+    await swipe(shortBox.x + shortBox.width / 2, bottom);
+    expect(await scrollY()).toBe(shortBefore);
+
+    await dialog.getByRole("button", { name: "Fechar (Esc)" }).click();
+    await expect(dialog).toHaveCount(0);
+    const afterClose = await scrollY();
+    await swipe(195, 230);
+    await expect.poll(scrollY).toBeGreaterThan(afterClose);
+    await cdp.detach();
+  });
+});
+
 test("troca o idioma, preserva textos pessoais e reabre em inglês offline", async ({ page, context, isMobile }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
