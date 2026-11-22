@@ -64,6 +64,6 @@ GitHub Actions runs desktop checks on pull requests, pushes to `main` and `dev`,
 
 Push a `vX.Y.Z` tag matching the `version` field in `src-tauri/tauri.conf.json`. The same tag publishes versioned web Docker images. [Release walkthrough](../../docs/03-operations.md#releases)
 
-Pushing the tag publishes the GitHub release after the six targets generate all 11 installers. A manual run with `release_tag` also publishes or updates assets for an existing release. macOS packages use local (ad hoc) signing, without Apple notarization. Windows installers are not signed for distribution.
+Pushing the tag publishes the GitHub release after the six targets generate all 11 installers. A manual run with `release_tag` also publishes or updates assets for an existing release. macOS packages are signed with a fixed self-signed certificate, without Apple notarization. The fixed identity lets macOS remember "Always Allow" for the Feito keychain item across updates. Generate the certificate once with `scripts/macos-signing-cert.sh` and store its output as the `MACOS_CERTIFICATE` and `MACOS_CERTIFICATE_PASSWORD` repository secrets. Without the secrets, the workflow falls back to an ad hoc signature, and macOS asks for keychain access again after every update. After the first update that changes the signing identity, macOS asks once more. Windows installers are not signed for distribution.
 
 [Implementation guide](docs/tauri-implementation-guide.md)

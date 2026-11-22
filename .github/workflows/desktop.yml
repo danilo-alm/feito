@@ -7,6 +7,11 @@ on:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Tag existente para publicar os instaladores, por exemplo v1.0.0
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -74,7 +79,9 @@ jobs:
           cache: pnpm
 
       - name: Verify release version
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: node scripts/check-release-version.mjs
 
       - name: Set up Rust
@@ -111,11 +118,19 @@ jobs:
           cargo fmt --check --manifest-path src-tauri/Cargo.toml
           cargo test --locked --manifest-path src-tauri/Cargo.toml --target "$RUST_TARGET"
 
+      # A fixed certificate keeps the app's identity the same across releases, so macOS remembers
+      # "Always Allow" for the Feito keychain items. Without the secrets, it falls back to ad hoc.
+      - name: Set up macOS code signing
+        if: runner.os == 'macOS' && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: scripts/setup-macos-signing.sh
+
       - name: Build and package the app
         if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         working-directory: apps/desktop
         env:
-          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: pnpm tauri build --ci --target "$RUST_TARGET" --bundles "$BUNDLES" -- --locked
 
@@ -146,7 +161,7 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    if: github.event_name == 'push' && github.ref_type == 'tag'
+    if: (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     needs: build
     runs-on: ubuntu-24.04
     permissions:
@@ -162,6 +177,7 @@ jobs:
       - name: Publish all installers from the tag
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           shopt -s nullglob
           artifacts=()
@@ -184,14 +200,12 @@ jobs:
           collect x86_64-apple-darwin dmg
           collect aarch64-apple-darwin dmg
 
-          if status="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"; then
-            if [[ "$status" == false ]]; then
-              echo "A release $GITHUB_REF_NAME já está publicada."
-              exit 0
+          if status="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"; then
+            gh release upload "$RELEASE_TAG" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            if [[ "$status" == true ]]; then
+              gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
             fi
-            gh release upload "$GITHUB_REF_NAME" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" --clobber
-            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
           else
-            gh release create "$GITHUB_REF_NAME" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" \
-              --verify-tag --title "Feito $GITHUB_REF_NAME" --generate-notes
+            gh release create "$RELEASE_TAG" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" \
+              --verify-tag --title "Feito $RELEASE_TAG" --generate-notes
           fi

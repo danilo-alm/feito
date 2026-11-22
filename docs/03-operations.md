@@ -221,7 +221,7 @@ git tag -a v0.2.0 -m "Feito 0.2.0"
 git push origin v0.2.0
 ```
 
-O workflow web publica `feito:0.2.0` e `feito-tools:0.2.0` no GHCR. O workflow desktop anexa os 11 instaladores ao GitHub Releases. Os pushes para `main` e `dev` continuam publicando as imagens Docker com `latest` e `dev`, respectivamente. [Formatos dos instaladores](../apps/desktop/README.md#ci-and-releases)
+O workflow web publica `feito:0.2.0` e `feito-tools:0.2.0` no GHCR. O workflow desktop anexa os 11 instaladores ao GitHub Releases e atualiza os assets quando a release já existe. Para recuperar uma release criada antes do push da tag, execute **Actions → Desktop CI and Release → Run workflow** em uma branch cujo `tauri.conf.json` corresponda à versão e informe a tag em `release_tag`. Os pushes para `main` e `dev` continuam publicando as imagens Docker com `latest` e `dev`, respectivamente. [Formatos dos instaladores](../apps/desktop/README.md#ci-and-releases)
 
 ## Backup e chaves
 

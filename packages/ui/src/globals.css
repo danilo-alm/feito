@@ -700,6 +700,11 @@ textarea.project-heading-input{resize:none;overflow:hidden}
 .te-desc{border:0;background:none;font:inherit;font-size:13.5px;line-height:19px;color:var(--text);padding:2px 0;resize:none;overflow:hidden;width:100%;display:block;outline:none}
 .te-title::placeholder,.te-desc::placeholder{color:var(--faint)}
 .te-desc[readonly]{color:var(--muted)}
+/* Campos com pelo menos 16px evitam o zoom automático ao focar no iOS. */
+@media (max-width: 899px){
+  .te-title,.te-desc,.qa-desc,.desc-input{font-size:16px}
+  .te-desc{line-height:1.45}
+}
 .te-bar{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
 .te-bar .chips{flex:1;min-width:0;gap:6px}
 .te-actions{display:flex;align-items:center;gap:6px;margin-left:auto}

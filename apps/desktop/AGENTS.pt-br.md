@@ -39,7 +39,7 @@ Use **Node.js 24**, **pnpm 10** e **Rust estável**. Consulte [package.json](pac
 - Separe os dados e as operações por espaço, origem HTTPS e conta vinculada. Confira a identidade remota antes de enviar a fila. Expiração de sessão, troca de espaço ou indisponibilidade do servidor preservam as operações pendentes.
 - Preserve os IDs das operações, a hora da autoria e os IDs das entidades criadas ao reenviar. Use a confirmação do servidor para retirar operações da fila. Aplique a base ou as mudanças recebidas junto com o cursor e reconcilie as ações ainda pendentes. Teste respostas perdidas e revisões fora de ordem.
 - Preserve a regra da edição mais recente nos campos em que o servidor a aplica, o controle de revisões nas mudanças estruturais e a idempotência por ocorrência nas tarefas recorrentes. Uma edição atrasada não pode recriar um item excluído.
-- Use os comandos IPC autorizados para armazenamento e transporte. Preserve o escopo da janela, a validação TLS, o bloqueio de redirecionamentos e a restrição às rotas da API Feito. Mantenha o cookie de sessão e a chave de dados no cofre do sistema. Evite registrar credenciais, cabeçalhos de autenticação ou dados de tarefas.
+- Use os comandos IPC autorizados para armazenamento e transporte. Preserve o escopo da janela, a validação TLS, o bloqueio de redirecionamentos e a restrição às rotas da API Feito. Mantenha só a chave de dados no cofre do sistema e o cookie de sessão cifrado com essa chave no SQLite, para que o sistema peça acesso ao cofre uma vez. Não crie itens do cofre por origem. Evite registrar credenciais, cabeçalhos de autenticação ou dados de tarefas.
 
 ## Desenvolvimento e operação
 

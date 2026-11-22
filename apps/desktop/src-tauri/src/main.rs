@@ -9,11 +9,10 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             let directory = app.path().app_local_data_dir()?;
-            app.manage(workspace::WorkspaceStore::new(
-                directory,
-                app.config().identifier.clone(),
-            ));
-            app.manage(server::ServerSessions::new(app.config().identifier.clone()));
+            let service = app.config().identifier.clone();
+            let store = workspace::WorkspaceStore::new(directory, service.clone());
+            app.manage(store.clone());
+            app.manage(server::ServerSessions::new(service, store));
 
             let window = &app.config().app.windows[0];
             WebviewWindowBuilder::from_config(app, window)?

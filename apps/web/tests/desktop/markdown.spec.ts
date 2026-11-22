@@ -27,6 +27,31 @@ test("formata a descrição ao sair do campo sem perder o rascunho", async ({ pa
 });
 
 for (const narrow of [false, true]) {
+  test(`campos de tarefa sem zoom automático em janela ${narrow ? "estreita" : "ampla"}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1180, height: 844 });
+    await mockDesktop(page, { generation: 1, value: { version: 1, active: "local", local: newPortugueseWorkspace() } });
+    await page.goto("/#/entrada");
+    await page.getByRole("button", { name: "Adicionar tarefa", exact: true }).first().click();
+    await page.setViewportSize({ width: narrow ? 390 : 1180, height: 844 });
+    const editor = page.getByRole("form", { name: "Adicionar tarefa", exact: true });
+    for (const colorScheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme });
+      await expect(editor.getByRole("textbox", { name: "Título da tarefa" })).toHaveCSS("font-size", narrow ? "16px" : "15px");
+      const description = editor.getByRole("textbox", { name: "Descrição", exact: true });
+      await description.click();
+      await expect(description).toBeFocused();
+      await expect(description).toHaveCSS("font-size", narrow ? "16px" : "13.5px");
+    }
+    await editor.getByRole("button", { name: "Cancelar (Esc)" }).click();
+    await page.keyboard.press("q");
+    const dialog = page.getByRole("dialog", { name: "Adicionar tarefa", exact: true });
+    const description = dialog.getByRole("textbox", { name: "Descrição", exact: true });
+    await description.click();
+    await expect(description).toBeFocused();
+    await expect(description).toHaveCSS("font-size", narrow ? "16px" : "14px");
+    await page.screenshot({ path: test.info().outputPath("task-editor.png"), fullPage: true });
+  });
+
   test(`barra de formatação em janela ${narrow ? "estreita" : "ampla"}`, async ({ page }) => {
     await page.setViewportSize({ width: narrow ? 390 : 1180, height: 844 });
     if (narrow) await page.emulateMedia({ reducedMotion: "reduce" });
@@ -39,6 +64,7 @@ for (const narrow of [false, true]) {
     const detail = page.getByRole("dialog", { name: task.title, exact: true });
     await detail.getByRole("region", { name: "Descrição", exact: true }).click();
     const input = detail.getByRole("textbox", { name: "Descrição", exact: true });
+    await expect(input).toHaveCSS("font-size", narrow ? "16px" : "14px");
     const tools = detail.getByRole("group", { name: "Formatação da descrição" });
     for (const [label, result] of [
       ["Título de nível 1", "# Selecionar texto"], ["Negrito", "**Selecionar texto**"],

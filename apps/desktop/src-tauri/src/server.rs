@@ -14,6 +14,8 @@ use tauri::{async_runtime::JoinHandle, ipc::Channel, AppHandle, Manager, State};
 use tokio::sync::Mutex;
 use zeroize::Zeroizing;
 
+use crate::workspace::WorkspaceStore;
+
 const LOGIN_PATH: &str = "/api/v1/auth/login";
 const LOGOUT_PATH: &str = "/api/v1/auth/logout";
 const PASSWORD_PATH: &str = "/api/v1/auth/password";
@@ -29,7 +31,9 @@ const CONNECTION_ERROR: &str = "Não foi possível conectar ao servidor Feito po
 const RESPONSE_ERROR: &str = "O servidor não retornou uma resposta válida do Feito.";
 
 pub struct ServerSessions {
+    // Only used to find and retire sessions older versions kept in individual vault items.
     service: String,
+    store: WorkspaceStore,
     state: Mutex<SessionState>,
     event_stream: Mutex<Option<(u32, JoinHandle<()>)>>,
 }
@@ -41,9 +45,10 @@ struct SessionState {
 }
 
 impl ServerSessions {
-    pub fn new(service: String) -> Self {
+    pub fn new(service: String, store: WorkspaceStore) -> Self {
         Self {
             service,
+            store,
             state: Mutex::new(SessionState::default()),
             event_stream: Mutex::new(None),
         }
@@ -60,20 +65,18 @@ impl ServerSessions {
             None => None,
         };
         let service = self.service.clone();
+        let store = self.store.clone();
         let credential_origin = origin.clone();
         // Disable a signed-out or expired cookie for this process even if the vault is unavailable.
         if value.is_none() {
             state.cookies.insert(origin.clone(), None);
         }
         tauri::async_runtime::spawn_blocking(move || {
-            let entry = session_entry(&service, &credential_origin)?;
-            if let Some(value) = value {
-                return entry.set_secret(&value).map_err(|_| SESSION_VAULT_ERROR);
-            }
-            match entry.delete_credential() {
-                Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-                Err(_) => Err(SESSION_VAULT_ERROR),
-            }
+            store
+                .write_session(&credential_origin, value.as_ref().map(|value| &value[..]))
+                .map_err(|_| SESSION_VAULT_ERROR)?;
+            remove_legacy_session(&service, &credential_origin);
+            Ok::<(), &'static str>(())
         })
         .await
         .map_err(|_| SESSION_VAULT_ERROR)??;
@@ -90,13 +93,15 @@ impl ServerSessions {
             return Ok(cookie.clone());
         }
         let service = self.service.clone();
+        let store = self.store.clone();
         let credential_origin = origin.to_owned();
         let cookie = tauri::async_runtime::spawn_blocking(move || {
-            let entry = session_entry(&service, &credential_origin)?;
-            match entry.get_secret() {
-                Ok(secret) => cookie_header(&Zeroizing::new(secret)).map(Some),
-                Err(keyring::Error::NoEntry) => Ok(None),
-                Err(_) => Err(SESSION_VAULT_ERROR),
+            match store
+                .read_session(&credential_origin)
+                .map_err(|_| SESSION_VAULT_ERROR)?
+            {
+                Some(secret) => cookie_header(&secret).map(Some),
+                None => migrate_legacy_session(&store, &service, &credential_origin),
             }
         })
         .await
@@ -191,8 +196,36 @@ fn new_client() -> Result<Client, &'static str> {
         .map_err(|_| CONNECTION_ERROR)
 }
 
-fn session_entry(service: &str, origin: &str) -> Result<keyring::Entry, &'static str> {
+/// Older versions kept each session in its own vault item, which made the system ask for access
+/// once per item. The vault now only holds the key; sessions are stored with the workspace.
+fn legacy_session_entry(service: &str, origin: &str) -> Result<keyring::Entry, &'static str> {
     keyring::Entry::new(service, &format!("session-v1:{origin}")).map_err(|_| SESSION_VAULT_ERROR)
+}
+
+fn remove_legacy_session(service: &str, origin: &str) {
+    if let Ok(entry) = legacy_session_entry(service, origin) {
+        // Best effort: a leftover item is never read once the session is stored with the workspace.
+        let _ = entry.delete_credential();
+    }
+}
+
+fn migrate_legacy_session(
+    store: &WorkspaceStore,
+    service: &str,
+    origin: &str,
+) -> Result<Option<HeaderValue>, &'static str> {
+    let entry = legacy_session_entry(service, origin)?;
+    let secret = match entry.get_secret() {
+        Ok(secret) => Zeroizing::new(secret),
+        Err(keyring::Error::NoEntry) => return Ok(None),
+        Err(_) => return Err(SESSION_VAULT_ERROR),
+    };
+    let header = cookie_header(&secret)?;
+    store
+        .write_session(origin, Some(&secret))
+        .map_err(|_| SESSION_VAULT_ERROR)?;
+    let _ = entry.delete_credential();
+    Ok(Some(header))
 }
 
 fn cookie_header(value: &[u8]) -> Result<HeaderValue, &'static str> {

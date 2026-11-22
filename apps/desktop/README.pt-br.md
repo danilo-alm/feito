@@ -64,6 +64,6 @@ O GitHub Actions roda os checks do desktop em pull requests, pushes para `main` 
 
 Envie uma tag `vX.Y.Z` que corresponda ao campo `version` de `src-tauri/tauri.conf.json`. A mesma tag publica as imagens Docker versionadas da web. [Passo a passo de release](../../docs/03-operations.md#releases)
 
-O push da tag publica a release no GitHub depois que os seis alvos geram os 11 instaladores. Uma execução manual com `release_tag` também publica ou atualiza os assets de uma release existente. Os pacotes macOS usam assinatura local (ad hoc), sem notarização da Apple. Os instaladores Windows não têm assinatura de distribuição.
+O push da tag publica a release no GitHub depois que os seis alvos geram os 11 instaladores. Uma execução manual com `release_tag` também publica ou atualiza os assets de uma release existente. Os pacotes macOS são assinados com um certificado autoassinado fixo, sem notarização da Apple. A identidade fixa permite que o macOS lembre o "Permitir sempre" do item do chaveiro do Feito entre atualizações. Gere o certificado uma vez com `scripts/macos-signing-cert.sh` e guarde o resultado nos secrets `MACOS_CERTIFICATE` e `MACOS_CERTIFICATE_PASSWORD` do repositório. Sem os secrets, o workflow volta para a assinatura ad hoc, e o macOS pede acesso ao chaveiro de novo a cada atualização. Na primeira atualização que troca a identidade de assinatura, o macOS pergunta mais uma vez. Os instaladores Windows não têm assinatura de distribuição.
 
 [Guia de implementação](docs/tauri-implementation-guide.md)

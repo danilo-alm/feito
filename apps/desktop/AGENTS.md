@@ -39,7 +39,7 @@ Use **Node.js 24**, **pnpm 10**, and **stable Rust**. See [package.json](package
 - Separate data and operations by workspace, HTTPS origin, and linked account. Check remote identity before sending the queue. Session expiration, workspace switching, or server unavailability must preserve pending operations.
 - Preserve operation IDs, authoring timestamps, and IDs of created entities when resending. Use server acknowledgments to remove operations from the queue. Apply the received baseline or changes together with the cursor and reconcile still-pending actions. Test lost responses and out-of-order revisions.
 - Preserve the latest-edit-wins rule for fields where the server applies it, revision checks for structural changes, and per-occurrence idempotency for recurring tasks. A late edit must not recreate a deleted item.
-- Use authorized IPC commands for storage and transport. Preserve window scope, TLS validation, redirect blocking, and restriction to Feito API routes. Keep the session cookie and data key in the system vault. Avoid logging credentials, authentication headers, or task data.
+- Use authorized IPC commands for storage and transport. Preserve window scope, TLS validation, redirect blocking, and restriction to Feito API routes. Keep only the data key in the system vault, and the session cookie encrypted with that key in SQLite, so the system asks for vault access once. Do not add vault items per origin. Avoid logging credentials, authentication headers, or task data.
 
 ## Development and operations
 

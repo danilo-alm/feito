@@ -1,4 +1,9 @@
-use std::{fs, path::PathBuf, time::Duration};
+use std::{
+    fs,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use chacha20poly1305::{
     aead::{
@@ -28,6 +33,9 @@ type StoreResult<T> = Result<T, &'static str>;
 pub struct WorkspaceStore {
     directory: PathBuf,
     credential_service: String,
+    // The vault key never changes while the app runs. Reading it once per process means a single
+    // system prompt per launch, however many reads and writes follow.
+    key_cache: Arc<Mutex<Option<StoreKey>>>,
 }
 
 #[derive(Serialize)]
@@ -41,7 +49,18 @@ impl WorkspaceStore {
         Self {
             directory,
             credential_service,
+            key_cache: Arc::default(),
         }
+    }
+
+    fn system_key(&self, can_create: bool) -> StoreResult<StoreKey> {
+        let mut cached = self.key_cache.lock().map_err(|_| KEY_ERROR)?;
+        if let Some(key) = cached.as_ref() {
+            return Ok(key.clone());
+        }
+        let key = system_key(&self.credential_service, can_create)?;
+        *cached = Some(key.clone());
+        Ok(key)
     }
 
     fn open(&self) -> StoreResult<Connection> {
@@ -63,6 +82,10 @@ impl WorkspaceStore {
                 "CREATE TABLE IF NOT EXISTS workspace (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     generation INTEGER NOT NULL CHECK (generation > 0),
+                    encrypted BLOB NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS session (
+                    origin TEXT PRIMARY KEY,
                     encrypted BLOB NOT NULL
                 );",
             )
@@ -118,19 +141,7 @@ impl WorkspaceStore {
             // An inaccessible or damaged workspace must remain recoverable.
             decrypt(&key, generation, &encrypted)?;
         }
-        let mut nonce = [0; NONCE_BYTES];
-        OsRng.try_fill_bytes(&mut nonce).map_err(|_| STORE_ERROR)?;
-        let mut encrypted = nonce.to_vec();
-        let ciphertext = cipher(&key)?
-            .encrypt(
-                XNonce::from_slice(&nonce),
-                Payload {
-                    msg: &plaintext,
-                    aad: &generation.to_be_bytes(),
-                },
-            )
-            .map_err(|_| STORE_ERROR)?;
-        encrypted.extend(ciphertext);
+        let encrypted = seal(&key, &generation.to_be_bytes(), &plaintext)?;
         transaction
             .execute(
                 "INSERT INTO workspace (id, generation, encrypted) VALUES (1, ?1, ?2)
@@ -141,6 +152,104 @@ impl WorkspaceStore {
         transaction.commit().map_err(|_| STORE_ERROR)?;
         Ok(VersionedWorkspace { generation, value })
     }
+
+    /// Reads a server session cookie. Sessions live in the local database, encrypted with the
+    /// same system-vault key as the workspace, so the vault is unlocked once for both.
+    pub fn read_session(&self, origin: &str) -> StoreResult<Option<Zeroizing<Vec<u8>>>> {
+        self.read_session_with(origin, |can_create| self.system_key(can_create))
+    }
+
+    /// Stores a server session cookie, or removes it when `value` is `None`.
+    pub fn write_session(&self, origin: &str, value: Option<&[u8]>) -> StoreResult<()> {
+        self.write_session_with(origin, value, |can_create| self.system_key(can_create))
+    }
+
+    fn read_session_with(
+        &self,
+        origin: &str,
+        load_key: impl FnOnce(bool) -> StoreResult<StoreKey>,
+    ) -> StoreResult<Option<Zeroizing<Vec<u8>>>> {
+        let database = self.open()?;
+        let encrypted: Option<Vec<u8>> = database
+            .query_row(
+                "SELECT encrypted FROM session WHERE origin = ?1",
+                params![origin],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|_| STORE_ERROR)?;
+        let Some(encrypted) = encrypted else {
+            return Ok(None);
+        };
+        let key = load_key(false)?;
+        open_sealed(&key, &session_aad(origin), &encrypted).map(Some)
+    }
+
+    fn write_session_with(
+        &self,
+        origin: &str,
+        value: Option<&[u8]>,
+        load_key: impl FnOnce(bool) -> StoreResult<StoreKey>,
+    ) -> StoreResult<()> {
+        let database = self.open()?;
+        let Some(value) = value else {
+            database
+                .execute("DELETE FROM session WHERE origin = ?1", params![origin])
+                .map_err(|_| STORE_ERROR)?;
+            return Ok(());
+        };
+        // An existing workspace must never end up with a replacement key: only create one
+        // while nothing has been encrypted yet.
+        let key = load_key(workspace_record(&database)?.is_none())?;
+        let encrypted = seal(&key, &session_aad(origin), value)?;
+        database
+            .execute(
+                "INSERT INTO session (origin, encrypted) VALUES (?1, ?2)
+                 ON CONFLICT (origin) DO UPDATE SET encrypted = excluded.encrypted",
+                params![origin, encrypted],
+            )
+            .map_err(|_| STORE_ERROR)?;
+        Ok(())
+    }
+}
+
+fn session_aad(origin: &str) -> Vec<u8> {
+    format!("session-v1:{origin}").into_bytes()
+}
+
+fn seal(key: &StoreKey, aad: &[u8], plaintext: &[u8]) -> StoreResult<Vec<u8>> {
+    let mut nonce = [0; NONCE_BYTES];
+    OsRng.try_fill_bytes(&mut nonce).map_err(|_| STORE_ERROR)?;
+    let mut sealed = nonce.to_vec();
+    sealed.extend(
+        cipher(key)?
+            .encrypt(
+                XNonce::from_slice(&nonce),
+                Payload {
+                    msg: plaintext,
+                    aad,
+                },
+            )
+            .map_err(|_| STORE_ERROR)?,
+    );
+    Ok(sealed)
+}
+
+fn open_sealed(key: &StoreKey, aad: &[u8], sealed: &[u8]) -> StoreResult<Zeroizing<Vec<u8>>> {
+    if sealed.len() <= NONCE_BYTES {
+        return Err(DECRYPTION_ERROR);
+    }
+    let (nonce, ciphertext) = sealed.split_at(NONCE_BYTES);
+    cipher(key)?
+        .decrypt(
+            XNonce::from_slice(nonce),
+            Payload {
+                msg: ciphertext,
+                aad,
+            },
+        )
+        .map(Zeroizing::new)
+        .map_err(|_| DECRYPTION_ERROR)
 }
 
 fn workspace_record(database: &Connection) -> StoreResult<Option<(i64, Vec<u8>)>> {
@@ -155,20 +264,7 @@ fn workspace_record(database: &Connection) -> StoreResult<Option<(i64, Vec<u8>)>
 }
 
 fn decrypt(key: &StoreKey, generation: i64, encrypted: &[u8]) -> StoreResult<Zeroizing<Vec<u8>>> {
-    if encrypted.len() <= NONCE_BYTES {
-        return Err(DECRYPTION_ERROR);
-    }
-    let (nonce, ciphertext) = encrypted.split_at(NONCE_BYTES);
-    cipher(key)?
-        .decrypt(
-            XNonce::from_slice(nonce),
-            Payload {
-                msg: ciphertext,
-                aad: &generation.to_be_bytes(),
-            },
-        )
-        .map(Zeroizing::new)
-        .map_err(|_| DECRYPTION_ERROR)
+    open_sealed(key, &generation.to_be_bytes(), encrypted)
 }
 
 fn cipher(key: &StoreKey) -> StoreResult<XChaCha20Poly1305> {
@@ -201,7 +297,7 @@ pub async fn read_workspace(
 ) -> Result<Option<VersionedWorkspace>, String> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        store.read(|can_create| system_key(&store.credential_service, can_create))
+        store.read(|can_create| store.system_key(can_create))
     })
     .await
     .map_err(|_| STORE_ERROR)?
@@ -216,9 +312,7 @@ pub async fn write_workspace(
 ) -> Result<VersionedWorkspace, String> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        store.write(generation, value, |can_create| {
-            system_key(&store.credential_service, can_create)
-        })
+        store.write(generation, value, |can_create| store.system_key(can_create))
     })
     .await
     .map_err(|_| STORE_ERROR)?
@@ -302,5 +396,75 @@ mod tests {
             store.write(Some(2), Value::Null, test_key).err(),
             Some(DECRYPTION_ERROR)
         );
+    }
+
+    #[test]
+    fn sessions_are_encrypted_bound_to_their_origin_and_share_the_workspace_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = WorkspaceStore::new(dir.path().to_path_buf(), "app.feito.desktop.test".into());
+        let origin = "https://feito.example.com";
+        assert!(store
+            .read_session_with(origin, |_| panic!("no session should not load a key"))
+            .unwrap()
+            .is_none());
+
+        store
+            .write_session_with(origin, Some(b"cookie-value"), |can_create| {
+                assert!(can_create);
+                test_key(can_create)
+            })
+            .unwrap();
+        let stored = store.read_session_with(origin, test_key).unwrap().unwrap();
+        assert_eq!(&stored[..], b"cookie-value");
+        assert!(!fs::read(dir.path().join("feito.sqlite3"))
+            .unwrap()
+            .windows("cookie-value".len())
+            .any(|bytes| bytes == "cookie-value".as_bytes()));
+
+        // A session is only valid for the origin it was stored for.
+        let other = "https://other.example.com";
+        store
+            .open()
+            .unwrap()
+            .execute(
+                "UPDATE session SET origin = ?1 WHERE origin = ?2",
+                params![other, origin],
+            )
+            .unwrap();
+        assert_eq!(
+            store.read_session_with(other, test_key).err(),
+            Some(DECRYPTION_ERROR)
+        );
+
+        store.write_session_with(other, None, test_key).unwrap();
+        assert!(store
+            .read_session_with(other, |_| panic!("removed session should not load a key"))
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn sessions_never_create_a_replacement_key_for_an_existing_workspace() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = WorkspaceStore::new(dir.path().to_path_buf(), "app.feito.desktop.test".into());
+        store.write(None, json!({}), test_key).unwrap();
+        store
+            .write_session_with("https://feito.example.com", Some(b"abc"), |can_create| {
+                assert!(!can_create);
+                test_key(can_create)
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn caches_the_system_key_after_the_first_load() {
+        let store = WorkspaceStore::new(
+            PathBuf::from("unused"),
+            "app.feito.desktop.test.cache".into(),
+        );
+        *store.key_cache.lock().unwrap() = Some(Zeroizing::new([9; 32]));
+        // Would fail against a real vault; the cached key is returned instead.
+        assert_eq!(&store.system_key(false).unwrap()[..], &[9; 32]);
+        assert_eq!(&store.clone().system_key(false).unwrap()[..], &[9; 32]);
     }
 }
