@@ -127,6 +127,9 @@ describe("Todoist import", () => {
     expect(errors).toEqual([]);
     const [project] = plan!.projects;
     expect(project.layout).toBe("board");
+    for (const style of ["calendar", "table"]) {
+      expect(run(csv(`meta,view_style=${style},,,,,,,,,,,,,,,,,,`)).plan!.projects[0].layout).toBe(style);
+    }
     expect(project.tasks).toMatchObject([{ title: "Sem seção", labels: ["casa"], priority: 4 }]);
     const [shopping, review] = project.sections[0].tasks;
     expect(shopping).toMatchObject({

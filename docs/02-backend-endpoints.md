@@ -118,7 +118,7 @@ type TaskDetail = TaskItem & {
 type Section = { id: string; revision: number; name: string; taskCount: number };
 
 type ProjectView = {
-  layout: "list" | "board";          // Caixa de entrada aceita só "list"
+  layout: "list" | "board" | "calendar" | "table"; // Caixa de entrada não aceita "board"
   sortMode: "manual" | "date" | "priority";
   showCompleted: boolean;
 };
@@ -197,7 +197,7 @@ type ProjectPage = {
 
 - A coleção `GET /projects` lista projetos comuns. A Caixa de entrada é identificada por `/me` ou `/navigation` e consultada pelo mesmo endpoint individual.
 - `ProjectSummary` e `Section` incluem `description: string`. A descrição aceita até 10 000 caracteres. Ao criar, omitir o campo equivale a `""`. Ao editar, omitir preserva o valor e enviar `""` remove a descrição.
-- Lista e Painel usam a mesma resposta: cada grupo é uma seção na Lista e uma coluna no Painel. O layout não altera dados.
+- Lista, Painel, Calendário e Tabela usam a mesma resposta: cada grupo é uma seção na Lista e na Tabela e uma coluna no Painel; o Calendário distribui as tarefas pela data planejada. O layout não altera dados.
 - A visão geral mostra até cinco níveis de subtarefas abaixo da raiz. O detalhe mostra os filhos diretos e permite navegar para o próximo nível ou voltar ao pai.
 - `sortMode` `date` ordena as raízes de cada grupo por data e hora, sem data por último. `priority` ordena de P1 a P4. Empate: posição manual e depois `id`. Filhos ficam sempre na ordem manual. A ordem manual persistida não muda; voltar a `manual` a recupera.
 - Com `includeCompleted`, as concluídas aparecem na seção e posição originais, com `status: "completed"`.
@@ -485,7 +485,7 @@ type SourceImportPreview = {
   source: string;
   target: { id: string; name: string } | null;   // projeto de destino, quando há projectId
   counts: ImportCounts | null;   // labels conta só as etiquetas novas
-  projects: { name: string; layout: "list" | "board"; sections: number; tasks: number;
+  projects: { name: string; layout: "list" | "board" | "calendar" | "table"; sections: number; tasks: number;
     subtasks: number; dated: number; recurring: number }[];
   warnings: string[];            // o que foi adaptado ou ignorado, já agregado
   errors: { path: string; message: string }[];

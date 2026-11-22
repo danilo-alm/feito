@@ -53,7 +53,7 @@ export const completedOccurrencePayload = z.strictObject({
 });
 
 export const projectView = z.strictObject({
-  layout: z.enum(["list", "board"]),
+  layout: z.enum(["list", "board", "calendar", "table"]),
   sortMode: z.enum(["manual", "date", "priority"]),
   showCompleted: z.boolean(),
 });

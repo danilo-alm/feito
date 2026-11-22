@@ -8,8 +8,9 @@ import { IconBoard, IconCalendar, IconCheck, IconChevronDown, IconHelp, IconList
 import { Dialog, Popover, useIsMobile } from "./ui";
 
 export const SORT_LABEL: Record<SortMode, string> = { manual: "Manual", date: "Data planejada", priority: "Prioridade" };
-export const LAYOUT_LABEL: Record<Layout, string> = { list: "Lista", board: "Painel" };
-const LAYOUT_HELP = "Lista e Painel mostram as mesmas tarefas e seções. Calendário e Tabela chegam depois.";
+export const LAYOUT_LABEL: Record<Layout, string> = { list: "Lista", board: "Painel", calendar: "Calendário", table: "Tabela" };
+const LAYOUT_HELP = "Lista, Painel e Tabela mostram as mesmas tarefas e seções. O Calendário distribui as tarefas pela data planejada.";
+const LAYOUT_ICON: Record<Layout, typeof IconList> = { list: IconList, board: IconBoard, calendar: IconCalendar, table: IconTable };
 const INBOX_LAYOUT_HELP = "A Caixa de entrada não tem seções para virar colunas.";
 
 export function ViewMenu({ page, onChange }: {
@@ -24,6 +25,7 @@ export function ViewMenu({ page, onChange }: {
   const mobile = useIsMobile();
   const { view, isInbox } = { view: page.project.view, isInbox: page.project.isInbox };
   const label = t("Mostrar: {0}", [t(LAYOUT_LABEL[view.layout])]);
+  const LayoutIcon = LAYOUT_ICON[view.layout];
   const close = () => { setOpen(false); setSortOpen(false); };
   const closeSort = () => setSortOpen(false);
 
@@ -45,8 +47,10 @@ export function ViewMenu({ page, onChange }: {
         <button type="button" className={`seg-o${view.layout === "board" ? " on" : ""}`} role="radio" aria-checked={view.layout === "board"}
           disabled={isInbox} data-tooltip={isInbox ? t(INBOX_LAYOUT_HELP) : undefined} aria-description={isInbox ? t(INBOX_LAYOUT_HELP) : undefined}
           onClick={() => view.layout !== "board" && onChange({ layout: "board" })}><IconBoard />{t("Painel")}</button>
-        <button type="button" className="seg-o" role="radio" aria-checked={false} disabled><span className="badge">{t("Depois")}</span><IconCalendar />{t("Calendário")}</button>
-        <button type="button" className="seg-o" role="radio" aria-checked={false} disabled><span className="badge">{t("Depois")}</span><IconTable />{t("Tabela")}</button>
+        <button type="button" className={`seg-o${view.layout === "calendar" ? " on" : ""}`} role="radio" aria-checked={view.layout === "calendar"}
+          onClick={() => view.layout !== "calendar" && onChange({ layout: "calendar" })}><IconCalendar />{t("Calendário")}</button>
+        <button type="button" className={`seg-o${view.layout === "table" ? " on" : ""}`} role="radio" aria-checked={view.layout === "table"}
+          onClick={() => view.layout !== "table" && onChange({ layout: "table" })}><IconTable />{t("Tabela")}</button>
       </div>
       <div className="row">
         <span id="show-completed-label">{t("Mostrar concluídas")}</span>
@@ -57,7 +61,7 @@ export function ViewMenu({ page, onChange }: {
       <div className="grp-h">{t("Ordenar")}</div>
       <div className="row">
         <span>{t("Agrupar")}</span>
-        <span className="select" aria-disabled="true" style={{ color: "var(--muted)" }}>{isInbox ? t("Nenhum") : t("Seções do projeto")}</span>
+        <span className="select" aria-disabled="true" style={{ color: "var(--muted)" }}>{view.layout === "calendar" ? t("Por dia") : isInbox ? t("Nenhum") : t("Seções do projeto")}</span>
       </div>
       <div className="row">
         <span id="sort-label">{t("Ordenar")}</span>
@@ -93,7 +97,7 @@ export function ViewMenu({ page, onChange }: {
       <button ref={setAnchor} type="button" className={`icon-btn tool-btn${open ? " on" : ""}`}
         data-tooltip={label} aria-label={label} aria-haspopup="dialog" aria-expanded={open}
         onClick={() => open ? close() : setOpen(true)}>
-        {view.layout === "board" ? <IconBoard /> : <IconList />}
+        <LayoutIcon />
         <span className="tool-label">{t("Mostrar")}</span>
       </button>
       {mobile

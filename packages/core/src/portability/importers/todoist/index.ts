@@ -111,7 +111,8 @@ function parseFile(file: SourceFile, context: ImporterContext, warnings: Warning
     const content = row.get("CONTENT");
 
     if (type === "meta") {
-      if (/^view_style\s*=\s*board$/i.test(content)) project.layout = "board";
+      const style = /^view_style\s*=\s*(board|calendar|table)$/i.exec(content)?.[1].toLowerCase();
+      if (style) project.layout = style as PlannedProject["layout"];
       continue;
     }
     if (type === "section") {

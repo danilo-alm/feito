@@ -13,6 +13,7 @@ import {
 } from "./icons";
 import { Collapse } from "./motion";
 import { useToast } from "./ui";
+import { LAYOUT_LABEL } from "./view-menu";
 import { Monogram, plural, type ImportTarget as Target } from "./import-export-common";
 export { DialogHead, Monogram, plural } from "./import-export-common";
 export { useImportDialog } from "./import-export-dialogs";
@@ -126,7 +127,7 @@ function projectChips(project: SourceImportPreview["projects"][number], target?:
   if (project.sections) chips.push(plural(project.sections, t("seção"), t("seções")));
   if (project.dated) chips.push(t("{0} com data", [project.dated]));
   if (project.recurring) chips.push(plural(project.recurring, t("recorrente"), t("recorrentes")));
-  if (!target) chips.push(project.layout === "board" ? t("Painel") : t("Lista"));
+  if (!target) chips.push(t(LAYOUT_LABEL[project.layout]));
   return chips;
 }
 

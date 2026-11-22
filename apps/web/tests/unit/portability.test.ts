@@ -45,6 +45,13 @@ describe("portable document", () => {
     ]));
   });
 
+  it("accepts Calendar and Table on the Inbox but not Board", () => {
+    const file = emptyDocument();
+    const inboxWith = (layout: string) => ({ ...file, projects: [{ ...file.projects[0], view: { ...defaultsForView, layout } }] });
+    for (const layout of ["calendar", "table"]) expect(parse(inboxWith(layout)).errors).toEqual([]);
+    expect(parse(inboxWith("board")).errors.map(({ path }) => path)).toContain("projects");
+  });
+
   it("defaults missing project and section descriptions in older v1 files", () => {
     const file = emptyDocument();
     const { description: _description, ...inbox } = file.projects[0];

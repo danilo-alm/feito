@@ -89,7 +89,8 @@ test.describe("organizar um projeto", () => {
     await page.goto(`/projetos/${seed.id}`);
     await page.getByRole("button", { name: /^Mostrar/ }).click();
     const menu = page.getByRole("dialog", { name: "Visualização" });
-    await expect(menu.getByRole("radio", { name: "Calendário" })).toBeDisabled();
+    await expect(menu.getByRole("radio", { name: "Calendário" })).toBeEnabled();
+    await expect(menu.getByRole("radio", { name: "Tabela" })).toBeEnabled();
     await menu.getByRole("radio", { name: "Painel" }).click();
     await expect.poll(async () => (await api<{ project: { view: { layout: string } } }>("GET", `/projects/${seed.id}`)).project.view.layout).toBe("board");
     await page.keyboard.press("Escape");

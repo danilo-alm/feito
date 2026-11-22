@@ -56,6 +56,9 @@ describe("projects and navigation", () => {
     await failure(await call("DELETE", `/projects/${inbox.id}?revision=${inbox.revision}`), 422, "INBOX_PROTECTED");
     await failure(await call("POST", `/projects/${inbox.id}/sections`, { name: "Outra" }), 422, "INBOX_PROTECTED");
     await failure(await call("PATCH", `/projects/${inbox.id}/view`, { layout: "board" }), 422, "VALIDATION_FAILED");
+    for (const layout of ["calendar", "table", "list"]) {
+      expect(await payload<{ layout: string }>(await call("PATCH", `/projects/${inbox.id}/view`, { layout }))).toMatchObject({ layout });
+    }
 
     const project = await newProject(call, " Original ");
     expect(project.name).toBe("Original");

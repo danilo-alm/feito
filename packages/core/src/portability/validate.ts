@@ -58,8 +58,8 @@ function validateReferences(document: PortableDocument) {
   if (inboxes.length !== 1) report("projects", "O documento deve conter exatamente uma Caixa de entrada.");
   else {
     const [inbox] = inboxes;
-    if (inbox.archived || inbox.view.layout !== "list" || inbox.name !== inboxName) {
-      report("projects", "A Caixa de entrada deve estar ativa, com nome fixo e layout Lista.");
+    if (inbox.archived || inbox.view.layout === "board" || inbox.name !== inboxName) {
+      report("projects", "A Caixa de entrada deve estar ativa, com nome fixo e sem layout Painel.");
     }
     if (inbox.defaultSectionName) report("projects", "A Caixa de entrada não pode ter seção.");
   }

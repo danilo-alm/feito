@@ -1,4 +1,5 @@
 import { walkTaskTree } from "../../domain/task-tree";
+import type { Layout } from "../../types";
 import type { RecurrenceRule } from "../../validation/product";
 
 type Frequency = RecurrenceRule["frequency"];
@@ -20,7 +21,7 @@ export type PlannedSection = { name: string; tasks: PlannedTask[] };
 
 export type PlannedProject = {
   name: string;
-  layout: "list" | "board";
+  layout: Layout;
   tasks: PlannedTask[];
   sections: PlannedSection[];
 };

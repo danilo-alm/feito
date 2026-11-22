@@ -32,6 +32,8 @@ import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
 import { Dialog, MenuButton, ReadFallback, useAutoGrow, useContextMenu, useIsMobile, useToast, type MenuItem } from "./ui";
 import { ShareMenu, useProjectShare, type ProjectSharing } from "./share-menu";
 import { LAYOUT_LABEL, SORT_LABEL, ViewMenu } from "./view-menu";
+import { CalendarLayout } from "./project-calendar";
+import { TableLayout } from "./project-table";
 
 const GROUP = (sectionId: string | null) => `group:${sectionId ?? "none"}`;
 
@@ -194,6 +196,10 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
   const { project } = page;
   const view = project.view;
   const board = view.layout === "board" && !project.isInbox;
+  const calendar = view.layout === "calendar";
+  // No celular a Tabela vira Lista, como no Todoist: as colunas não cabem na largura.
+  const table = view.layout === "table" && !mobile;
+  const wide = board || calendar || table;
   const manual = view.sortMode === "manual";
   const canDrag = manual || board;
   const tasks = taskMap(page);
@@ -389,7 +395,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
       </Dialog>
       <div className="project-content" ref={projectContent}>
         <div style={{ padding: "4px 32px 0" }} className="project-head">
-          <div className={board ? "" : "col"}>
+          <div className={wide ? "" : "col"}>
             <div className="page-h" onContextMenu={contextMenu.onContextMenu}>
               <ProjectHeading key={project.id} project={project} titleRef={projectTitle} />
               <div className="page-meta">
@@ -403,7 +409,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
                   onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: t("Projeto reativado"), revalidate: refreshProjects })}>{t("Reativar")}</button>
               </div>
             </Collapse>
-            <Collapse open={!manual && !archived} appear={false}>
+            <Collapse open={!manual && !archived && !calendar} appear={false}>
               <div className="banner warn">
                 <IconBan style={{ width: 16, height: 16, color: "var(--p2)" }} />
                 <span style={{ flex: 1 }}>
@@ -415,7 +421,9 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
             </Collapse>
           </div>
         </div>
-        <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragMove={onDragMove}
+        {calendar && <CalendarLayout page={page} actions={actions} archived={archived} mobile={mobile} />}
+        {table && <TableLayout page={page} actions={actions} archived={archived} />}
+        {!calendar && !table && <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragMove={onDragMove}
           autoScroll={{ threshold: { x: 0.1, y: 0.1 }, acceleration: 8 }}
           onDragEnd={onDragEnd} onDragCancel={onDragCancel}
           accessibility={{ screenReaderInstructions: { draggable: t("Para mover sem arrastar, use Alt e as setas ou o menu de ações da tarefa.") } }}>
@@ -432,7 +440,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
               </div>
             )}
           </DragOverlay>
-        </DndContext>
+        </DndContext>}
       </div>
       {actions.moveDialog}
     </>

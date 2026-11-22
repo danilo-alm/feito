@@ -4,7 +4,7 @@ import type { ProjectColor, ProjectIcon } from "./validation/project-style";
 export type Priority = 1 | 2 | 3 | 4;
 export type Frequency = "daily" | "weekly" | "monthly";
 export type Theme = "light" | "dark" | "system";
-export type Layout = "list" | "board";
+export type Layout = "list" | "board" | "calendar" | "table";
 export type SortMode = "manual" | "date" | "priority";
 
 export type Origin = {

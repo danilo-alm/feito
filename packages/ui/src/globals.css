@@ -66,7 +66,7 @@ h1,h2,h3,p{margin:0}
 .sidebar-resize::after{content:"";position:absolute;inset:0 5px 0 4px;background:var(--border-strong);opacity:0;transition:opacity var(--dur-fast) var(--ease-out)}
 .sidebar-resize:focus-visible{outline:1px solid var(--border-strong);outline-offset:-4px}
 .sidebar-resize:focus-visible::after,.sidebar-resizing .sidebar-resize::after{opacity:1}
-.sidebar-resizing,.sidebar-resizing *{cursor:col-resize!important;user-select:none!important}
+.sidebar-resizing,.sidebar-resizing *,.panel-resizing,.panel-resizing *{cursor:col-resize!important;user-select:none!important}
 .desktop-overlay[data-sidebar="collapsed"] .sidebar-resize{display:none}
 .desktop-overlay .sidebar-resize{top:var(--desktop-titlebar-height)}
 .brand{display:flex;align-items:center;gap:6px;font-family:var(--font-brand),var(--font-inter),Inter,system-ui,sans-serif;font-weight:600;font-size:19px;letter-spacing:-.02em;padding:4px 8px 14px}
@@ -986,3 +986,181 @@ svg.ic-repeat{color:var(--brand-text)}
     inset-inline-end: auto;
   }
 }
+
+/* ---------- Calendário do projeto ---------- */
+.pcal{display:flex;flex-direction:column;gap:12px}
+.pcal-bar,.ptable-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:8px}
+.pcal-bar .btn.on,.ptable-bar .btn.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-text)}
+.pcal-bar .btn svg,.ptable-bar .btn svg{width:16px;height:16px}
+.pcal-bar .btn.on .badge{background:var(--surface);border-color:transparent;color:var(--brand-text)}
+.pcal-nav{display:flex;align-items:center;gap:2px}
+.pcal-title{font-size:16px;font-weight:600;margin-right:auto}
+.seg.compact.pcal-period{position:relative;grid-template-columns:repeat(2,minmax(0,1fr))}
+.pcal-body{display:flex;align-items:flex-start;gap:16px}
+.pcal-scroll{flex:1;min-width:0;overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.pcal-month{min-width:720px}
+.pcal-dows,.pcal-cells{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.pcal-dows span{padding:8px 10px;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--border);background:var(--bg)}
+.pcal-cell{min-width:0;min-height:128px;padding:6px 6px 8px;display:flex;flex-direction:column;gap:3px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.pcal-cell:nth-child(7n){border-right:0}
+.pcal-cells>.pcal-cell:nth-last-child(-n+7){border-bottom:0}
+.pcal-cell.weekend{background:color-mix(in srgb,var(--surface) 65%,var(--sunken))}
+.pcal-cell.out{background:var(--sunken)}
+.pcal-cell.out .pcal-dnum{color:var(--faint)}
+.pcal-nodate.target{outline:2px dashed var(--brand);outline-offset:-3px;background:var(--brand-soft)}
+.pcal-dhead{display:flex;align-items:center;justify-content:space-between;min-height:26px;padding:0 2px 2px}
+.pcal-dnum{display:grid;place-items:center;min-width:26px;height:26px;padding:0 4px;border-radius:13px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.today>.pcal-dhead .pcal-dnum,.pcal-wday.today .pcal-dnum{background:var(--brand);color:var(--on-brand)}
+.pcal-add{width:26px;height:26px;border:0;border-radius:6px;background:none;color:var(--muted);display:grid;place-items:center;opacity:0;padding:0;transition:opacity var(--dur-fast) var(--ease-out)}
+.pcal-add svg{width:14px;height:14px}
+.pcal-add:hover{background:var(--hover);color:var(--brand-text)}
+.pcal-cell:hover .pcal-add,.pcal-wday:hover .pcal-add,.pcal-add:focus-visible{opacity:1}
+.pcal-chip{display:flex;align-items:center;gap:6px;width:100%;min-height:26px;padding:2px 6px;border:1px solid transparent;border-radius:6px;background:var(--pcs);color:var(--text);font-size:12.5px;line-height:18px;text-align:left;touch-action:manipulation}
+.pcal-chip.p4{background:var(--sunken)}
+.pcal-chip:hover{border-color:var(--pc)}
+.pcal-chip[aria-describedby]{cursor:grab}
+.pcal-ring{width:12px;height:12px;flex:none;border-radius:50%;border:1.6px solid var(--pc)}
+.pcal-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcal-time{flex:none;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pcal-rep{color:var(--muted)}
+.pcal-chip.done{background:transparent}
+.pcal-chip.done .pcal-name{color:var(--muted);text-decoration:line-through}
+.pcal-chip.done .pcal-ring{background:var(--pc)}
+.pcal-chip.late .pcal-name,.pcal-chip.late .pcal-time{color:var(--late)}
+.pcal-more{align-self:flex-start;border:0;background:none;padding:2px 6px;border-radius:6px;font-size:12px;font-weight:600;color:var(--muted)}
+.pcal-more:hover{background:var(--hover);color:var(--text)}
+.pcal-drag{display:flex;align-items:center;gap:6px;width:220px;min-height:28px;padding:2px 8px;border:1px solid var(--brand);border-radius:7px;background:var(--surface);box-shadow:var(--lift);transform:rotate(-1.5deg);font-size:12.5px;pointer-events:none}
+.pcal-nodate{flex:0 0 272px;min-width:0;display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg);position:sticky;top:0}
+/* Alça na borda esquerda do painel, no mesmo padrão do menu lateral. */
+.pcal-resize{position:absolute;z-index:2;top:8px;bottom:8px;left:-13px;width:10px;cursor:col-resize;touch-action:none;border-radius:5px}
+.pcal-resize::after{content:"";position:absolute;inset:0 4px;border-radius:1px;background:var(--border-strong);opacity:0;transition:opacity var(--dur-fast) var(--ease-out)}
+.pcal-resize:hover::after,.pcal-resize:focus-visible::after,.panel-resizing .pcal-resize::after{opacity:1}
+.pcal-resize:focus-visible{outline:1px solid var(--border-strong);outline-offset:1px}
+.pcal-nodate-h{display:flex;align-items:center;justify-content:space-between}
+.pcal-nodate-h h3{font-size:15px;font-weight:700}
+.pcal-nodate-h .icon-btn{width:30px;height:30px}
+.pcal-nodate-list{display:flex;flex-direction:column;gap:4px;max-height:560px;overflow-y:auto}
+.pcal-nodate-list .pcal-chip{min-height:32px;font-size:13px}
+.pcal-week{position:relative;min-width:860px}
+.pcal-scroll:has(.pcal-week){max-height:max(460px,calc(100dvh - 300px));overflow:auto}
+.pcal-wtop{position:sticky;top:0;z-index:3;background:var(--surface)}
+.pcal-wrow{display:grid;grid-template-columns:60px repeat(7,minmax(0,1fr))}
+.pcal-whead{background:var(--bg);border-bottom:1px solid var(--border)}
+.pcal-wday{display:flex;align-items:center;gap:6px;padding:8px;border-left:1px solid var(--border);min-width:0}
+.pcal-wday .pcal-add{margin-left:auto}
+.pcal-wd{font-size:12px;font-weight:600;color:var(--muted)}
+.pcal-wday.today .pcal-wd{color:var(--brand-text)}
+.pcal-allday{border-bottom:1px solid var(--border-strong)}
+.pcal-hour{padding:6px 8px 0 0;font-size:11px;line-height:1.2;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+/* A coluna das horas fica visível quando a semana rola na horizontal. */
+.pcal-wrow>:first-child{position:sticky;left:0;z-index:2;background:var(--surface)}
+.pcal-whead>:first-child{background:var(--bg)}
+.pcal-hours .pcal-wrow+.pcal-wrow .pcal-wcell{border-top:1px solid var(--border)}
+.pcal-wcell{position:relative;min-width:0;min-height:44px;padding:3px 4px;display:flex;flex-direction:column;gap:3px;border-left:1px solid var(--border)}
+.pcal-allday .pcal-wcell{min-height:40px}
+.pcal-now{position:absolute;left:-1px;right:0;height:0;border-top:2px solid var(--late);z-index:1;pointer-events:none}
+.pcal-now::before{content:"";position:absolute;left:-4px;top:-5px;width:8px;height:8px;border-radius:50%;background:var(--late)}
+.pcal-mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));padding-bottom:8px;border-bottom:1px solid var(--border)}
+.pcal-mdow{font-size:11.5px;font-weight:600;color:var(--muted);text-align:center;padding:4px 0}
+.pcal-mday{height:48px;border:0;background:none;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0}
+.pcal-mday .n{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;font-size:14px;font-weight:500}
+.pcal-mday.out .n{color:var(--faint)}
+.pcal-mday.today .n{color:var(--brand-text);font-weight:700}
+.pcal-mday.sel .n{background:var(--brand);color:var(--on-brand);font-weight:700}
+.pcal-dots{display:flex;gap:3px;height:5px}
+.pcal-dots span{width:5px;height:5px;border-radius:50%;background:var(--pc)}
+.pcal-agenda .sec-h{padding-top:12px}
+.pcal-empty{padding:12px 0}
+.pcal-undated{margin-top:8px;justify-content:space-between;padding:0 14px;color:var(--text)}
+.pcal-undated .count{color:var(--muted);font-weight:500}
+@media (max-width: 899px){
+  .pcal{padding-top:4px}
+  .pcal-title{order:-1;flex-basis:100%;font-size:17px}
+  .pcal-nav{margin-right:auto}
+}
+
+/* ---------- Tabela do projeto ---------- */
+.ptable{display:flex;flex-direction:column;gap:10px}
+.ptable-bar{justify-content:flex-end}
+.ptable-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.ptable-grid{width:100%;min-width:860px;border-collapse:separate;border-spacing:0;font-size:13.5px}
+.ptable-grid th,.ptable-grid td{text-align:left;padding:0 12px;height:42px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+.ptable-grid td+td,.ptable-grid thead th+th{border-left:1px solid var(--border)}
+.ptable-grid thead th{height:38px;font-size:12px;font-weight:600;color:var(--muted);background:var(--bg);border-bottom-color:var(--border-strong);position:sticky;top:0;z-index:1}
+.ptable-grid thead th:first-child{width:44%}
+.ptable-sort{display:inline-flex;align-items:center;gap:4px;border:0;background:none;padding:4px 6px;margin:0 -6px;border-radius:6px;font-weight:600;font-size:12px;color:var(--muted)}
+.ptable-sort:hover{background:var(--hover);color:var(--text)}
+.ptable-sort.on{color:var(--text)}
+.ptable-sort svg{width:13px;height:13px}
+.ptable-group th{height:44px;padding-top:10px;font-size:14px;font-weight:700;color:var(--text);background:var(--bg);border-bottom-color:var(--border-strong)}
+.ptable-group .count{margin-left:8px;font-weight:500;font-size:13px;color:var(--muted)}
+.ptable-done-h th{font-size:13px;color:var(--muted)}
+.ptable-row:hover{background:color-mix(in srgb,var(--surface) 55%,var(--hover))}
+.ptable-task{display:flex;align-items:center;gap:8px;min-width:0;padding-inline-start:calc(var(--task-depth,0) * 22px)}
+.ptable-task .chk{margin:-4px -2px -4px -4px}
+.ptable-title{min-width:0;max-width:420px;overflow:hidden;text-overflow:ellipsis;border:0;background:none;padding:4px;margin:-4px 0;border-radius:6px;text-align:left;font-size:13.5px;color:var(--text)}
+.ptable-title:hover{text-decoration:underline;text-underline-offset:3px}
+.done-t .ptable-title{color:var(--muted);text-decoration:line-through}
+.ptable-cell{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:4px 6px;margin:0 -6px;border-radius:6px;font-size:13px;color:var(--text);text-align:left}
+.ptable-cell.m-date{color:var(--tc,var(--text))}
+.ptable-cell:not(:disabled):hover{background:var(--hover)}
+.ptable-cell:disabled{cursor:default}
+.ptable-cell svg{width:14px;height:14px}
+.ptable-empty{color:var(--faint)}
+.ptable-labels{display:inline-flex;gap:10px}
+.ptable-label{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted)}
+.ptable-label svg{width:13px;height:13px}
+.ptable-subs{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ptable-subs svg{width:14px;height:14px}
+.ptable-desc{display:block;max-width:280px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.ptable-add td{height:auto;padding:0 8px;background:var(--surface)}
+.ptable-add .t-editor.te-inline{margin:8px 0;white-space:normal}
+
+/* ---------- Movimento do Calendário e da Tabela (docs/04-motion-and-interaction.md) ---------- */
+/* Cada mês ou semana é uma página nova: entra deslizando do lado para onde se navegou. */
+.pcal-view{transition:opacity var(--dur-base) var(--ease-out),transform var(--dur-base) var(--ease-out)}
+.pcal-title-text{display:inline-block;transition:opacity var(--dur-base) var(--ease-out),transform var(--dur-base) var(--ease-out)}
+@starting-style{
+  .pcal-view,.pcal-title-text{opacity:0}
+  .pcal-view[data-dir=next]{transform:translateX(24px)}
+  .pcal-view[data-dir=prev]{transform:translateX(-24px)}
+  .pcal-title-text[data-dir=next]{transform:translateY(6px)}
+  .pcal-title-text[data-dir=prev]{transform:translateY(-6px)}
+}
+/* Mês/Semana: a pílula desliza entre as duas opções. */
+.pcal-period::before{content:"";position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 8px) / 2);border-radius:7px;background:var(--surface);border:1px solid var(--border-strong);box-shadow:0 1px 2px rgba(0,0,0,.06);transition:transform var(--dur-slow) var(--ease-in-out)}
+.pcal-period[data-period=week]::before{transform:translateX(calc(100% + 2px))}
+.pcal-period .seg-o{position:relative;z-index:1;transition:color var(--dur-fast) var(--ease-out)}
+.pcal-period .seg-o.on{background:transparent;border-color:transparent;box-shadow:none}
+/* Chips: sobem 1 px no hover e cedem ao toque. */
+.pcal-chip{position:relative;transition:transform var(--dur-fast) var(--ease-out),border-color var(--dur-fast) var(--ease-out),opacity var(--dur-fast) var(--ease-out)}
+@media (hover:hover){.pcal-chip:not(.done):not(.drag-src):hover{transform:translateY(-1px)}}
+.pcal-chip:active{transform:scale(.98)}
+/* A prévia do arraste se levanta ao sair do lugar. */
+.pcal-drag{transition:transform var(--dur-base) var(--ease-out)}
+@starting-style{.pcal-drag{transform:rotate(0) scale(.96)}}
+/* Destino do arraste: a moldura tracejada aparece em fade, sem trocar o fundo de uma vez. */
+.pcal-cell,.pcal-dhead{position:relative}
+.pcal-cell::before,.pcal-wcell::before{content:"";position:absolute;inset:2px;border:2px dashed var(--brand);border-radius:8px;background:color-mix(in srgb,var(--brand-soft) 75%,transparent);opacity:0;pointer-events:none;transition:opacity var(--dur-fast) var(--ease-out)}
+.pcal-cell.target::before,.pcal-wcell.target::before{opacity:1}
+/* Painel Sem data: entra da direita e sai pelo mesmo lado. */
+.pcal-nodate{transition:opacity var(--dur-base) var(--ease-out),transform var(--dur-base) var(--ease-out)}
+@starting-style{.pcal-nodate[data-state=entering]{opacity:0;transform:translateX(16px)}}
+.pcal-nodate[data-state=exiting]{opacity:0;transform:translateX(16px);pointer-events:none;transition-duration:var(--dur-fast);transition-timing-function:var(--ease-in)}
+/* A contagem do botão Sem data muda com um pequeno salto. */
+.pcal-count{transition:transform var(--dur-base) var(--ease-out),opacity var(--dur-base) var(--ease-out)}
+@starting-style{.pcal-count{opacity:0;transform:scale(.7)}}
+/* Celular: o dia escolhido cede ao toque e a agenda do dia entra em fade. */
+.pcal-mday .n{transition:transform var(--dur-fast) var(--ease-out),background-color var(--dur-fast) var(--ease-out),color var(--dur-fast) var(--ease-out)}
+.pcal-mday:active .n{transform:scale(.9)}
+.pcal-agenda{transition:opacity var(--dur-base) var(--ease-out),transform var(--dur-base) var(--ease-out)}
+@starting-style{.pcal-agenda{opacity:0;transform:translateY(4px)}}
+/* Tabela: seta de ordenação gira, valores editados entram, linhas acendem no hover. */
+.ptable-arrow{transition:transform var(--dur-base) var(--ease-in-out),opacity var(--dur-base) var(--ease-out)}
+.ptable-arrow.desc{transform:rotate(180deg)}
+@starting-style{.ptable-arrow{opacity:0;transform:translateY(3px)}}
+.ptable-val{display:inline-flex;align-items:center;gap:6px;transition:opacity var(--dur-base) var(--ease-out),transform var(--dur-base) var(--ease-out)}
+@starting-style{.ptable-val{opacity:0;transform:translateY(-4px)}}
+.ptable-row{transition:background-color var(--dur-fast) var(--ease-out)}
+.ptable-grid :is(th,td){transition:opacity var(--dur-base) var(--ease-out)}
+@starting-style{.ptable-grid :is(th,td){opacity:0}}

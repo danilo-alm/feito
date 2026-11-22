@@ -90,6 +90,14 @@ describe("executor local: projetos e seções", () => {
     expect(code(await call("GET", `/projects/${project.id}`))).toBe("NOT_FOUND");
   });
 
+  it("aceita os layouts Calendário e Tabela", async () => {
+    const project = await create("/projects", { name: "Agenda" });
+    for (const layout of ["calendar", "table"]) {
+      expect((await call("PATCH", `/projects/${project.id}/view`, { layout })).body).toMatchObject({ layout });
+    }
+    expect(code(await call("PATCH", `/projects/${project.id}/view`, { layout: "timeline" }))).toBe("VALIDATION_FAILED");
+  });
+
   it("valida os corpos de projeto e seção", async () => {
     const project = await create("/projects", { name: "Casa" });
     expect(code(await call("POST", "/projects", { name: "" }))).toBe("VALIDATION_FAILED");
