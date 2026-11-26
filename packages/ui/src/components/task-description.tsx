@@ -133,7 +133,10 @@ export function TaskDescription({ value, defaultPreview = false, toolbar = false
       }
     }}>
       {showingPreview ? <div ref={previewNode} role="region" aria-label={t("Descrição")}
-        className={readOnly ? undefined : "task-description-preview"} tabIndex={readOnly ? undefined : 0}
+        className={[!readOnly && "task-description-preview", !value && "task-description-empty"].filter(Boolean).join(" ") || undefined}
+        tabIndex={readOnly ? undefined : 0}
+        // Sem texto não há o que selecionar. O CSS não basta no WebKit, que deixa o arraste começar aqui e marcar o título.
+        onMouseDown={value ? undefined : (event) => event.preventDefault()}
         onClick={(event) => {
           if (readOnly || (event.target as HTMLElement).closest("a") || !window.getSelection()?.isCollapsed) return;
           focusEditor.current = true;
