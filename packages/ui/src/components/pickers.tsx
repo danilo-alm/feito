@@ -17,6 +17,7 @@ import {
 } from "./icons";
 import { ProjectGlyph } from "./project-style";
 import { Collapse } from "./motion";
+import { useIsTouch } from "./ui";
 
 export const PRIORITY_NAMES: Record<Priority, string> = {
   1: "Prioridade 1", 2: "Prioridade 2", 3: "Prioridade 3", 4: "Sem prioridade",
@@ -196,12 +197,19 @@ const CALENDAR_MONTHS = 18;
 /**
  * Seletor de vencimento: campo de texto ("sexta", "25/12"…), atalhos e um calendário rolável
  * com os meses em sequência. É o mesmo no editor, no detalhe e no "Escolher data…" do menu da tarefa.
+ * No toque, o foco inicial fica no painel: o teclado só abre quando a pessoa toca no campo.
  */
 export function DatePicker({ value, reference, onPick, onClose, allowClear = true, autoFocus = false }: {
   value: string | null; reference: string; onPick: (date: string | null) => void; onClose: () => void; allowClear?: boolean; autoFocus?: boolean;
 }) {
   const t = useT();
   const [text, setText] = useState("");
+  const touch = useIsTouch();
+  const panel = useRef<HTMLDivElement>(null);
+  // Quando o seletor substitui o conteúdo de um popover já aberto, o foco precisa entrar nele.
+  useEffect(() => {
+    if (autoFocus && touch) panel.current?.focus({ preventScroll: true });
+  }, []);
   const typed = text.trim() ? parseDueInput(text, reference) : null;
   const pick = (date: string | null) => { onPick(date); onClose(); };
 
@@ -213,12 +221,12 @@ export function DatePicker({ value, reference, onPick, onClose, allowClear = tru
   ];
 
   return (
-    <div className="due-pop">
+    <div ref={panel} className="due-pop" tabIndex={-1} data-autofocus={touch || undefined}>
       {/* Portal: eventos React ainda sobem até o formulário do editor; o Enter daqui não pode salvar a tarefa. */}
       <form className="due-input" onKeyDown={(event) => event.stopPropagation()}
         onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); if (typed) pick(typed); }}>
         <input value={text} onChange={(event) => setText(event.target.value)} placeholder={t("Digite um vencimento")}
-          aria-label={t("Digite um vencimento")} data-autofocus autoFocus={autoFocus} autoComplete="off" spellCheck={false} />
+          aria-label={t("Digite um vencimento")} data-autofocus={!touch || undefined} autoFocus={autoFocus && !touch} autoComplete="off" spellCheck={false} />
         {text.trim() && (
           typed
             ? <button type="submit" className={`due-typed tone-${dueTone(typed, reference)}`} aria-label={longDate(typed)}>

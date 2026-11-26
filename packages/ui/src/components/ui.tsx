@@ -25,6 +25,8 @@ export function useMediaQuery(query: string) {
 }
 
 export const useIsMobile = () => useMediaQuery("(max-width: 899px)");
+/** Ponteiro principal por toque (celulares e tablets): focar um campo abre o teclado na tela. */
+export const useIsTouch = () => useMediaQuery("(pointer: coarse)");
 
 // ---------- Foco ----------
 

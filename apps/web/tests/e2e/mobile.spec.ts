@@ -77,4 +77,35 @@ test.describe("celular", () => {
     await page.getByRole("link", { name: "Buscar" }).click();
     await page.waitForURL("**/busca");
   });
+
+  test("escolher a data não abre o teclado: o campo só recebe foco ao ser tocado", async ({ page, api }) => {
+    const seed = await seedProject(api, `Data ${Date.now()}`);
+    const title = "Medir a parede da sala";
+    await page.goto(`/projetos/${seed.id}`);
+    const picker = page.locator(".popover .due-pop");
+    const input = picker.getByLabel("Digite um vencimento");
+    const expectNoKeyboard = async () => {
+      await expect(picker).toBeFocused();
+      await expect(input).not.toBeFocused();
+    };
+
+    // Pelo menu da tarefa.
+    await page.getByRole("button", { name: `Ações de “${title}”` }).tap();
+    await page.getByRole("menuitemradio", { name: "Escolher data…" }).tap();
+    await expectNoKeyboard();
+    await input.tap();
+    await expect(input).toBeFocused();
+
+    // Pelo detalhe da tarefa.
+    await page.goto(`/projetos/${seed.id}`);
+    await row(page, title).locator(".t-title").tap();
+    await page.getByRole("dialog", { name: title, exact: true }).getByRole("button", { name: "Adicionar data" }).tap();
+    await expectNoKeyboard();
+
+    // No intervalo da busca, onde o seletor substitui o conteúdo de um popover já aberto.
+    await page.goto("/busca");
+    await page.getByRole("button", { name: /^Data/ }).tap();
+    await page.getByRole("button", { name: /^Data inicial/ }).tap();
+    await expectNoKeyboard();
+  });
 });
