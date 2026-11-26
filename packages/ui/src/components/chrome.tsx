@@ -97,35 +97,38 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
       <NavLink href="/entrada" icon={<IconInbox />} label={t("Caixa de entrada")} count={nav?.inbox.activeCount} active={is("/entrada")} />
       <NavLink href="/hoje" icon={<IconToday />} label={t("Hoje")} count={nav?.todayCount} active={is("/hoje")} />
       <NavLink href="/em-breve" icon={<IconUpcoming />} label={t("Em breve")} active={is("/em-breve")} />
-      <div className="nav-label">
-        {t("Meus projetos")}<button type="button" className="icon-btn" style={{ width: 28, height: 28 }} onClick={projectDetails.create} aria-label={t("Novo projeto")}>
-          <IconPlus className="sm" />
-        </button>
+      {/* Só projetos e etiquetas rolam: o topo e os Ajustes ficam sempre à vista. */}
+      <div className="side-scroll">
+        <div className="nav-label">
+          {t("Meus projetos")}<button type="button" className="icon-btn" style={{ width: 28, height: 28 }} onClick={projectDetails.create} aria-label={t("Novo projeto")}>
+            <IconPlus className="sm" />
+          </button>
+        </div>
+        {nav && (
+          <ReorderList items={nav.projects} onMove={moveProject} instructions={instructions}
+            renderItem={(project, reorder) => (
+              <ProjectRow project={project} active={is(`/projetos/${project.id}`)} reorder={reorder}
+                shortcut={PROJECT_SHORTCUT_KEYS[nav.projects.indexOf(project)]}
+                onEdit={() => projectDetails.edit(project)} orderMenu={() => orderMenu(t, nav.projects, project, moveProject)} />
+            )}
+            renderOverlay={(project) => <ProjectRow project={project} active={false} onEdit={() => {}} orderMenu={() => []} />} />
+        )}
+        {nav && !nav.projects.length && <p className="hint" style={{ padding: "2px 10px 6px" }}>{t("Crie seu primeiro projeto com o +.")}</p>}
+        {!!nav?.archivedCount && (
+          <Link href="/ajustes#arquivados" className="nav" style={{ color: "var(--muted)" }}>
+            <IconArchive /><SidebarName>{t("Arquivados")}</SidebarName><span className="count">{nav.archivedCount}</span>
+          </Link>
+        )}
+        {!!nav?.labels.length && <div className="nav-label">{t("Etiquetas")}</div>}
+        {nav && (
+          <ReorderList items={nav.labels} onMove={moveLabel} instructions={instructions}
+            renderItem={(label, reorder) => (
+              <LabelRow label={label} active={is(`/etiquetas/${label.id}`)} reorder={reorder}
+                orderMenu={() => orderMenu(t, nav.labels, label, moveLabel)} />
+            )}
+            renderOverlay={(label) => <LabelRow label={label} active={false} orderMenu={() => []} />} />
+        )}
       </div>
-      {nav && (
-        <ReorderList items={nav.projects} onMove={moveProject} instructions={instructions}
-          renderItem={(project, reorder) => (
-            <ProjectRow project={project} active={is(`/projetos/${project.id}`)} reorder={reorder}
-              shortcut={PROJECT_SHORTCUT_KEYS[nav.projects.indexOf(project)]}
-              onEdit={() => projectDetails.edit(project)} orderMenu={() => orderMenu(t, nav.projects, project, moveProject)} />
-          )}
-          renderOverlay={(project) => <ProjectRow project={project} active={false} onEdit={() => {}} orderMenu={() => []} />} />
-      )}
-      {nav && !nav.projects.length && <p className="hint" style={{ padding: "2px 10px 6px" }}>{t("Crie seu primeiro projeto com o +.")}</p>}
-      {!!nav?.archivedCount && (
-        <Link href="/ajustes#arquivados" className="nav" style={{ color: "var(--muted)" }}>
-          <IconArchive /><SidebarName>{t("Arquivados")}</SidebarName><span className="count">{nav.archivedCount}</span>
-        </Link>
-      )}
-      {!!nav?.labels.length && <div className="nav-label">{t("Etiquetas")}</div>}
-      {nav && (
-        <ReorderList items={nav.labels} onMove={moveLabel} instructions={instructions}
-          renderItem={(label, reorder) => (
-            <LabelRow label={label} active={is(`/etiquetas/${label.id}`)} reorder={reorder}
-              orderMenu={() => orderMenu(t, nav.labels, label, moveLabel)} />
-          )}
-          renderOverlay={(label) => <LabelRow label={label} active={false} orderMenu={() => []} />} />
-      )}
       <div className="side-foot">
         <NavLink href="/ajustes" icon={<IconGear />} label={t("Ajustes")} active={is("/ajustes")} />
       </div>
