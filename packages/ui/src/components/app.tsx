@@ -80,7 +80,7 @@ export function useApp() {
   return value;
 }
 
-const isDragging = () => !!document.querySelector(".drag-overlay");
+export const isDragging = () => !!document.querySelector(".drag-overlay");
 
 export type TaskSelection = { id: string; order: readonly string[] };
 

@@ -968,5 +968,6 @@
   "Tarefas sem data": "Tarefas sem data",
   "{0}, sem horário": "{0}, sem hora",
   "{0}, {1} tarefas": "{0}, {1} tarefas",
-  "Redimensionar painel Sem data": "Redimensionar painel Sem data"
+  "Redimensionar painel Sem data": "Redimensionar painel Sem data",
+  "Para reordenar sem arrastar, use Alt e as setas para cima e para baixo.": "Para reordenar sem arrastar, use Alt e as setas para cima e para baixo."
 }

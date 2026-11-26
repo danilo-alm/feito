@@ -263,6 +263,10 @@ button.t-origin:hover{background:var(--hover)}
 .is-dragging{background:var(--surface)!important;border:1px solid var(--brand)!important;border-radius:10px;box-shadow:var(--lift);transform:rotate(-1.2deg)}
 .is-dragging .grip{opacity:1;color:var(--brand-text);cursor:grabbing}
 .drag-src{opacity:.4}
+/* Projetos e etiquetas reordenáveis: o toque prolongado inicia o arraste, sem a prévia do link do sistema. */
+[data-reorder-item]{-webkit-touch-callout:none}
+.reorder-overlay>.nav{background:var(--surface);border:1px solid var(--brand);box-shadow:var(--lift);cursor:grabbing}
+.reorder-overlay>.b-group{border-color:var(--brand);box-shadow:var(--lift)}
 .task[draggable="true"],.card[draggable="true"]{cursor:grab}
 .slot{border:1.5px dashed var(--border-strong);border-radius:10px;background:var(--sunken)}
 .ins{position:relative;height:2px;background:var(--brand);margin-block:-1px;border-radius:2px;z-index:2}

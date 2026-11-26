@@ -968,5 +968,6 @@
   "Tarefas sem data": "Aufgaben ohne Datum",
   "{0}, sem horário": "{0}, ohne Uhrzeit",
   "{0}, {1} tarefas": "{0}, {1} Aufgaben",
-  "Redimensionar painel Sem data": "Bereich Ohne Datum skalieren"
+  "Redimensionar painel Sem data": "Bereich Ohne Datum skalieren",
+  "Para reordenar sem arrastar, use Alt e as setas para cima e para baixo.": "Zum Umsortieren ohne Ziehen Alt und die Pfeiltasten nach oben und unten verwenden."
 }

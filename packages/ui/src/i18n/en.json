@@ -968,5 +968,6 @@
   "Tarefas sem data": "Tasks without a date",
   "{0}, sem horário": "{0}, no time",
   "{0}, {1} tarefas": "{0}, {1} tasks",
-  "Redimensionar painel Sem data": "Resize No date panel"
+  "Redimensionar painel Sem data": "Resize No date panel",
+  "Para reordenar sem arrastar, use Alt e as setas para cima e para baixo.": "To reorder without dragging, use Alt with the up and down arrows."
 }

@@ -22,6 +22,7 @@ import type { NamedDetails, ProjectPage, Section, TaskItem } from "@feito/core/t
 import { taskAncestors } from "@feito/core/domain/task-tree";
 import { refreshProjects, useApp } from "./app";
 import { PageHeader, PageTaskCount } from "./chrome";
+import { listenPointer, pointerY, useTouchScrollGuard } from "./drag-pointer";
 import { Collapse, flipFrom, motionMs } from "./motion";
 import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconMore, IconPlus, IconDownload, IconSub, IconTrash, IconUpload } from "./icons";
 import { useExportDialog, useImportDialog } from "./import-export-dialogs";
@@ -37,45 +38,6 @@ import { CalendarLayout } from "./project-calendar";
 import { TableLayout } from "./project-table";
 
 const GROUP = (sectionId: string | null) => `group:${sectionId ?? "none"}`;
-
-// Posição real do ponteiro durante o arraste (o delta da biblioteca inclui a rolagem automática).
-let lastPointerY: number | null = null;
-const trackPointer = (event: PointerEvent | TouchEvent) => {
-  lastPointerY = "touches" in event ? event.touches[0]?.clientY ?? lastPointerY : event.clientY;
-};
-
-function pointerY(event: DragMoveEvent) {
-  if (lastPointerY !== null) return lastPointerY;
-  const start = event.activatorEvent as MouseEvent & TouchEvent;
-  const y = "touches" in start && start.touches?.length ? start.touches[0].clientY : (start as MouseEvent).clientY;
-  return y + event.delta.y;
-}
-
-// Enquanto um arraste por toque está ativo, a rolagem nativa da página fica bloqueada.
-// O ouvinte é registrado antes do gesto (não passivo) para que o navegador aceite o preventDefault;
-// antes da ativação por toque prolongado, a rolagem continua normal.
-let dragActive = false;
-const blockScroll = (event: TouchEvent) => {
-  if (dragActive && event.cancelable) event.preventDefault();
-};
-
-function useTouchScrollGuard() {
-  useEffect(() => {
-    document.addEventListener("touchmove", blockScroll, { passive: false });
-    return () => {
-      document.removeEventListener("touchmove", blockScroll);
-      listenPointer(false);
-    };
-  }, []);
-}
-
-function listenPointer(on: boolean) {
-  dragActive = on;
-  const method = on ? "addEventListener" : "removeEventListener";
-  window[method]("pointermove", trackPointer as EventListener, { capture: true, passive: true } as AddEventListenerOptions);
-  window[method]("touchmove", trackPointer as EventListener, { capture: true, passive: true } as AddEventListenerOptions);
-  if (!on) lastPointerY = null;
-}
 
 const collision: CollisionDetection = (args) => {
   const hits = pointerWithin(args);

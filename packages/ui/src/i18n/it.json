@@ -968,5 +968,6 @@
   "Tarefas sem data": "Attività senza data",
   "{0}, sem horário": "{0}, senza orario",
   "{0}, {1} tarefas": "{0}, {1} attività",
-  "Redimensionar painel Sem data": "Ridimensiona pannello Senza data"
+  "Redimensionar painel Sem data": "Ridimensiona pannello Senza data",
+  "Para reordenar sem arrastar, use Alt e as setas para cima e para baixo.": "Per riordinare senza trascinare, usa Alt e le frecce su e giù."
 }

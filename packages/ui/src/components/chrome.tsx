@@ -3,22 +3,25 @@ import { useT } from "./language";
 
 import { Link } from "../navigation";
 import { usePathname, useRouter } from "../navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTitlebar } from "./titlebar";
 import { api, ApiFailure, errorMessage } from "../client/api";
 import { tagColor } from "../client/colors";
 import { invalidate } from "../client/store";
-import type { Label, Navigation, ProjectSummary } from "@feito/core/types";
-import { PROJECT_SHORTCUT_KEYS, refreshProjects, useApp } from "./app";
+import type { Label, Navigation, OrderAnchor, ProjectSummary } from "@feito/core/types";
+import { moveInOrder, type OrderKind } from "../client/manual-order";
+import { isDragging, PROJECT_SHORTCUT_KEYS, refreshProjects, useApp } from "./app";
 import {
-  IconArchive, IconBrowse, IconCheckCircle, IconChevronLeft, IconChevronRight, IconEdit, IconGear, IconInbox, IconMore, IconPlus,
+  IconArchive, IconArrowDown, IconArrowUp, IconBrowse, IconCheckCircle, IconChevronLeft, IconChevronRight, IconEdit, IconGear, IconInbox, IconMore, IconPlus,
   IconSearch, IconTag, IconToday, IconTrash, IconUpcoming, IconUpload, IconDownload,
 } from "./icons";
 import { ProjectGlyph } from "./project-style";
 import { useExportDialog, useImportDialog } from "./import-export-dialogs";
 import { useProjectDetailsDialog } from "./named-details";
 import { useLabelMenu } from "./label-actions";
+import { useFlip } from "./motion";
+import { ReorderList, type ReorderHandle } from "./reorder";
 import { MenuButton, useContextMenu, useToast, type MenuItem } from "./ui";
 import { SidebarName, useSidebarResize } from "./sidebar-resize";
 
@@ -29,6 +32,36 @@ export function PageTaskCount({ count, more = false }: { count: number; more?: b
       <IconCheckCircle />{count}{more ? "+" : ""} {count === 1 && !more ? t("tarefa") : t("tarefas")}
     </span>
   );
+}
+
+const refreshOrder = (key: string) => key === "nav" || key === "labels";
+
+/** Reordena projetos ou etiquetas com atualização otimista; a barra lateral e a aba Navegar usam a mesma ordem. */
+function useManualOrder() {
+  const app = useApp();
+  return (kind: OrderKind) => (item: { id: string }, anchor: OrderAnchor, order: string[]) => {
+    const send = kind === "projects"
+      ? () => api.projects.move(item.id, anchor).then((result) => result.projectIds)
+      : () => api.labels.move(item.id, anchor).then((result) => result.labelIds);
+    void app.run(() => moveInOrder(kind, order, send), { revalidate: refreshOrder });
+  };
+}
+
+/** Itens “Mover para cima/baixo” do menu de ações: alternativa ao arraste. */
+function orderMenu<T extends { id: string }>(
+  t: ReturnType<typeof useT>, items: readonly T[], item: T, onMove: (item: T, anchor: OrderAnchor, order: string[]) => void,
+): MenuItem[] {
+  const index = items.findIndex((candidate) => candidate.id === item.id);
+  const others = items.filter((candidate) => candidate.id !== item.id).map((candidate) => candidate.id);
+  const moveTo = (target: number) => {
+    const order = [...others];
+    order.splice(target, 0, item.id);
+    onMove(item, target > 0 ? { afterId: others[target - 1] } : { beforeId: others[0] }, order);
+  };
+  return [
+    { label: t("Mover para cima"), icon: <IconArrowUp />, disabled: index <= 0, onSelect: () => moveTo(index - 1) },
+    { label: t("Mover para baixo"), icon: <IconArrowDown />, disabled: index < 0 || index >= items.length - 1, onSelect: () => moveTo(index + 1) },
+  ];
 }
 
 function NavLink({ href, icon, label, count, active }: { href: string; icon: ReactNode; label: string; count?: number; active: boolean }) {
@@ -47,6 +80,11 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
   const is = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
   const projectDetails = useProjectDetailsDialog();
   const { sidebar, handle } = useSidebarResize();
+  const manualOrder = useManualOrder();
+  const moveProject = manualOrder("projects");
+  const moveLabel = manualOrder("labels");
+  const instructions = t("Para reordenar sem arrastar, use Alt e as setas para cima e para baixo.");
+  useFlip(sidebar, { paused: isDragging });
 
   return (
     <><nav ref={sidebar} className="side" aria-label={t("Navegação principal")}>
@@ -64,10 +102,15 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
           <IconPlus className="sm" />
         </button>
       </div>
-      {nav?.projects.map((project, index) => (
-        <ProjectRow key={project.id} project={project} active={is(`/projetos/${project.id}`)} shortcut={PROJECT_SHORTCUT_KEYS[index]}
-          onEdit={() => projectDetails.edit(project)} />
-      ))}
+      {nav && (
+        <ReorderList items={nav.projects} onMove={moveProject} instructions={instructions}
+          renderItem={(project, reorder) => (
+            <ProjectRow project={project} active={is(`/projetos/${project.id}`)} reorder={reorder}
+              shortcut={PROJECT_SHORTCUT_KEYS[nav.projects.indexOf(project)]}
+              onEdit={() => projectDetails.edit(project)} orderMenu={() => orderMenu(t, nav.projects, project, moveProject)} />
+          )}
+          renderOverlay={(project) => <ProjectRow project={project} active={false} onEdit={() => {}} orderMenu={() => []} />} />
+      )}
       {nav && !nav.projects.length && <p className="hint" style={{ padding: "2px 10px 6px" }}>{t("Crie seu primeiro projeto com o +.")}</p>}
       {!!nav?.archivedCount && (
         <Link href="/ajustes#arquivados" className="nav" style={{ color: "var(--muted)" }}>
@@ -75,9 +118,14 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
         </Link>
       )}
       {!!nav?.labels.length && <div className="nav-label">{t("Etiquetas")}</div>}
-      {nav?.labels.map((label) => (
-        <LabelRow key={label.id} label={label} active={is(`/etiquetas/${label.id}`)} />
-      ))}
+      {nav && (
+        <ReorderList items={nav.labels} onMove={moveLabel} instructions={instructions}
+          renderItem={(label, reorder) => (
+            <LabelRow label={label} active={is(`/etiquetas/${label.id}`)} reorder={reorder}
+              orderMenu={() => orderMenu(t, nav.labels, label, moveLabel)} />
+          )}
+          renderOverlay={(label) => <LabelRow label={label} active={false} orderMenu={() => []} />} />
+      )}
       <div className="side-foot">
         <NavLink href="/ajustes" icon={<IconGear />} label={t("Ajustes")} active={is("/ajustes")} />
       </div>
@@ -90,14 +138,37 @@ function ProjectShortcut({ keyNumber }: { keyNumber: string }) {
   return <kbd className="kbd project-shortcut" aria-hidden="true">^{keyNumber}</kbd>;
 }
 
-function LabelRow({ label, active }: { label: Label; active: boolean }) {
+/** Propriedades da linha reordenável da barra lateral, com o menu de contexto do app. */
+function rowProps(reorder: ReorderHandle | undefined, onContextMenu?: (event: MouseEvent<HTMLElement>) => void) {
+  if (!reorder) return { onContextMenu };
+  return {
+    ...reorder.props,
+    ref: reorder.ref,
+    onContextMenu: (event: MouseEvent<HTMLElement>) => {
+      // Durante o arraste por toque prolongado, nenhum menu abre.
+      if (isDragging()) reorder.props.onContextMenu(event);
+      else onContextMenu?.(event);
+    },
+  };
+}
+
+function LabelRow({ label, active, reorder, orderMenu }: {
+  label: Label; active: boolean; reorder?: ReorderHandle; orderMenu: () => MenuItem[];
+}) {
   const t = useT();
   const contextMenu = useContextMenu();
-  const menu = useLabelMenu(label, active);
+  const labelMenu = useLabelMenu(label, active);
+  const menu = (): MenuItem[] => {
+    const [rename, ...rest] = labelMenu();
+    const order = orderMenu();
+    return order.length ? [rename, ...order, ...rest] : [rename, ...rest];
+  };
 
   return (
-    <div className={`nav proj-row${active ? " on" : ""}`} onContextMenu={contextMenu.onContextMenu}>
-      <Link href={`/etiquetas/${label.id}`} className="proj-link" aria-current={active ? "page" : undefined}>
+    <div className={`nav proj-row${active ? " on" : ""}${reorder?.dragging ? " drag-src" : ""}`}
+      {...rowProps(reorder, contextMenu.onContextMenu)}>
+      <Link href={`/etiquetas/${label.id}`} className="proj-link" aria-current={active ? "page" : undefined} draggable={false}
+        aria-keyshortcuts={reorder ? "Alt+ArrowUp Alt+ArrowDown" : undefined}>
         <IconTag style={{ color: tagColor(label.id) }} /><SidebarName>{label.name}</SidebarName>
       </Link>
       {label.activeCount ? <span className="count">{label.activeCount}</span> : null}
@@ -108,7 +179,9 @@ function LabelRow({ label, active }: { label: Label; active: boolean }) {
   );
 }
 
-function ProjectRow({ project, active, shortcut, onEdit }: { project: ProjectSummary; active: boolean; shortcut?: string; onEdit: () => void }) {
+function ProjectRow({ project, active, shortcut, onEdit, reorder, orderMenu }: {
+  project: ProjectSummary; active: boolean; shortcut?: string; onEdit: () => void; reorder?: ReorderHandle; orderMenu: () => MenuItem[];
+}) {
   const t = useT();
   const app = useApp();
   const contextMenu = useContextMenu();
@@ -119,6 +192,7 @@ function ProjectRow({ project, active, shortcut, onEdit }: { project: ProjectSum
 
   const menu = (): MenuItem[] => [
     { label: t("Editar projeto"), icon: <IconEdit />, onSelect: onEdit },
+    ...orderMenu(),
     ...(app.browserTools ? [
       { label: t("Importar…"), icon: <IconUpload />, onSelect: () => openImport({ id: project.id, name: project.name }) },
       { label: t("Exportar…"), icon: <IconDownload />, onSelect: () => openExport({ id: project.id, name: project.name, activeCount: project.activeCount }) },
@@ -152,9 +226,10 @@ function ProjectRow({ project, active, shortcut, onEdit }: { project: ProjectSum
   ];
 
   return (
-    <div className={`nav proj-row${active ? " on" : ""}`} onContextMenu={contextMenu.onContextMenu}>
-      <Link href={`/projetos/${project.id}`} className="proj-link" aria-current={active ? "page" : undefined}
-        aria-keyshortcuts={shortcut && `Control+${shortcut}`}>
+    <div className={`nav proj-row${active ? " on" : ""}${reorder?.dragging ? " drag-src" : ""}`}
+      {...rowProps(reorder, contextMenu.onContextMenu)}>
+      <Link href={`/projetos/${project.id}`} className="proj-link" aria-current={active ? "page" : undefined} draggable={false}
+        aria-keyshortcuts={[shortcut && `Control+${shortcut}`, reorder && "Alt+ArrowUp Alt+ArrowDown"].filter(Boolean).join(" ") || undefined}>
         <ProjectGlyph id={project.id} /><SidebarName>{project.name}</SidebarName>
       </Link>
       {app.showProjectShortcuts && shortcut ? <ProjectShortcut keyNumber={shortcut} />
@@ -192,11 +267,14 @@ export function MobileChrome() {
   );
 }
 
-function BrowseRow({ href, icon, label, count, shortcut }: { href: string; icon: ReactNode; label: string; count?: number; shortcut?: string }) {
+function BrowseRow({ href, icon, label, count, shortcut, reorder }: {
+  href: string; icon: ReactNode; label: string; count?: number; shortcut?: string; reorder?: ReorderHandle;
+}) {
   const { showProjectShortcuts } = useApp();
   return (
-    <li>
-      <Link href={href} className="b-row" aria-keyshortcuts={shortcut && `Control+${shortcut}`}>
+    <li ref={reorder?.ref} {...reorder?.props} className={reorder?.dragging ? "drag-src" : undefined}>
+      <Link href={href} className="b-row" draggable={reorder ? false : undefined}
+        aria-keyshortcuts={[shortcut && `Control+${shortcut}`, reorder && "Alt+ArrowUp Alt+ArrowDown"].filter(Boolean).join(" ") || undefined}>
         <span className="b-ico">{icon}</span>
         <span className="b-name">{label}</span>
         {showProjectShortcuts && shortcut ? <ProjectShortcut keyNumber={shortcut} />
@@ -213,6 +291,8 @@ export function BrowsePanel() {
   const app = useApp();
   const nav = app.nav;
   const projectDetails = useProjectDetailsDialog();
+  const manualOrder = useManualOrder();
+  const instructions = t("Para reordenar sem arrastar, use Alt e as setas para cima e para baixo.");
   return (
     <div className="browse">
       <ul className="b-group" aria-label={t("Atalhos")}>
@@ -225,10 +305,17 @@ export function BrowsePanel() {
         <button type="button" className="icon-btn" onClick={projectDetails.create} aria-label={t("Novo projeto")}><IconPlus /></button>
       </div>
       <ul className="b-group" aria-labelledby="b-projetos">
-        {nav?.projects.map((project, index) => (
-          <BrowseRow key={project.id} href={`/projetos/${project.id}`} icon={<ProjectGlyph id={project.id} />} label={project.name}
-            count={project.activeCount} shortcut={PROJECT_SHORTCUT_KEYS[index]} />
-        ))}
+        {nav && (
+          <ReorderList items={nav.projects} onMove={manualOrder("projects")} instructions={instructions}
+            renderItem={(project, reorder) => (
+              <BrowseRow href={`/projetos/${project.id}`} icon={<ProjectGlyph id={project.id} />} label={project.name}
+                count={project.activeCount} shortcut={PROJECT_SHORTCUT_KEYS[nav.projects.indexOf(project)]} reorder={reorder} />
+            )}
+            renderOverlay={(project) => (
+              <ul className="b-group"><BrowseRow href={`/projetos/${project.id}`} icon={<ProjectGlyph id={project.id} />}
+                label={project.name} count={project.activeCount} /></ul>
+            )} />
+        )}
         {nav && !nav.projects.length && (
           <li><button type="button" className="b-row" onClick={projectDetails.create}>
             <span className="b-ico"><IconPlus /></span><span className="b-name" style={{ color: "var(--muted)" }}>{t("Criar o primeiro projeto")}</span>
@@ -244,9 +331,15 @@ export function BrowsePanel() {
         <>
           <div className="b-head"><h2 id="b-etiquetas">{t("Etiquetas")}</h2></div>
           <ul className="b-group" aria-labelledby="b-etiquetas">
-            {nav.labels.map((label) => (
-              <BrowseRow key={label.id} href={`/etiquetas/${label.id}`} icon={<IconTag style={{ color: tagColor(label.id) }} />} label={label.name} count={label.activeCount} />
-            ))}
+            <ReorderList items={nav.labels} onMove={manualOrder("labels")} instructions={instructions}
+              renderItem={(label, reorder) => (
+                <BrowseRow href={`/etiquetas/${label.id}`} icon={<IconTag style={{ color: tagColor(label.id) }} />} label={label.name}
+                  count={label.activeCount} reorder={reorder} />
+              )}
+              renderOverlay={(label) => (
+                <ul className="b-group"><BrowseRow href={`/etiquetas/${label.id}`} icon={<IconTag style={{ color: tagColor(label.id) }} />}
+                  label={label.name} count={label.activeCount} /></ul>
+              )} />
           </ul>
         </>
       )}
