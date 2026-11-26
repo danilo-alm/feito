@@ -52,6 +52,8 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
   const [manualLink, setManualLink] = useState<string | null>(null);
   const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
   const titleRef = useRef<HTMLInputElement>(null);
+  // O título também recebe foco sozinho; só um clique ou uma digitação contam como edição em andamento.
+  const editingTitle = useRef(false);
   const focusTask = useRef<string | null>(null);
   const currentTaskId = useRef(taskId);
   currentTaskId.current = taskId;
@@ -183,8 +185,21 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
                 <label htmlFor="detail-title" className="sr-only">{t("Título")}</label>
                 <input id="detail-title" ref={titleRef} className="title-input" value={title} readOnly={completed} maxLength={500}
-                  onChange={(event) => updateText("title", event.target.value)} onBlur={() => commitText("title")}
-                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} />
+                  onPointerDown={() => { editingTitle.current = true; }}
+                  onChange={(event) => { editingTitle.current = true; updateText("title", event.target.value); }}
+                  onBlur={(event) => {
+                    // Trocar de janela dispara blur, mas o cursor continua no campo.
+                    if (document.activeElement !== event.currentTarget) editingTitle.current = false;
+                    commitText("title");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+                    if (event.key !== "Escape" || !editingTitle.current || completed) return;
+                    // Esc salva e sai do campo; o diálogo só fecha no Esc seguinte.
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (!event.nativeEvent.isComposing) event.currentTarget.closest<HTMLElement>('[role="dialog"]')?.focus();
+                  }} />
                 <TaskDescription key={task.id} defaultPreview toolbar id="detail-desc" className="desc-input" value={description} readOnly={completed} rows={1}
                   placeholder={t("Descrição")} maxLength={10_000} style={{ color: description ? "var(--text)" : undefined }}
                   onValueChange={(value) => updateText("description", value)} onCommit={() => commitText("description")} />

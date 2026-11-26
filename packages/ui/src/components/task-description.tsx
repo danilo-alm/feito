@@ -30,6 +30,8 @@ export function TaskDescription({ value, defaultPreview = false, toolbar = false
   const id = props.id ?? generatedId;
   const [preview, setPreview] = useState(defaultPreview && !!value);
   const focusEditor = useRef(false);
+  const focusPreview = useRef(false);
+  const previewNode = useRef<HTMLDivElement>(null);
   const editor = useRef<HTMLTextAreaElement | null>(null);
   const input = useAutoGrow(value);
   const showingPreview = readOnly || preview;
@@ -105,8 +107,23 @@ export function TaskDescription({ value, defaultPreview = false, toolbar = false
     }
   }, [showingPreview, input]);
 
+  useEffect(() => {
+    if (showingPreview && focusPreview.current) {
+      previewNode.current?.focus();
+      focusPreview.current = false;
+    }
+  }, [showingPreview]);
+
   return (
-    <div className="task-description" onFocus={() => { previewPending.current = false; }} onBlur={(event) => {
+    <div className="task-description" onFocus={() => { previewPending.current = false; }} onKeyDown={(event) => {
+      // Onde a edição é salva ao sair, Esc salva e volta à prévia sem fechar o diálogo em volta.
+      if (event.key !== "Escape" || !onCommit || showingPreview) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.nativeEvent.isComposing) return;
+      focusPreview.current = true;
+      (event.target as HTMLElement).blur();
+    }} onBlur={(event) => {
       if (event.currentTarget.contains(event.relatedTarget)) return;
       if (!showingPreview) {
         onCommit?.();
@@ -115,7 +132,7 @@ export function TaskDescription({ value, defaultPreview = false, toolbar = false
         else setPreview(true);
       }
     }}>
-      {showingPreview ? <div role="region" aria-label={t("Descrição")}
+      {showingPreview ? <div ref={previewNode} role="region" aria-label={t("Descrição")}
         className={readOnly ? undefined : "task-description-preview"} tabIndex={readOnly ? undefined : 0}
         onClick={(event) => {
           if (readOnly || (event.target as HTMLElement).closest("a") || !window.getSelection()?.isCollapsed) return;

@@ -42,7 +42,8 @@ function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean, initi
       const items = [...node.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((item) => item.offsetParent !== null);
       if (!items.length) return;
       const [head, tail] = [items[0], items[items.length - 1]];
-      if (event.shiftKey && document.activeElement === head) {
+      // O próprio diálogo recebe o foco quando o Esc sai de um campo: Shift+Tab não pode escapar dele.
+      if (event.shiftKey && (document.activeElement === head || document.activeElement === node)) {
         event.preventDefault();
         tail.focus();
       } else if (!event.shiftKey && document.activeElement === tail) {
@@ -113,6 +114,7 @@ export function Dialog({
         style={view.width ? { width: `min(${view.width}px, 100%)` } : undefined}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-label={view.labelledBy ? undefined : view.title}
         aria-labelledby={view.labelledBy}
       >

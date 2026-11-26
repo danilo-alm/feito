@@ -438,6 +438,7 @@ html:has(>body>.dialog-wrap:not([data-state=exiting])){overflow:hidden}
 .dialog-wrap .scrim{position:fixed;touch-action:none}
 .dialog{position:relative;z-index:51;width:min(560px,100%);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column}
 .dialog.wide{width:min(840px,100%)}
+.dialog:focus{outline:none}
 .dialog-h{display:flex;align-items:center;gap:8px;padding:12px 12px 12px 22px;border-bottom:1px solid var(--border)}
 .dialog-h h2{font-size:16px;font-weight:700;flex:1}
 .task-detail-head{padding:8px 8px 8px 22px}

@@ -109,6 +109,7 @@ function Painel({ open, children }: { open: boolean; children: ReactNode }) {
 - **Movimento reduzido:** com `prefers-reduced-motion: reduce`, nenhuma animação roda. O CSS desliga transições e animações; `motionMs` devolve 0, então a presença desmonta na hora e o `useFlip` não anima. Nada depende de `transitionend`.
 - **Foco:** o focus trap do diálogo vale desde a entrada. Ao fechar, o foco volta para quem abriu (ou sai do diálogo, se quem abriu era o `body`) já no início da saída. O `Popover` posiciona o nó no DOM antes do foco inicial, porque um nó com `visibility: hidden` não recebe foco.
 - **Esc, clique fora, pilha de diálogos e setas nos menus** são registrados enquanto `open` é verdadeiro, não enquanto o nó existe: o que está saindo não reage a nada.
+- **Esc durante a edição:** num campo que salva ao sair (título e descrição do detalhe da tarefa), o primeiro Esc salva e sai do campo, sem fechar o diálogo; o seguinte fecha. O campo trata o Esc e chama `stopPropagation`. Um campo que só recebeu o foco automático, sem clique nem digitação, não segura o Esc.
 - **Interrupções:** abrir e fechar rápido ou reabrir durante a saída não cria nó duplicado nem estado preso. Coberto por `tests/unit/presence.test.ts` e `tests/e2e/motion.spec.ts`.
 - **Sem layout shift:** sobreposições são `position: fixed`; banners presentes na carga não animam (`appear: false`); a borda da barra móvel existe sempre, transparente, e só muda de cor.
 - Não há bloqueio de rolagem nos diálogos hoje. Se for criado, deve ser liberado no início da saída, não no desmonte.
