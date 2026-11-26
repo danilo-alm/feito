@@ -157,6 +157,23 @@ html.dark {
   display: none;
 }
 
+/* Com espaço de sobra, Compartilhar e Mostrar levam o nome ao lado do ícone. */
+@media (min-width: 1100px) {
+  .tb .tb-tools-wide .tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    padding: 0 10px 0 8px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .tb .tb-tools-wide .tool-label {
+    display: inline;
+  }
+}
+
 /* Hover e pressão com transição mais longa: o fundo entra devagar. */
 .tb :is(.tb-btn, .icon-btn, .btn, .tb-win, .tb-dot) {
   transition: background-color var(--dur-slow) var(--ease-out), color var(--dur-slow) var(--ease-out), border-color var(--dur-slow) var(--ease-out);
