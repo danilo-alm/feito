@@ -157,8 +157,12 @@ h1,h2,h3,p{margin:0}
 .ring svg{width:12px;height:12px;stroke-width:3;opacity:0}
 /* Revela o traço do check ao longo do caminho, sem mover a bolinha. */
 .chk .ring path{stroke-dasharray:1 1;stroke-dashoffset:1;transition:stroke-dashoffset var(--dur-base) var(--ease-in-out)}
-.chk:hover .ring svg,.chk.hov .ring svg{opacity:.7}
-.chk:hover .ring path,.chk.hov .ring path{stroke-dashoffset:0;transition-duration:var(--dur-slow)}
+@media (hover:hover){
+  .chk:hover .ring svg{opacity:.7}
+  .chk:hover .ring path{stroke-dashoffset:0;transition-duration:var(--dur-slow)}
+}
+.chk.hov .ring svg{opacity:.7}
+.chk.hov .ring path{stroke-dashoffset:0;transition-duration:var(--dur-slow)}
 .chk.done .ring{background:var(--pc);color:var(--surface)}
 .chk.done .ring svg{opacity:1}
 .chk.done .ring path{stroke-dashoffset:0}
@@ -207,6 +211,16 @@ button.t-origin:hover{background:var(--hover)}
      e os botões mantêm a largura enquanto a área abre; o anel de foco vai para dentro para não ser cortado. */
   .task:has(.t-origin) .t-acts>*{flex:none}
   .task:has(.t-origin) .t-acts :focus-visible{outline-offset:-2px}
+}
+/* Toque, em celulares e tablets: nada na tarefa pode aparecer por hover, senão o iPad gasta o primeiro toque
+   só marcando a tarefa e mostrando as ações. Como no celular, o menu ⋯ fica sempre à direita. */
+@media (hover:none),(pointer:coarse){
+  .grip{display:none}
+  .t-acts{opacity:1}
+  .t-acts .desktop-only{display:none}
+  .t-acts .icon-btn{min-height:40px}
+  .task:has(.t-origin) .t-acts,.task:has(.t-origin):hover .t-acts,.task:has(.t-origin):focus-within .t-acts{
+    max-width:none;margin-inline-start:0;overflow:visible}
 }
 .add-task{display:flex;align-items:center;gap:10px;height:40px;padding:0 4px;color:var(--muted);font-size:14px;border:0;background:none;width:100%;text-align:left}
 .add-task .plus{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:var(--brand-text)}
