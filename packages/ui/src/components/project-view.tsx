@@ -31,7 +31,7 @@ import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
 import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
 import { Dialog, MenuButton, ReadFallback, useAutoGrow, useContextMenu, useIsMobile, useToast, type MenuItem } from "./ui";
 import { ShareMenu, useProjectShare, type ProjectSharing } from "./share-menu";
-import { LAYOUT_LABEL, SORT_LABEL, ViewMenu } from "./view-menu";
+import { SORT_LABEL, ViewMenu } from "./view-menu";
 import { CalendarLayout } from "./project-calendar";
 import { TableLayout } from "./project-table";
 
@@ -185,9 +185,9 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     query.mutate((current) => current && { ...current, project: { ...current.project, view: { ...current.project.view, ...patch } } });
     await app.run(() => api.projects.setView(projectId, patch), {
       revalidate: (cached) => cached === key,
-      success: patch.layout ? t("{0} — mesma organização do projeto", [t(LAYOUT_LABEL[patch.layout])])
-        : patch.sortMode ? (patch.sortMode === "manual" ? t("Ordem manual recuperada") : t("Ordenado por {0}", [inSentence(t(SORT_LABEL[patch.sortMode]))]))
-          : undefined,
+      // A troca de layout já é visível na tela: só a ordenação avisa.
+      success: patch.sortMode ? (patch.sortMode === "manual" ? t("Ordem manual recuperada") : t("Ordenado por {0}", [inSentence(t(SORT_LABEL[patch.sortMode]))]))
+        : undefined,
     });
   };
 
