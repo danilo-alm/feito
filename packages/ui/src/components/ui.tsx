@@ -186,16 +186,24 @@ export function Popover({
       const { offsetWidth: boxWidth, offsetHeight: boxHeight } = node;
       const margin = 8;
       const gap = 6;
+      // O teclado na tela encolhe só a área visível (visualViewport); a janela continua com a altura inteira.
+      // Com zoom de pinça a área visível é um recorte da página, e o popover segue a janela.
+      const view = window.visualViewport;
+      const visible = view && view.scale <= 1.01 ? view : null;
+      const minTop = (visible?.offsetTop ?? 0) + margin;
+      const maxBottom = (visible ? visible.offsetTop + visible.height : window.innerHeight) - margin;
       let left = align === "end" ? rect.right - boxWidth : rect.left;
       left = Math.max(margin, Math.min(left, window.innerWidth - boxWidth - margin));
       // Abre abaixo da âncora; senão acima; senão no lado com mais espaço, sem cobrir a âncora.
-      const below = window.innerHeight - margin - (rect.bottom + gap);
-      const over = rect.top - gap - margin;
+      // A âncora pode estar atrás do teclado: cada lado conta apenas o trecho visível.
+      const below = maxBottom - Math.max(minTop, rect.bottom + gap);
+      const over = Math.min(maxBottom, rect.top - gap) - minTop;
       const above = boxHeight > below && (boxHeight <= over || over > below);
       const room = above ? over : below;
-      if (boxHeight > room) node.style.setProperty("--pop-max", `${Math.floor(room)}px`);
       const height = Math.min(boxHeight, room);
-      const top = above ? Math.max(margin, rect.top - gap - height) : rect.bottom + gap;
+      const top = Math.max(minTop, Math.min(above ? rect.top - gap - height : rect.bottom + gap, maxBottom - height));
+      // Também limita o que crescer depois de posicionado (ex.: etiqueta recém-criada), para não passar da área visível.
+      node.style.setProperty("--pop-max", `${Math.floor(boxHeight > room ? room : maxBottom - top)}px`);
       // A escala parte do lado da âncora, inclusive quando o popover vira para cima.
       const placed = { top, left, width, transformOrigin: `${align === "end" ? "right" : "left"} ${above ? "bottom" : "top"}` };
       // Aplica já no DOM: o foco inicial (efeito seguinte) falha num nó ainda com visibility:hidden.
@@ -207,11 +215,16 @@ export function Popover({
       if (event.target === window || (event.target instanceof Node && event.target.contains(anchor))) place();
     };
     place();
+    const view = window.visualViewport;
     window.addEventListener("resize", place);
     window.addEventListener("scroll", onScroll, true);
+    view?.addEventListener("resize", place);
+    view?.addEventListener("scroll", place);
     return () => {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", onScroll, true);
+      view?.removeEventListener("resize", place);
+      view?.removeEventListener("scroll", place);
     };
   }, [open, mounted, anchor, point, align, width]);
 

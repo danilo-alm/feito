@@ -126,12 +126,12 @@ export function LabelPicker({ selected, onChange }: { selected: string[]; onChan
     }
   };
   return (
-    <div style={{ padding: 8, width: 260, display: "flex", flexDirection: "column", gap: 6 }}>
+    <div className="label-pop">
       <label className="sr-only" htmlFor={id}>{t("Buscar ou criar etiqueta")}</label>
       <input id={id} className="inline-input" placeholder={t("Buscar ou criar etiqueta")} value={text} data-autofocus
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); if (!exact) void create(); } }} />
-      <div className="menu" style={{ padding: 0, minWidth: 0, maxHeight: 240, overflow: "auto" }} role="listbox" aria-multiselectable="true" aria-label={t("Etiquetas")}>
+      <div className="menu label-list" role="listbox" aria-multiselectable="true" aria-label={t("Etiquetas")}>
         {visible.map((label) => (
           <button key={label.id} type="button" role="option" aria-selected={selected.includes(label.id)} className="mi"
             onClick={() => toggle(label.id)}>
