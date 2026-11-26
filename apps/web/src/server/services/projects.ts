@@ -9,7 +9,7 @@ import { allocateId } from "./product-id";
 
 export const {
   getNavigation, listProjects, createProject, editProject, updateProjectView, setProjectArchived,
-  deleteProject, createSection, editSection, moveSection, deleteSection,
+  moveProject, deleteProject, createSection, editSection, moveSection, deleteSection,
 } = createProjectsService<ProductAccess>({
   allocateId,
   mutateProduct,

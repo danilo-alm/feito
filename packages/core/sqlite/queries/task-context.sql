@@ -29,11 +29,11 @@ SELECT json_object(
     ),
     'projects', json_array(json_object(
         'id', project.id, 'revision', project.revision, 'isInbox', json(IIF(project.is_inbox, 'true', 'false')),
-        'data', json_object(
+        'data', json_patch(json_object(
             'name', project.name, 'defaultSectionName', project.default_section_name,
             'description', project.description, 'color', project.color, 'icon', project.icon,
             'archived', json(IIF(project.archived, 'true', 'false')), 'view', json(project.view), 'createdAt', project.created_at
-        )
+        ), json_object('position', project.position))
     )),
     'sections', json((
         SELECT json_group_array(json_object(
@@ -58,7 +58,7 @@ SELECT json_object(
     )),
     'labels', json((
         SELECT json_group_array(json_object(
-            'id', label.id, 'revision', label.revision, 'data', json_object('name', label.name)
+            'id', label.id, 'revision', label.revision, 'data', json_patch(json_object('name', label.name), json_object('position', label.position))
         ))
         FROM labels AS label
         WHERE label.space_id = ?1 AND label.layer = ?2 AND label.id IN (SELECT label_id FROM links)

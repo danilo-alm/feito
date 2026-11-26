@@ -85,6 +85,39 @@ describe("projects and navigation", () => {
   });
 });
 
+describe("manual order of projects and labels", () => {
+  it("moves projects and labels, keeps the order across reads and isolates accounts", async () => {
+    const call = await accountFixture();
+    const other = await accountFixture();
+    const [a, b, c] = [await newProject(call, "A"), await newProject(call, "B"), await newProject(call, "C")];
+    const ids = async () => (await nav(call)).projects.map(({ id }) => id);
+    expect(await ids()).toEqual([a.id, b.id, c.id]);
+
+    expect(await payload(await call("POST", `/projects/${c.id}/move`, { beforeId: a.id }))).toEqual({ projectIds: [c.id, a.id, b.id] });
+    expect(await ids()).toEqual([c.id, a.id, b.id]);
+    expect((await payload<{ projects: Resource[] }>(await call("GET", "/projects"))).projects.map(({ id }) => id))
+      .toEqual([c.id, a.id, b.id]);
+    const d = await newProject(call, "D");
+    expect(await ids()).toEqual([c.id, a.id, b.id, d.id]);
+
+    const inboxId = (await nav(call)).inbox.projectId;
+    await failure(await call("POST", `/projects/${inboxId}/move`, {}), 422, "INBOX_PROTECTED");
+    await failure(await call("POST", `/projects/${a.id}/move`, { beforeId: inboxId }), 422, "INVALID_ANCHOR");
+    await failure(await call("POST", `/projects/${a.id}/move`, { beforeId: b.id, afterId: c.id }), 422, "VALIDATION_FAILED");
+    await failure(await call("POST", `/projects/${a.id}/move`, {}, { headers: { Origin: "https://other.example.test" } }), 403, "FORBIDDEN_ORIGIN");
+    await failure(await other("POST", `/projects/${a.id}/move`, {}), 404, "NOT_FOUND");
+    expect(await ids()).toEqual([c.id, a.id, b.id, d.id]);
+
+    const [casa, rua] = [await newLabel(call, "casa"), await newLabel(call, "rua")];
+    expect(await payload(await call("POST", `/labels/${rua.id}/move`, { beforeId: casa.id }))).toEqual({ labelIds: [rua.id, casa.id] });
+    const current = (await nav(call)).labels.find(({ id }) => id === casa.id)!;
+    await payload(await call("PATCH", `/labels/${casa.id}`, { revision: current.revision, name: "lar" }));
+    expect((await nav(call)).labels.map(({ name }) => name)).toEqual(["rua", "lar"]);
+    expect((await payload<{ labels: Resource[] }>(await call("GET", "/labels"))).labels.map(({ id }) => id)).toEqual([rua.id, casa.id]);
+    await failure(await other("POST", `/labels/${rua.id}/move`, {}), 404, "NOT_FOUND");
+  });
+});
+
 describe("sections and task movement", () => {
   it("moves a subtask and its descendants as a root, without detaching it on failure", async () => {
     const call = await accountFixture();

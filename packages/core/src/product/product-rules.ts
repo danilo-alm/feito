@@ -1,6 +1,7 @@
 import type { Product, Project, Task } from "../domain/product";
 import { isActive } from "../domain/product";
 import { ApiError, notFound } from "./errors";
+import type { OrderAnchor } from "../types";
 
 export function visibleRecord<T>(records: Map<string, T>, id: string) {
   const record = records.get(id);
@@ -52,4 +53,26 @@ export function labelSelection(product: Product, labelIds: string[]) {
 
 export function nextRevision<T extends { id: string; revision: number }>(original: Map<string, T>, record: T): T {
   return { ...record, revision: (original.get(record.id)?.revision ?? 0) + 1 };
+}
+
+/**
+ * Places `moved` among `siblings` (already ordered, without `moved`) and renumbers the positions.
+ * Records whose position does not change keep their revision.
+ */
+export function placeInOrder<T extends { id: string; revision: number; data: { position?: number } }>(
+  siblings: T[], moved: T, anchor: OrderAnchor, original: Map<string, T>, write: (record: T) => void,
+) {
+  const ordered = siblings.filter((sibling) => sibling.id !== moved.id);
+  const anchorId = anchor.afterId ?? anchor.beforeId;
+  let index = ordered.length;
+  if (anchorId) {
+    const at = ordered.findIndex((sibling) => sibling.id === anchorId);
+    if (at < 0) throw new ApiError(422, "INVALID_ANCHOR", "Escolha outro item da mesma lista.");
+    index = at + Number(Boolean(anchor.afterId));
+  }
+  ordered.splice(index, 0, moved);
+  for (const [position, record] of ordered.entries()) {
+    if (record.data.position !== position) write(nextRevision(original, { ...record, data: { ...record.data, position } }));
+  }
+  return ordered.map((record) => record.id);
 }

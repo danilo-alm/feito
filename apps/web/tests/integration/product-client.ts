@@ -9,12 +9,14 @@ import * as labels from "@/app/api/v1/labels/route";
 import * as desktopSync from "@/app/api/v1/desktop-sync/route";
 import * as label from "@/app/api/v1/labels/[id]/route";
 import * as labelTasks from "@/app/api/v1/labels/[id]/tasks/route";
+import * as moveLabelRoute from "@/app/api/v1/labels/[id]/move/route";
 import * as navigation from "@/app/api/v1/navigation/route";
 import * as projects from "@/app/api/v1/projects/route";
 import * as project from "@/app/api/v1/projects/[id]/route";
 import * as archive from "@/app/api/v1/projects/[id]/archive/route";
 import * as unarchive from "@/app/api/v1/projects/[id]/unarchive/route";
 import * as projectView from "@/app/api/v1/projects/[id]/view/route";
+import * as moveProjectRoute from "@/app/api/v1/projects/[id]/move/route";
 import * as projectExport from "@/app/api/v1/projects/[id]/export/route";
 import * as projectShare from "@/app/api/v1/projects/[id]/share/route";
 import * as publicProject from "@/app/api/v1/public/projects/[token]/route";
@@ -66,6 +68,7 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "/projects/:id/archive": archive,
   "/projects/:id/unarchive": unarchive,
   "/projects/:id/view": projectView,
+  "/projects/:id/move": moveProjectRoute,
   "/projects/:id/export": projectExport,
   "/projects/:id/share": projectShare,
   "/projects/:id/sections": createSectionRoute,
@@ -80,6 +83,7 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "/tasks/:id/move": move,
   "/labels": labels,
   "/labels/:id": label,
+  "/labels/:id/move": moveLabelRoute,
   "/labels/:id/tasks": labelTasks,
   "/tasks/:id/recurrence": recurrence,
   "/views/today": today,

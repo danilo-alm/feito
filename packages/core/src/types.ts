@@ -134,6 +134,9 @@ export type PositionTarget = {
   beforeId?: string;
   afterId?: string;
 };
+/** Manual order of projects and labels: before or after a sibling, or at the end without an anchor. */
+export type OrderAnchor = { beforeId?: string; afterId?: string };
+
 export type MoveTarget = PositionTarget | { type: "promote" };
 
 export type MoveResponse = {

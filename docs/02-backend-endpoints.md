@@ -166,7 +166,7 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
 | `GET /api/v1/me` | 1 | Vazio. | `200 { user, mustChangePassword, preferences, inboxProjectId, referenceDate }`. Provisiona de forma idempotente tenant, DEK, preferências e Caixa de entrada no primeiro acesso. |
-| `GET /api/v1/navigation` | 2 | Vazio. | `200 { inbox: { projectId, activeCount }, todayCount, projects: ProjectSummary[], archivedCount, labels: Label[], referenceDate }`. Alimenta a barra lateral e a navegação do celular. `todayCount` soma atrasadas e de hoje. Projetos ativos na ordem de criação. |
+| `GET /api/v1/navigation` | 2 | Vazio. | `200 { inbox: { projectId, activeCount }, todayCount, projects: ProjectSummary[], archivedCount, labels: Label[], referenceDate }`. Alimenta a barra lateral e a navegação do celular. `todayCount` soma atrasadas e de hoje. Projetos ativos e etiquetas na ordem manual; os que nunca foram movidos seguem no fim, projetos por criação e etiquetas por nome. |
 | `PATCH /api/v1/preferences` | 1 | `{ timezone?, theme?, locale? }` | `200 Preferences`. `timezone` precisa ser um identificador IANA válido. Trocar o fuso muda o cálculo de Hoje sem alterar datas e horas gravadas. `locale` seleciona o idioma da interface; quando ausente em dados antigos, vale `pt-BR`. É sincronizado e exportado com as preferências. |
 
 ### 3.3 Projetos
@@ -178,6 +178,7 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 | `GET /api/v1/projects/{id}` | 2 | `?includeCompleted=true\|false`. Padrão: o `showCompleted` salvo. | `200 ProjectPage` (abaixo). Funciona também para a Caixa de entrada e para projetos arquivados, em modo leitura. |
 | `PATCH /api/v1/projects/{id}` | 2 | `{ revision, name?, defaultSectionName?, description?, color?, icon? }`, com pelo menos um campo editável. Envie `defaultSectionName: null` para limpar o nome da primeira seção. | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
 | `PATCH /api/v1/projects/{id}/view` | 2 | `{ layout?, sortMode?, showCompleted? }` | `200 ProjectView`. Sem `revision`: vale a última escrita. Caixa de entrada com `board`: `422 VALIDATION_FAILED`. |
+| `POST /api/v1/projects/{id}/move` | 2 | `{ beforeId? \| afterId? }`, com o id de outro projeto ativo. Sem âncora, vai para o fim. | `200 { projectIds }` com a nova ordem dos projetos ativos. Sem `revision`: vale a última escrita. Caixa de entrada: `422 INBOX_PROTECTED`; arquivado: `409 PROJECT_ARCHIVED`; âncora fora da lista: `422 INVALID_ANCHOR`. |
 | `POST /api/v1/projects/{id}/archive` | 2 | `{ revision }` | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
 | `POST /api/v1/projects/{id}/unarchive` | 2 | `{ revision }` | `200 ProjectSummary`. Tarefas voltam com os mesmos estados, datas e posições. |
 | `DELETE /api/v1/projects/{id}?revision=N` | 2 | Vazio. | `204`. Só sem tarefas ativas ou concluídas; seções vazias vão junto. Senão `409 PROJECT_NOT_EMPTY` com `{ activeCount, completedCount }`. |
@@ -390,9 +391,10 @@ type MoveResponse = {
 
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
-| `GET /api/v1/labels` | 2 | Vazio. | `200 { labels: Label[] }` em ordem alfabética. |
+| `GET /api/v1/labels` | 2 | Vazio. | `200 { labels: Label[] }` na ordem manual; as nunca movidas seguem no fim, em ordem alfabética. |
 | `POST /api/v1/labels` | 2 | `{ name }` | `201 Label`. Duplicata: `409 LABEL_EXISTS` com o `id` existente em `details`. |
 | `PATCH /api/v1/labels/{id}` | 2 | `{ revision, name }` | `200 Label`. |
+| `POST /api/v1/labels/{id}/move` | 2 | `{ beforeId? \| afterId? }`, com o id de outra etiqueta. Sem âncora, vai para o fim. | `200 { labelIds }` com a nova ordem. Sem `revision`: vale a última escrita. Âncora desconhecida: `422 INVALID_ANCHOR`. |
 | `DELETE /api/v1/labels/{id}?revision=N` | 2 | Vazio. | `204`. Remove os vínculos de tarefas ativas e concluídas e preserva as tarefas. Reabrir uma tarefa não recria a etiqueta. |
 | `GET /api/v1/labels/{id}/tasks` | 2 | `?cursor=&limit=` | `200 { referenceDate, tasks: TaskItem[] com origin, nextCursor }`. Só tarefas ativas de projetos ativos e da Caixa de entrada. |
 
@@ -559,7 +561,7 @@ Senhas nunca entram em argumentos, histórico de shell, logs ou arquivos.
 | Tela | Carga | Ações |
 | --- | --- | --- |
 | Entrar e troca de senha | `GET /auth/session` | `POST /auth/login`, `POST /auth/password` |
-| Barra lateral e navegação do celular | `GET /navigation` | `POST /projects` |
+| Barra lateral e navegação do celular | `GET /navigation` | `POST /projects`, `POST /projects/{id}/move`, `POST /labels/{id}/move` |
 | Hoje | `GET /views/today` | `complete`, `reopen`, `PATCH` de data, `POST /tasks` com `dueDate` de hoje |
 | Em breve | `GET /views/upcoming` | `complete`, `PATCH` de data |
 | Caixa de entrada | `GET /me` e `GET /projects/{inboxProjectId}` | `POST /tasks`, `move`, `complete`, `reopen`, `PATCH /projects/{id}/view` |

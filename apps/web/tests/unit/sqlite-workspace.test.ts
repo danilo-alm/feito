@@ -11,6 +11,7 @@ const migrations = [
   readSql("migrations/002-import-layer.sql"),
   readSql("migrations/003-save-profile.sql"),
   readSql("migrations/004-read-profile.sql"),
+  readSql("migrations/005-manual-order.sql"),
 ];
 const fixture = readFileSync(new URL("../../../../scripts/sqlite-proof/relational-fixture.sql", import.meta.url), "utf8");
 const queries = Object.fromEntries(
@@ -49,10 +50,10 @@ describe("shared offline SQLite workspace", () => {
     try {
       expect(() => migrateSqlite(second, sqlite.version.libVersionNumber, ["CREATE TABLE marker (id); INVALID;"])).toThrow();
       expect(second.selectValue("SELECT 1 FROM sqlite_schema")).toBeUndefined();
-      second.exec("PRAGMA user_version = 5; CREATE TABLE marker (id);");
+      second.exec(`PRAGMA user_version = ${migrations.length + 1}; CREATE TABLE marker (id);`);
       expect(() => migrateSqlite(second, sqlite.version.libVersionNumber, migrations)).toThrow(/Unsupported/);
       expect(second.selectValue("SELECT name FROM sqlite_schema")).toBe("marker");
-      expect(second.selectValue("PRAGMA user_version")).toBe(5);
+      expect(second.selectValue("PRAGMA user_version")).toBe(migrations.length + 1);
     } finally {
       second.close();
     }
@@ -334,6 +335,56 @@ it("migrates an account selected before its first server snapshot arrives", asyn
       data: undefined,
     });
     expect(store.summary()).toMatchObject({ loaded: false, pending: 0 });
+  } finally {
+    db.close();
+  }
+});
+
+it("keeps the manual order of projects and labels across saves, reads and the upgrade from version 4", async () => {
+  const { createProfileStorage } = await import("../../src/browser/sqlite/profile-storage");
+  const { handleLocal, newWorkspace } = await import("@feito/core/product/local-executor");
+  const sqlite = await sqlite3InitModule();
+  const db = new sqlite.oo1.DB();
+  try {
+    migrateSqlite(db, sqlite.version.libVersionNumber, migrations.slice(0, 4));
+    const files = {
+      "save-profile.sql": readSql("queries/save-profile.sql"),
+      "read-profile.sql": readSql("queries/read-profile.sql"),
+      "import-profile.sql": readSql("queries/import-profile.sql"),
+    };
+    const run = async (workspace: ReturnType<typeof newWorkspace>, method: string, path: string, body?: unknown) =>
+      (await handleLocal(workspace, { method, path, body })).workspace;
+    let workspace = newWorkspace();
+    for (const name of ["A", "B"]) workspace = await run(workspace, "POST", "/projects", { name });
+    for (const name of ["casa", "rua"]) workspace = await run(workspace, "POST", "/labels", { name });
+    const before = createProfileStorage(db, files, "https://synthetic.invalid");
+    before.initialize();
+    const local = { kind: "local" as const };
+    expect(before.commit(0, { selection: { epoch: "local", discoverSession: false, space: local },
+      localIfMissing: { workspace } })).toBe(true);
+
+    migrateSqlite(db, sqlite.version.libVersionNumber, migrations);
+    const store = createProfileStorage(db, files, "https://synthetic.invalid");
+    store.initialize();
+    const read = () => (store.read()?.data as { workspace: typeof workspace }).workspace;
+    expect(read().projects.every((project) => !("position" in project.data))).toBe(true);
+
+    const [a, b] = ["A", "B"].map((name) => workspace.projects.find((project) => project.data.name === name)!);
+    const rua = workspace.labels.find((label) => label.data.name === "rua")!;
+    workspace = await run(read(), "POST", `/projects/${b.id}/move`, { beforeId: a.id });
+    workspace = await run(workspace, "POST", `/labels/${rua.id}/move`, {});
+    expect(store.commit(store.read()!.generation, { data: { workspace } })).toBe(true);
+
+    const saved = read();
+    expect(saved.projects.find((project) => project.id === b.id)?.data.position).toBe(0);
+    expect(saved.projects.find((project) => project.id === a.id)?.data.position).toBe(1);
+    expect(saved.projects.find((project) => project.isInbox)?.data).not.toHaveProperty("position");
+    const nav = (await handleLocal(saved, { method: "GET", path: "/navigation" })).body as {
+      projects: { name: string }[]; labels: { name: string }[];
+    };
+    expect(nav.projects.map((project) => project.name)).toEqual(["B", "A"]);
+    expect(nav.labels.map((label) => label.name)).toEqual(["casa", "rua"]);
+    expect(db.selectObjects("PRAGMA foreign_key_check")).toEqual([]);
   } finally {
     db.close();
   }

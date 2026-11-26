@@ -33,11 +33,11 @@ describe("canSync", () => {
       ["PATCH", "/tasks/a"], ["DELETE", "/projects/a?revision=2"], ["PATCH", "/sections/a"], ["DELETE", "/labels/a"],
       ["POST", "/tasks/a/complete"], ["POST", "/tasks/a/duplicate"], ["PUT", "/tasks/a/recurrence"],
       ["DELETE", "/tasks/a/recurrence"], ["POST", "/projects/a/archive"], ["POST", "/projects/a/sections"],
-      ["POST", "/sections/a/move"], ["PATCH", "/projects/a/view"],
+      ["POST", "/sections/a/move"], ["PATCH", "/projects/a/view"], ["POST", "/projects/a/move"], ["POST", "/labels/a/move"],
     ];
     const no: [string, string][] = [
       ["GET", "/tasks"], ["POST", "/sections"], ["POST", "/tasks/a/outra"], ["PUT", "/tasks/a"],
-      ["POST", "/search"], ["PATCH", "/tasks/a/b/c"], ["POST", "/labels/a/move"], ["DELETE", "/preferences"],
+      ["POST", "/search"], ["PATCH", "/tasks/a/b/c"], ["POST", "/labels/a/outra"], ["DELETE", "/preferences"],
     ];
     for (const [method, path] of yes) expect(canSync(method, path), `${method} ${path}`).toBe(true);
     for (const [method, path] of no) expect(canSync(method, path), `${method} ${path}`).toBe(false);

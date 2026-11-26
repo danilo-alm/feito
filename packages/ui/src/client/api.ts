@@ -2,7 +2,7 @@ import { translateMessage, translate as t } from "./locale";
 // Cliente HTTP da API /api/v1. Usado pela interface no navegador e pelos testes de integração.
 import type {
   CompleteResponse, CreateTask, EditTask, Frequency, ImportPreview, ImportResult, Label, LabelTasks, Layout,
-  Me, MoveResponse, MoveTarget, NamedDetails, Navigation, ProjectDetails, Preferences, ProjectPage, ProjectShare, ProjectSummary, ProjectView,
+  Me, MoveResponse, MoveTarget, NamedDetails, Navigation, OrderAnchor, ProjectDetails, Preferences, ProjectPage, ProjectShare, ProjectSummary, ProjectView,
   PublicProjectPage, ReopenResponse,
   SearchInput, SearchResult, Section, Session, SortMode, SourceImportPreview, SourceImportResult, TaskDetail, TaskMutation,
   TodayView, UndoCompletionInput, UndoCompletionResponse, UpcomingView,
@@ -146,6 +146,7 @@ export const api = {
     archive: (id: string, revision: number) => request<ProjectSummary>("POST", `/projects/${enc(id)}/archive`, { revision }),
     unarchive: (id: string, revision: number) =>
       request<ProjectSummary>("POST", `/projects/${enc(id)}/unarchive`, { revision }),
+    move: (id: string, anchor: OrderAnchor) => request<{ projectIds: string[] }>("POST", `/projects/${enc(id)}/move`, anchor),
     remove: (id: string, revision: number) => request<void>("DELETE", `/projects/${enc(id)}${query({ revision })}`),
     share: (id: string) => request<ProjectShare>("GET", `/projects/${enc(id)}/share`),
     enableShare: (id: string) => request<ProjectShare>("PUT", `/projects/${enc(id)}/share`),
@@ -186,6 +187,7 @@ export const api = {
     list: () => request<{ labels: Label[] }>("GET", "/labels"),
     create: (name: string) => request<Label>("POST", "/labels", { name }),
     rename: (id: string, revision: number, name: string) => request<Label>("PATCH", `/labels/${enc(id)}`, { revision, name }),
+    move: (id: string, anchor: OrderAnchor) => request<{ labelIds: string[] }>("POST", `/labels/${enc(id)}/move`, anchor),
     remove: (id: string, revision: number) => request<void>("DELETE", `/labels/${enc(id)}${query({ revision })}`),
     tasks: (id: string, cursor?: string) => request<LabelTasks>("GET", `/labels/${enc(id)}/tasks${query({ cursor })}`),
   },

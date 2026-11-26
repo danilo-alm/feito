@@ -243,3 +243,17 @@ test("avisa mudanças confirmadas da conta e informa a revisão atual ao reconec
     await resumedReader.cancel();
   }
 });
+
+test("aplica a reordenação de projetos e etiquetas feita offline", async () => {
+  const client = await accountFixture();
+  const [a, b] = [await newProject(client, "A"), await newProject(client, "B")];
+  const [casa, rua] = [await newLabel(client, "casa"), await newLabel(client, "rua")];
+  const { user } = await pull(client);
+  expect(await push(client, { ...command("POST", `/projects/${b.id}/move`, { beforeId: a.id }), userId: user.id }))
+    .toEqual({ outcome: "applied" });
+  expect(await push(client, { ...command("POST", `/labels/${casa.id}/move`, {}), userId: user.id }))
+    .toEqual({ outcome: "applied" });
+  const after = await nav(client);
+  expect(after.projects.map(({ id }) => id)).toEqual([b.id, a.id]);
+  expect(after.labels.map(({ id }) => id)).toEqual([rua.id, casa.id]);
+});

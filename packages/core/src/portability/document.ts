@@ -17,6 +17,7 @@ export const portableDocument = z.strictObject({
     id: ref, isInbox: z.boolean(), name, description: description.default(""),
     defaultSectionName,
     color: projectColor.nullable().default(null), icon: projectIcon.default("hash"), archived: z.boolean(), view: projectView, createdAt: instant,
+    position: position.optional(),
   })),
   sections: z.array(z.strictObject({ id: ref, projectId: ref, name, description: description.default(""), position })),
   tasks: z.array(z.strictObject({
@@ -25,7 +26,7 @@ export const portableDocument = z.strictObject({
     status: z.enum(["active", "completed"]), completedAt: instant.nullable(), dueDate: civilDate.nullable(),
     dueTime: localTime.nullable(), recurrenceRule: recurrenceRule.nullable(),
   })),
-  labels: z.array(z.strictObject({ id: ref, name })),
+  labels: z.array(z.strictObject({ id: ref, name, position: position.optional() })),
   taskLabels: z.array(z.strictObject({ taskId: ref, labelId: ref })),
   occurrences: z.array(z.strictObject({
     occurrenceId: ref, taskId: ref, nominalDate: civilDate, dueDate: civilDate,

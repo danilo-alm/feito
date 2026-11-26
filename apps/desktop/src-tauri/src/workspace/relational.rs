@@ -10,6 +10,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../../../../packages/core/sqlite/migrations/002-import-layer.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/003-save-profile.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/004-read-profile.sql"),
+    include_str!("../../../../../packages/core/sqlite/migrations/005-manual-order.sql"),
 ];
 const READ_PROFILE: &str =
     include_str!("../../../../../packages/core/sqlite/queries/read-profile.sql");

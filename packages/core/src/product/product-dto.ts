@@ -1,5 +1,5 @@
 import {
-  childrenByParent, childrenOf, isActive, isOverdue, orderedRoots, orderedSections,
+  childrenByParent, childrenOf, compareLabels, isActive, isOverdue, orderedRoots, orderedSections,
   type Label, type Product, type Project, type Section, type Task,
 } from "../domain/product";
 import { walkTaskTree } from "../domain/task-tree";
@@ -66,10 +66,6 @@ export function labelDto(product: Product, label: Label) {
 
 export function labelSummaries(labels: Iterable<Label>, counts: ReadonlyMap<string, number>) {
   return [...labels].sort(compareLabels).map((label) => labelSummary(label, counts.get(label.id) ?? 0));
-}
-
-function compareLabels(a: Label, b: Label) {
-  return a.data.name.localeCompare(b.data.name, "pt-BR") || a.id.localeCompare(b.id);
 }
 
 function originFor(product: Product, task: Task) {

@@ -1,4 +1,4 @@
-import type { Temporal } from "@js-temporal/polyfill";
+import { Temporal } from "@js-temporal/polyfill";
 import type { CompletedOccurrencePayload, LabelPayload, ProjectPayload, SectionPayload, TaskPayload } from "../validation/product";
 import { walkTaskTree } from "./task-tree";
 
@@ -27,6 +27,22 @@ export type Product = {
 
 export function byPosition<T extends { id: string; data: { position: number } }>(a: T, b: T) {
   return a.data.position - b.data.position || a.id.localeCompare(b.id);
+}
+
+/** Manual order of projects and labels: positioned records first, then those never moved. */
+function byManualPosition(a: { data: { position?: number } }, b: { data: { position?: number } }) {
+  const left = a.data.position;
+  const right = b.data.position;
+  if (left === undefined || right === undefined) return Number(left === undefined) - Number(right === undefined);
+  return left - right;
+}
+
+export function compareProjects(a: Project, b: Project) {
+  return byManualPosition(a, b) || Temporal.Instant.compare(a.data.createdAt, b.data.createdAt) || a.id.localeCompare(b.id);
+}
+
+export function compareLabels(a: Label, b: Label) {
+  return byManualPosition(a, b) || a.data.name.localeCompare(b.data.name, "pt-BR") || a.id.localeCompare(b.id);
 }
 
 export const isActive = (task: Task) => task.data.completedAt === null;

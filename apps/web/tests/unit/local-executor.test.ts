@@ -128,6 +128,48 @@ describe("executor local: projetos e seções", () => {
 });
 
 describe("executor local: etiquetas", () => {
+  it("reordena projetos ativos e mantém os novos no fim", async () => {
+    const at = (minute: number) => ({ authoredAt: `2026-03-10T12:0${minute}:00Z` });
+    const project = async (name: string, minute: number) => (await call("POST", "/projects", { name }, at(minute))).body as Entity;
+    const [a, b, c] = [await project("A", 1), await project("B", 2), await project("C", 3)];
+    const names = async () => ((await call("GET", "/navigation")).body as { projects: Entity[] }).projects.map((project) => project.name);
+    expect(await names()).toEqual(["A", "B", "C"]);
+
+    expect((await call("POST", `/projects/${c.id}/move`, { beforeId: a.id })).body).toEqual({ projectIds: [c.id, a.id, b.id] });
+    expect((await call("POST", `/projects/${a.id}/move`, { afterId: b.id })).body).toEqual({ projectIds: [c.id, b.id, a.id] });
+    expect(await names()).toEqual(["C", "B", "A"]);
+    expect(((await call("GET", "/projects")).body as { projects: Entity[] }).projects.map((project) => project.name)).toEqual(["C", "B", "A"]);
+
+    await project("D", 4);
+    expect(await names()).toEqual(["C", "B", "A", "D"]);
+    const d = workspace.projects.find((project) => project.data.name === "D")!;
+    expect((await call("POST", `/projects/${d.id}/move`, {})).body).toMatchObject({ projectIds: [c.id, b.id, a.id, d.id] });
+
+    const inbox = workspace.projects.find((project) => project.isInbox)!;
+    expect(code(await call("POST", `/projects/${inbox.id}/move`, { beforeId: a.id }))).toBe("INBOX_PROTECTED");
+    expect(code(await call("POST", `/projects/${a.id}/move`, { beforeId: inbox.id }))).toBe("INVALID_ANCHOR");
+    expect(code(await call("POST", `/projects/${a.id}/move`, { beforeId: b.id, afterId: c.id }))).toBe("VALIDATION_FAILED");
+    expect(code(await call("POST", `/projects/${missing}/move`, {}))).toBe("NOT_FOUND");
+
+    const archived = await call("POST", `/projects/${b.id}/archive`, { revision: workspace.projects.find((project) => project.id === b.id)!.revision });
+    expect(archived.status).toBe(200);
+    expect(code(await call("POST", `/projects/${b.id}/move`, {}))).toBe("PROJECT_ARCHIVED");
+    expect(code(await call("POST", `/projects/${a.id}/move`, { afterId: b.id }))).toBe("INVALID_ANCHOR");
+  });
+
+  it("reordena etiquetas e preserva a ordem ao renomear", async () => {
+    const [casa, rua, agora] = [await create("/labels", { name: "casa" }), await create("/labels", { name: "rua" }), await create("/labels", { name: "agora" })];
+    const names = async () => ((await call("GET", "/labels")).body as { labels: Entity[] }).labels.map((label) => label.name);
+    expect(await names()).toEqual(["agora", "casa", "rua"]);
+
+    expect((await call("POST", `/labels/${rua.id}/move`, { beforeId: agora.id })).body).toEqual({ labelIds: [rua.id, agora.id, casa.id] });
+    const current = workspace.labels.find((label) => label.id === casa.id)!;
+    expect((await call("PATCH", `/labels/${casa.id}`, { revision: current.revision, name: "lar" })).status).toBe(200);
+    expect(await names()).toEqual(["rua", "agora", "lar"]);
+    expect(((await call("GET", "/navigation")).body as { labels: Entity[] }).labels.map((label) => label.name)).toEqual(["rua", "agora", "lar"]);
+    expect(code(await call("POST", `/labels/${rua.id}/move`, { afterId: missing }))).toBe("INVALID_ANCHOR");
+  });
+
   it("cria, lista, renomeia e remove etiquetas", async () => {
     const label = await create("/labels", { name: "urgente" });
     expect((await call("GET", "/labels")).body).toMatchObject({ labels: expect.any(Array) });

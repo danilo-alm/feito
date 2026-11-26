@@ -71,9 +71,10 @@ export const projectPayload = z.strictObject({
   archived: z.boolean(),
   view: projectView,
   createdAt: instant.default("1970-01-01T00:00:00Z"),
+  position: position.optional(),
 });
 export const sectionPayload = z.strictObject({ name, description: description.default(""), position });
-export const labelPayload = z.strictObject({ name });
+export const labelPayload = z.strictObject({ name, position: position.optional() });
 export const taskPayload = z.strictObject({
   title,
   description,
@@ -116,6 +117,10 @@ export const createSectionInput = createNamedDetailsInput.extend(sectionAnchor)
   .refine(atMostOneSectionAnchor, { path: ["beforeSectionId"] });
 export const sectionMoveInput = z.strictObject({ revision, ...sectionAnchor })
   .refine(atMostOneSectionAnchor, { path: ["beforeSectionId"] });
+
+// Projects and labels: place the record before or after a sibling, or at the end without an anchor.
+export const orderMoveInput = z.strictObject({ beforeId: entityId.optional(), afterId: entityId.optional() })
+  .refine((input) => !(input.beforeId && input.afterId), { path: ["beforeId"] });
 
 const taskFields = {
   title: title.optional(),

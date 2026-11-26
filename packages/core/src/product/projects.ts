@@ -1,16 +1,18 @@
-import { Temporal } from "@js-temporal/polyfill";
-import { groupTasks, orderedSections, type Product, type Section } from "../domain/product";
+import { compareProjects, groupTasks, orderedSections, type Product, type Section } from "../domain/product";
 import { ApiError } from "./errors";
 import { defaultsForView, type ProjectPayload, type ProjectView, type SectionPayload } from "../validation/product";
 import { inboxProject, labelSummaries, projectCounts, projectPage, projectSummaries, projectSummary, sectionDto } from "./product-dto";
-import { nextRevision, protectInbox, requireRevision, validation, visibleRecord, writableProject } from "./product-rules";
+import {
+  nextRevision, placeInOrder, protectInbox, requireRevision, validation, visibleRecord, writableProject,
+} from "./product-rules";
+import type { OrderAnchor } from "../types";
 import type { ProductPort } from "./port";
 
 export function createProjectsService<Access>({ allocateId, mutateProduct, readProjectView, readProductSummary }: Pick<ProductPort<Access>, "allocateId" | "mutateProduct" | "readProjectView" | "readProductSummary">) {
   function orderedProjects(product: Pick<Product, "projects">, archived: boolean) {
     return [...product.projects.values()]
       .filter((project) => !project.isInbox && project.data.archived === archived)
-      .sort((a, b) => Temporal.Instant.compare(a.data.createdAt, b.data.createdAt) || a.id.localeCompare(b.id));
+      .sort(compareProjects);
   }
 
   function getNavigation(access: Access) {
@@ -86,6 +88,16 @@ export function createProjectsService<Access>({ allocateId, mutateProduct, readP
       const project = nextRevision(original.projects, { ...current, data: { ...current.data, archived } });
       product.projects.set(id, project);
       return projectSummary(product, project);
+    });
+  }
+
+  function moveProject(access: Access, id: string, anchor: OrderAnchor) {
+    return mutateProduct(access, (product, original) => {
+      const project = writableProject(visibleRecord(product.projects, id));
+      protectInbox(project);
+      const projectIds = placeInOrder(orderedProjects(product, false), project, anchor, original.projects,
+        (record) => product.projects.set(record.id, record));
+      return { projectIds };
     });
   }
 
@@ -185,6 +197,6 @@ export function createProjectsService<Access>({ allocateId, mutateProduct, readP
 
   return {
     getNavigation, listProjects, getProject, createProject, editProject, updateProjectView, setProjectArchived,
-    deleteProject, createSection, editSection, moveSection, deleteSection,
+    moveProject, deleteProject, createSection, editSection, moveSection, deleteSection,
   };
 }

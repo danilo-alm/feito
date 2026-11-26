@@ -8,13 +8,13 @@ import { ApiError } from "@/server/errors";
 import { preferencesPatch } from "@feito/core/validation/preferences";
 import {
   completeTaskInput, createProjectInput, createSectionInput, createTaskInput, deleteQuery, editNameInput,
-  editNamedDetailsInput, editProjectInput, editTaskInput, entityId, instant, nameInput, projectViewPatch,
+  editNamedDetailsInput, editProjectInput, editTaskInput, entityId, instant, nameInput, orderMoveInput, projectViewPatch,
   revisionInput, sectionMoveInput, setRecurrenceInput, taskDeleteQuery, taskMoveInput, undoTaskCompletionInput,
 } from "@feito/core/validation/product";
-import { createLabel, deleteLabel, renameLabel } from "./labels";
+import { createLabel, deleteLabel, moveLabel, renameLabel } from "./labels";
 import {
   createProject, createSection, deleteProject, deleteSection, editProject, editSection,
-  moveSection, setProjectArchived, updateProjectView,
+  moveProject, moveSection, setProjectArchived, updateProjectView,
 } from "./projects";
 import {
   completeTask, createTask, deleteTask, duplicateTask, editTask, moveTask, removeRecurrence, reopenTask,
@@ -160,6 +160,8 @@ function dispatch(access: ProductAccess, operation: DesktopOperation, input: Inp
           const { beforeSectionId, afterSectionId, ...details } = validate(input.body, createSectionInput);
           return createSection(bind(undefined, [first ?? operation.id]), id, details, { beforeSectionId, afterSectionId });
         }
+        case "POST move":
+          return moveProject(bind(), id, validate(input.body, orderMoveInput));
         default:
           return unsupported();
       }
@@ -190,6 +192,8 @@ function dispatch(access: ProductAccess, operation: DesktopOperation, input: Inp
         }
         case "DELETE":
           return deleteLabel(bind(), id, validate(query, deleteQuery).revision);
+        case "POST move":
+          return moveLabel(bind(), id, validate(input.body, orderMoveInput));
         default:
           return unsupported();
       }

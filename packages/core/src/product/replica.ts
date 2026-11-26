@@ -76,8 +76,8 @@ export function canSync(method: string, path: string) {
   if ((method === "PATCH" || method === "DELETE") && /^\/(tasks|projects|sections|labels)\/[^/]+$/.test(pathname)) return true;
   if (method === "POST" && /^\/tasks\/[^/]+\/(complete|reopen|undo-completion|move|duplicate)$/.test(pathname)) return true;
   if ((method === "PUT" || method === "DELETE") && /^\/tasks\/[^/]+\/recurrence$/.test(pathname)) return true;
-  if (method === "POST" && /^\/projects\/[^/]+\/(archive|unarchive|sections)$/.test(pathname)) return true;
-  if (method === "POST" && /^\/sections\/[^/]+\/move$/.test(pathname)) return true;
+  if (method === "POST" && /^\/projects\/[^/]+\/(archive|unarchive|sections|move)$/.test(pathname)) return true;
+  if (method === "POST" && /^\/(sections|labels)\/[^/]+\/move$/.test(pathname)) return true;
   return method === "PATCH" && /^\/projects\/[^/]+\/view$/.test(pathname);
 }
 

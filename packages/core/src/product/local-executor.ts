@@ -8,7 +8,7 @@ import { preferencesPatch } from "../validation/preferences";
 import {
   completeTaskInput, createProjectInput, createSectionInput, createTaskInput, deleteQuery, editNameInput,
   editNamedDetailsInput, editProjectInput, editTaskInput, entityId, labelTasksQuery, nameInput, projectListQuery,
-  projectPageQuery, projectViewPatch, revisionInput, searchInput, sectionMoveInput, setRecurrenceInput,
+  orderMoveInput, projectPageQuery, projectViewPatch, revisionInput, searchInput, sectionMoveInput, setRecurrenceInput,
   taskDeleteQuery, taskMoveInput, todayQuery, undoTaskCompletionInput, upcomingQuery,
 } from "../validation/product";
 import { createAgendaService } from "./agenda";
@@ -27,10 +27,10 @@ const product: ProductPort<ProductAccess> = {
   mutateProduct, readProductSummary, readProjectView, readTaskDetail, readTaskView,
 };
 const { getToday, getUpcoming } = createAgendaService(product);
-const { createLabel, deleteLabel, listLabels, renameLabel } = createLabelsService(product);
+const { createLabel, deleteLabel, listLabels, moveLabel, renameLabel } = createLabelsService(product);
 const {
   createProject, createSection, deleteProject, deleteSection, editProject, editSection,
-  getNavigation, getProject, listProjects, moveSection, setProjectArchived, updateProjectView,
+  getNavigation, getProject, listProjects, moveProject, moveSection, setProjectArchived, updateProjectView,
 } = createProjectsService(product);
 const {
   completeTask, createTask, deleteTask, duplicateTask, editTask, getTask, moveTask,
@@ -179,6 +179,7 @@ async function projectRoute({ access, method, url, body }: RouteRequest, idText?
   if (action === "view" && method === "PATCH") {
     return json(await updateProjectView(access, id, parse(projectViewPatch, body)));
   }
+  if (action === "move" && method === "POST") return json(await moveProject(access, id, parse(orderMoveInput, body)));
   if (action === "share" && method === "GET") return json({ enabled: false, token: null });
   if (!action) {
     if (method === "GET") return json(await getProject(access, id, parse(projectPageQuery, query).includeCompleted));
@@ -223,6 +224,7 @@ async function labelRoute({ access, method, url, body }: RouteRequest, idText?: 
     const { limit, cursor } = parse(labelTasksQuery, query);
     return json(await getLabelTasks(access, id, limit, cursor));
   }
+  if (action === "move" && method === "POST") return json(await moveLabel(access, id, parse(orderMoveInput, body)));
   if (!action) {
     if (method === "PATCH") {
       const { revision, name } = parse(editNameInput, body);

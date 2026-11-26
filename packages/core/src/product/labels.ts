@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { normalizeLabelName, type Product } from "../domain/product";
+import { compareLabels, normalizeLabelName, type Product } from "../domain/product";
 import { ApiError } from "./errors";
 import { labelDto, labelSummaries, taskItemsWithOrigin } from "./product-dto";
-import { nextRevision, requireRevision, validation, visibleRecord } from "./product-rules";
+import { nextRevision, placeInOrder, requireRevision, validation, visibleRecord } from "./product-rules";
+import type { OrderAnchor } from "../types";
 import type { ProductPort } from "./port";
 
 export function createLabelsService<Access>({ allocateId, mutateProduct, readProductSummary, readTaskView }: Pick<ProductPort<Access>, "allocateId" | "mutateProduct" | "readProductSummary" | "readTaskView">) {
@@ -36,9 +37,18 @@ export function createLabelsService<Access>({ allocateId, mutateProduct, readPro
       const label = visibleRecord(product.labels, id);
       requireRevision(label, revision, () => labelDto(product, label));
       uniqueName(product, name, id);
-      const updated = nextRevision(original.labels, { ...label, data: { name } });
+      const updated = nextRevision(original.labels, { ...label, data: { ...label.data, name } });
       product.labels.set(id, updated);
       return labelDto(product, updated);
+    });
+  }
+
+  function moveLabel(access: Access, id: string, anchor: OrderAnchor) {
+    return mutateProduct(access, (product, original) => {
+      const label = visibleRecord(product.labels, id);
+      const labelIds = placeInOrder([...product.labels.values()].sort(compareLabels), label, anchor, original.labels,
+        (record) => product.labels.set(record.id, record));
+      return { labelIds };
     });
   }
 
@@ -93,6 +103,6 @@ export function createLabelsService<Access>({ allocateId, mutateProduct, readPro
   }
 
   return {
-    listLabels, createLabel, renameLabel, deleteLabel, listLabelTasks,
+    listLabels, createLabel, renameLabel, moveLabel, deleteLabel, listLabelTasks,
   };
 }

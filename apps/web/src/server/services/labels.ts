@@ -6,7 +6,7 @@ import { readTaskView } from "@/server/db/task-views";
 import { allocateId } from "./product-id";
 
 export const {
-  listLabels, createLabel, renameLabel, deleteLabel, listLabelTasks,
+  listLabels, createLabel, renameLabel, moveLabel, deleteLabel, listLabelTasks,
 } = createLabelsService<ProductAccess>({
   allocateId,
   mutateProduct,
