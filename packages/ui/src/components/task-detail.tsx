@@ -7,6 +7,7 @@ import { api, ApiFailure } from "../client/api";
 import { tagColor } from "../client/colors";
 import { dateInSentence, dateLabel, dayOfMonth, dueTone, FREQUENCY_LABEL } from "../client/dates";
 import { inSentence } from "../client/locale";
+import { useSidewaysScroll } from "../client/sideways-scroll";
 import { useQuery } from "../client/store";
 import { editTask } from "../client/task-mutations";
 import type { EditTask, Frequency, Label, TaskDetail as Detail } from "@feito/core/types";
@@ -52,6 +53,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
   const [manualLink, setManualLink] = useState<string | null>(null);
   const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
   const titleRef = useRef<HTMLInputElement>(null);
+  const titleField = useSidewaysScroll(titleRef);
   // O título também recebe foco sozinho; só um clique ou uma digitação contam como edição em andamento.
   const editingTitle = useRef(false);
   const focusTask = useRef<string | null>(null);
@@ -184,7 +186,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
                 <label htmlFor="detail-title" className="sr-only">{t("Título")}</label>
-                <input id="detail-title" ref={titleRef} className="title-input" value={title} readOnly={completed} maxLength={500}
+                <input id="detail-title" ref={titleField} className="title-input" value={title} readOnly={completed} maxLength={500}
                   onPointerDown={() => { editingTitle.current = true; }}
                   onChange={(event) => { editingTitle.current = true; updateText("title", event.target.value); }}
                   onBlur={(event) => {

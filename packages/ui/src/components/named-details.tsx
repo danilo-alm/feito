@@ -4,6 +4,7 @@ import { useT } from "./language";
 import { useId, useState } from "react";
 import { useRouter } from "../navigation";
 import { api } from "../client/api";
+import { sidewaysScroll } from "../client/sideways-scroll";
 import type { NamedDetails, ProjectStyle, ProjectSummary } from "@feito/core/types";
 import type { ProjectColor, ProjectIcon } from "@feito/core/validation/project-style";
 import { ProjectStyleFields } from "./project-style";
@@ -45,7 +46,7 @@ export function NamedDetailsForm({ kind, initial, submitLabel, onSave, onCancel,
       if (!saving) onCancel();
     }}>
       <label htmlFor={`${id}-name`} className="sr-only">{kind === "projeto" ? t("Nome do projeto") : t("Nome da seção")}</label>
-      <input id={`${id}-name`} className="inline-input named-details-name" value={name} maxLength={120}
+      <input id={`${id}-name`} ref={sidewaysScroll} className="inline-input named-details-name" value={name} maxLength={120}
         autoFocus={!inDialog} data-autofocus disabled={saving} onChange={(event) => setName(event.target.value)}
         placeholder={kind === "projeto" ? t("Nome do projeto") : t("Nomear esta seção")} />
       <label htmlFor={`${id}-description`} className="sr-only">

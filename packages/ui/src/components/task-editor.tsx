@@ -9,6 +9,7 @@ import { composerText, recoverDraft, registerComposer, type DraftText } from "..
 import { tagColor } from "../client/colors";
 import { dateLabel, dayOfMonth, dueTone } from "../client/dates";
 import { closeEditor, currentEditor, editKey, insertKey, openEditor, useEditorOpen, type InsertDefaults } from "../client/editor-store";
+import { useSidewaysScroll } from "../client/sideways-scroll";
 import { cacheScope, getQueryData, useQuery } from "../client/store";
 import { createTask, editTask, type MutationContext } from "../client/task-mutations";
 import type { EditTask, Frequency, Label, Priority, ProjectPage, TaskDetail, TaskItem } from "@feito/core/types";
@@ -126,6 +127,7 @@ export function TaskEditor({
   const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
   const ownTitle = useRef<HTMLInputElement>(null);
   const title = titleRef ?? ownTitle;
+  const titleField = useSidewaysScroll(title);
   const descTouched = useRef(false);
   const loadingDescription = lateDescription === null;
   const inline = variant === "inline";
@@ -236,7 +238,7 @@ export function TaskEditor({
       }}>
       {parentTitle && <div className="crumb"><IconSub className="sm" />{t("Subtarefa de")}{" "}{parentTitle}</div>}
       <label htmlFor={`${id}-title`} className="sr-only">{t("Título da tarefa")}</label>
-      <input id={`${id}-title`} ref={title} className={inline ? "te-title" : "qa-title"} placeholder={t("Nome da tarefa")} value={draft.title}
+      <input id={`${id}-title`} ref={titleField} className={inline ? "te-title" : "qa-title"} placeholder={t("Nome da tarefa")} value={draft.title}
         maxLength={500} autoComplete="off" onChange={(event) => set({ title: event.target.value })} />
       <TaskDescription id={`${id}-desc`} className={inline ? "te-desc" : "qa-desc"} rows={1} maxLength={10_000}
         placeholder={loadingDescription ? t("Carregando descrição…") : t("Descrição")} readOnly={loadingDescription} value={draft.description}

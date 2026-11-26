@@ -11,6 +11,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Chang
 import { api, ApiFailure, errorMessage } from "../client/api";
 import { tagColor } from "../client/colors";
 import { editKey, insertKey, useEditorOpen } from "../client/editor-store";
+import { sidewaysScroll } from "../client/sideways-scroll";
 import { getQueryData, invalidate, setQueryData, useQuery } from "../client/store";
 import {
   keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, sectionName, taskMap, unnamedColumnTitle,
@@ -666,7 +667,7 @@ function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]
             </button>
           )}
         </h1>
-        {editing?.field === "name" && <input {...editorProps} className="project-heading-field project-heading-input title"
+        {editing?.field === "name" && <input {...editorProps} ref={sidewaysScroll} className="project-heading-field project-heading-input title"
           aria-label={t("Nome do projeto")} maxLength={120} />}
       </div>
       {editing?.field === "description" ? (
@@ -715,7 +716,7 @@ function SectionTitle({ sectionId, name, archived, renameSection }: {
     setDraft(null);
   };
 
-  return <input className="section-title section-title-input" aria-label={t("Nome da seção")} autoFocus
+  return <input ref={sidewaysScroll} className="section-title section-title-input" aria-label={t("Nome da seção")} autoFocus
     maxLength={120} value={draft} readOnly={saving} placeholder={name === null ? t(unnamedColumnTitle) : undefined}
     onChange={(event) => setDraft(event.target.value)} onBlur={() => {
       returnFocus.current = false;
