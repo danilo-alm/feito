@@ -7,7 +7,7 @@ import { taskDescriptionExcerpt } from "../domain/task-description";
 
 export function inboxProject(product: Pick<Product, "projects">) {
   const inbox = [...product.projects.values()].find((project) => project.isInbox);
-  if (!inbox) throw new Error("Caixa de entrada indisponível.");
+  if (!inbox) throw new Error("Entrada indisponível.");
   return inbox;
 }
 

@@ -138,7 +138,10 @@ type ProjectSummary = {
 
 type Label = { id: string; revision: number; name: string; activeCount: number };
 
-type Preferences = { timezone: string; theme: "light" | "dark" | "system"; locale?: "pt-BR" | "en" };
+type Preferences = {
+  timezone: string; theme: "light" | "dark" | "system"; locale?: "pt-BR" | "en";
+  todayLayout?: Layout; upcomingLayout?: Layout; // layout de Hoje e Em breve; ausente, vale "list"
+};
 ```
 
 ## 3. Endpoints
@@ -167,7 +170,7 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 | --- | --- | --- | --- |
 | `GET /api/v1/me` | 1 | Vazio. | `200 { user, mustChangePassword, preferences, inboxProjectId, referenceDate }`. Provisiona de forma idempotente tenant, DEK, preferências e Caixa de entrada no primeiro acesso. |
 | `GET /api/v1/navigation` | 2 | Vazio. | `200 { inbox: { projectId, activeCount }, todayCount, projects: ProjectSummary[], archivedCount, labels: Label[], referenceDate }`. Alimenta a barra lateral e a navegação do celular. `todayCount` soma atrasadas e de hoje. Projetos ativos e etiquetas na ordem manual; os que nunca foram movidos seguem no fim, projetos por criação e etiquetas por nome. |
-| `PATCH /api/v1/preferences` | 1 | `{ timezone?, theme?, locale? }` | `200 Preferences`. `timezone` precisa ser um identificador IANA válido. Trocar o fuso muda o cálculo de Hoje sem alterar datas e horas gravadas. `locale` seleciona o idioma da interface; quando ausente em dados antigos, vale `pt-BR`. É sincronizado e exportado com as preferências. |
+| `PATCH /api/v1/preferences` | 1 | `{ timezone?, theme?, locale?, todayLayout?, upcomingLayout? }` | `200 Preferences`. `timezone` precisa ser um identificador IANA válido. Trocar o fuso muda o cálculo de Hoje sem alterar datas e horas gravadas. `locale` seleciona o idioma da interface; quando ausente em dados antigos, vale `pt-BR`. É sincronizado e exportado com as preferências. `todayLayout` e `upcomingLayout` (`list`, `board`, `calendar` ou `table`) guardam o layout das agendas; a sincronização desktop resolve cada campo pela edição mais recente. |
 
 ### 3.3 Projetos
 

@@ -13,6 +13,11 @@ const timezone = z.string().min(1).max(128).refine((value) => {
 
 // Novos idiomas entram só no fim da lista; documentos sem `locale` usam o idioma padrão.
 export const locales = ["pt-BR", "pt-PT", "en", "es", "fr", "it", "de"] as const satisfies readonly Locale[];
-export const preferences = z.strictObject({ timezone, theme: z.enum(["light", "dark", "system"]), locale: z.enum(locales).optional() });
+// Layout das agendas Hoje e Em breve; ausente, vale a Lista.
+const agendaLayout = z.enum(["list", "board", "calendar", "table"]).optional();
+export const preferences = z.strictObject({
+  timezone, theme: z.enum(["light", "dark", "system"]), locale: z.enum(locales).optional(),
+  todayLayout: agendaLayout, upcomingLayout: agendaLayout,
+});
 export const preferencesPatch = preferences.partial();
 export type Preferences = z.infer<typeof preferences>;

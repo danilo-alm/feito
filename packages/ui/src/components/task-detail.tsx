@@ -78,7 +78,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
 
   const completed = task?.status === "completed";
   const project = task && (task.projectId === (app.nav?.inbox.projectId ?? app.me.inboxProjectId)
-    ? { name: t("Caixa de entrada"), inbox: true }
+    ? { name: t("Entrada"), inbox: true }
     : { name: app.nav?.projects.find((item) => item.id === task.projectId)?.name ?? t("Projeto arquivado"), inbox: false });
 
   const save = (patch: Omit<EditTask, "revision">, success?: string) => task

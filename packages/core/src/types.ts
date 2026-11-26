@@ -78,7 +78,7 @@ export type ProjectPage = {
 export type Label = { id: string; revision: number; name: string; activeCount: number };
 export type Locale = "pt-BR" | "pt-PT" | "en" | "es" | "fr" | "it" | "de";
 // Ausente nos documentos anteriores à internacionalização: usar o idioma padrão.
-export type Preferences = { timezone: string; theme: Theme; locale?: Locale };
+export type Preferences = { timezone: string; theme: Theme; locale?: Locale; todayLayout?: Layout; upcomingLayout?: Layout };
 export type User = { id: string; email: string };
 
 export type Session = { user: User; mustChangePassword: boolean };

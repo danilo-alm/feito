@@ -11,7 +11,8 @@ import { FlatGroup } from "../components/flat-list";
 import { IconCheck, IconPlus } from "../components/icons";
 import { useTaskActions } from "../components/task-actions";
 import { AddTaskSlot } from "../components/task-editor";
-import { ReadFallback } from "../components/ui";
+import { ReadFallback, useIsMobile } from "../components/ui";
+import { AgendaLayout, AgendaViewMenu, isWideAgenda, useAgendaLayout, type AgendaGroup } from "../components/agenda-view";
 
 export default function TodayPage() {
   const t = useT();
@@ -20,6 +21,10 @@ export default function TodayPage() {
   const query = useQuery<TodayView>(`today:${showDone}`, () => api.views.today(showDone));
   const data = query.data;
   const total = data ? data.overdue.length + data.today.length : 0;
+  const mobile = useIsMobile();
+  const [layout, setLayout] = useAgendaLayout("todayLayout");
+  const wide = isWideAgenda(layout, mobile);
+  const viewMenu = <AgendaViewMenu layout={layout} onChange={setLayout} />;
   const toggle = (
     <button type="button" className={`btn ghost${showDone ? " on" : ""}`} aria-pressed={showDone}
       style={{ color: showDone ? "var(--brand-text)" : "var(--muted)" }} onClick={() => setShowDone((value) => !value)}>
@@ -27,16 +32,20 @@ export default function TodayPage() {
   );
   return (
     <>
-      <PageHeader crumb={t("Agenda do dia")} title={t("Hoje")} tools={toggle}
-        mobileTools={<button type="button" className="icon-btn" aria-pressed={showDone} aria-label={t("Mostrar concluídas de hoje")}
-          onClick={() => setShowDone((value) => !value)} style={showDone ? { color: "var(--brand-text)" } : undefined}><IconCheck /></button>} />
-      <div className="content">
-        <div className="col">
+      <PageHeader crumb={t("Agenda do dia")} title={t("Hoje")} tools={<>{toggle}{viewMenu}</>}
+        mobileTools={<>
+          <button type="button" className="icon-btn" aria-pressed={showDone} aria-label={t("Mostrar concluídas de hoje")}
+            onClick={() => setShowDone((value) => !value)} style={showDone ? { color: "var(--brand-text)" } : undefined}><IconCheck /></button>
+          {viewMenu}
+        </>} />
+      <div className={wide ? "project-content" : "content"}>
+        <div className={wide ? "project-head" : "col"} style={wide ? { padding: "4px 32px 0" } : undefined}>
           <div className="page-h">
             <h1 className="title">{t("Hoje")}</h1>
             {data && <PageTaskCount count={total} />}
           </div>
-          {!data ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : (
+          {!data && <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} />}
+          {data && !wide && (
             <>
               {data.overdue.length > 0 && <FlatGroup title={t("Atrasadas")} count={data.overdue.length} tasks={data.overdue} actions={actions} />}
               <FlatGroup title={t("Hoje · {0}", [shortDate(data.referenceDate)])} count={data.today.length} tasks={data.today} actions={actions} timeOnly
@@ -56,6 +65,12 @@ export default function TodayPage() {
             </>
           )}
         </div>
+        {data && wide && <AgendaLayout layout={layout} mobile={mobile} actions={actions} dates={[data.referenceDate]}
+          groups={[
+            ...data.overdue.length ? [{ key: "overdue", title: t("Atrasadas"), tasks: data.overdue, late: true }] : [],
+            { key: data.referenceDate, title: t("Hoje · {0}", [shortDate(data.referenceDate)]), date: data.referenceDate,
+              tasks: [...data.today, ...showDone ? data.completedToday ?? [] : []] },
+          ] satisfies AgendaGroup[]} />}
       </div>
       {actions.moveDialog}
     </>

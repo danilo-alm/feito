@@ -40,7 +40,7 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
   const editable = desktop && active;
   const { parentId, origin } = task;
   const destination = showOrigin && origin
-    ? (origin.isInbox ? t("Caixa de entrada") : [origin.projectName, origin.sectionName].filter(Boolean).join(" / "))
+    ? (origin.isInbox ? t("Entrada") : [origin.projectName, origin.sectionName].filter(Boolean).join(" / "))
     : null;
 
   const item = (key: string, content: ReactNode, options: {

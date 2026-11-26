@@ -4,7 +4,7 @@ import {
   DndContext, DragOverlay, MouseSensor, pointerWithin, useDraggable, useDroppable, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { ProjectPage, TaskItem } from "@feito/core/types";
 import {
   addDays, daysBetween, daysInMonth, longDate, monthStart, monthTitle, rangeLabel, weekday, weekdayShort, weekHead,
@@ -342,7 +342,7 @@ function WeekGrid({ dates, reference, timezone, byDate, chip, onAdd }: {
   useEffect(() => {
     // Abre a grade no começo do dia útil, sem mexer na rolagem da página.
     const grid = week.current;
-    const box = grid?.parentElement;
+    const box = grid?.closest<HTMLElement>(".pcal-scroll");
     const row = grid?.querySelector<HTMLElement>("[data-hour='8']");
     const top = grid?.querySelector<HTMLElement>(".pcal-wtop");
     if (!box || !row || !top) return;
@@ -350,7 +350,7 @@ function WeekGrid({ dates, reference, timezone, byDate, chip, onAdd }: {
     box.scrollLeft = 0;
   }, []);
   return (
-    <div className="pcal-week" ref={week}>
+    <div className="pcal-week" ref={week} data-days={dates.length} style={{ "--pcal-days": dates.length } as CSSProperties}>
       <div className="pcal-wtop">
         <div className="pcal-wrow pcal-whead">
           <span />
@@ -396,12 +396,20 @@ function WeekGrid({ dates, reference, timezone, byDate, chip, onAdd }: {
   );
 }
 
-function NoDatePanel({ open, tasks, chip, onClose, onAdd }: {
+/** Textos do painel lateral: “Sem data” nos projetos, “Atrasadas” na agenda de Hoje. */
+type SidePanelText = { title: string; close: string; hint: string; empty: string };
+
+function NoDatePanel({ open, tasks, chip, onClose, onAdd, text, droppable = true }: {
   open: boolean; tasks: TaskItem[]; chip: (task: TaskItem) => ReactNode; onClose: () => void; onAdd?: () => void;
+  text?: SidePanelText; droppable?: boolean;
 }) {
   const t = useT();
   const { mounted, state } = usePresence(open, { enter: "base", exit: "fast", appear: false });
-  const { setNodeRef, isOver } = useDroppable({ id: "nodate" });
+  const { setNodeRef, isOver } = useDroppable({ id: "nodate", disabled: !droppable });
+  const labels = text ?? {
+    title: t("Sem data"), close: t("Fechar painel Sem data"),
+    hint: t("Arraste para um dia para definir a data planejada."), empty: t("Nenhuma tarefa sem data."),
+  };
   const panel = useRef<HTMLElement | null>(null);
   const handle = useRef<HTMLDivElement>(null);
   const [preferred, setPreferred] = useState(NO_DATE_WIDTH.default);
@@ -447,7 +455,7 @@ function NoDatePanel({ open, tasks, chip, onClose, onAdd }: {
 
   if (!mounted) return null;
   return (
-    <aside id="pcal-nodate" ref={setRef} className={`pcal-nodate${isOver ? " target" : ""}`} aria-label={t("Tarefas sem data")}
+    <aside id="pcal-nodate" ref={setRef} className={`pcal-nodate${isOver ? " target" : ""}`} aria-label={text ? labels.title : t("Tarefas sem data")}
       style={{ flexBasis: width }} data-state={state} {...exitingProps(state)}>
       {/* O painel fica à direita: arrastar ou usar a seta para a esquerda o alarga. */}
       <div ref={handle} className="pcal-resize" role="separator" tabIndex={0} aria-orientation="vertical"
@@ -479,12 +487,12 @@ function NoDatePanel({ open, tasks, chip, onClose, onAdd }: {
           resize(next);
         }} />
       <div className="pcal-nodate-h">
-        <h3>{t("Sem data")}</h3>
-        <button type="button" className="icon-btn" aria-label={t("Fechar painel Sem data")} onClick={onClose}><IconX /></button>
+        <h3>{labels.title}</h3>
+        <button type="button" className="icon-btn" aria-label={labels.close} onClick={onClose}><IconX /></button>
       </div>
-      <p className="hint">{t("Arraste para um dia para definir a data planejada.")}</p>
+      <p className="hint">{labels.hint}</p>
       <div className="pcal-nodate-list">
-        {tasks.length ? tasks.map(chip) : <p className="hint">{t("Nenhuma tarefa sem data.")}</p>}
+        {tasks.length ? tasks.map(chip) : <p className="hint">{labels.empty}</p>}
       </div>
       {onAdd && (
         <button type="button" className="add-task" onClick={onAdd}><span className="plus"><IconPlus /></span>{t("Adicionar tarefa sem data")}</button>
@@ -493,9 +501,11 @@ function NoDatePanel({ open, tasks, chip, onClose, onAdd }: {
   );
 }
 
-function MobileCalendar({ dates, period, anchor, byDate, undated, actions, archived, onAdd }: {
+function MobileCalendar({ dates, period, anchor, byDate, undated, actions, archived, onAdd, undatedLabel, heads }: {
   dates: string[]; period: CalendarPeriod; anchor: string; byDate: Map<string, TaskItem[]>; undated: TaskItem[];
   actions: Actions; archived: boolean; onAdd: (date: string | null) => void;
+  /** Agendas: a lista extra são as atrasadas, e os dias não começam no domingo. */
+  undatedLabel?: string; heads?: string[];
 }) {
   const t = useT();
   const app = useApp();
@@ -509,7 +519,7 @@ function MobileCalendar({ dates, period, anchor, byDate, undated, actions, archi
   return (
     <>
       <div className="pcal-mgrid">
-        {weekHead().map((day, index) => <span key={index} className="pcal-mdow" aria-hidden="true">{day}</span>)}
+        {(heads ?? weekHead()).map((day, index) => <span key={index} className="pcal-mdow" aria-hidden="true">{day}</span>)}
         {dates.map((date) => {
           const dots = (byDate.get(date) ?? []).filter((task) => task.status === "active").slice(0, 3);
           const classes = ["pcal-mday", period === "month" && monthStart(date) !== month ? "out" : "",
@@ -532,11 +542,97 @@ function MobileCalendar({ dates, period, anchor, byDate, undated, actions, archi
           <button type="button" className="add-task" onClick={() => onAdd(selected)}>
             <span className="plus"><IconPlus /></span>{t("Adicionar tarefa em {0}", [longDate(selected)])}</button>
         )}
-        <button type="button" className="add-sec-m pcal-undated" aria-expanded={showUndated} onClick={() => setShowUndated((open) => !open)}>
-          {t("Sem data")}<span className="count">{undated.length}</span>
-        </button>
+        {(undatedLabel === undefined || undated.length > 0) && (
+          <button type="button" className="add-sec-m pcal-undated" aria-expanded={showUndated} onClick={() => setShowUndated((open) => !open)}>
+            {undatedLabel ?? t("Sem data")}<span className="count">{undated.length}</span>
+          </button>
+        )}
         {showUndated && undated.map((task) => <TaskRow key={task.id} task={task} actions={actions} />)}
       </section>
     </>
+  );
+}
+
+/**
+ * Calendário das agendas Hoje e Em breve: a grade por horário dos dias exibidos. Arrastar um chip muda a data
+ * ou o horário. Em Hoje, as atrasadas ficam no painel lateral e podem ser arrastadas para hoje.
+ */
+export function AgendaCalendar({ dates, tasks, side, actions, mobile, onAdd }: {
+  dates: string[]; tasks: TaskItem[]; side?: { title: string; tasks: TaskItem[] };
+  actions: Actions; mobile: boolean; onAdd: (date: string) => void;
+}) {
+  const t = useT();
+  const app = useApp();
+  const [sideOpen, setSideOpen] = useState(true);
+  const [dragging, setDragging] = useState<TaskItem | null>(null);
+  const all = useMemo(() => [...tasks, ...side?.tasks ?? []], [tasks, side?.tasks]);
+  const byDate = useMemo(() => {
+    const map = new Map<string, TaskItem[]>();
+    for (const task of tasks) {
+      if (!task.dueDate) continue;
+      map.set(task.dueDate, [...map.get(task.dueDate) ?? [], task]);
+    }
+    for (const list of map.values()) list.sort(calendarOrder);
+    return map;
+  }, [tasks]);
+  const view = `agenda:${dates[0]}:${dates.length}`;
+  const flipKey = (id: string) => `cal:${view}:${id}`;
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }));
+
+  if (mobile) {
+    return (
+      <div className="content pcal">
+        <MobileCalendar dates={dates} period="week" anchor={dates[0]} byDate={byDate} undated={side?.tasks ?? []}
+          actions={actions} archived={false} onAdd={(date) => onAdd(date ?? dates[0])}
+          undatedLabel={side?.title ?? ""} heads={dates.map((date) => weekdayShort(date).slice(0, 1).toUpperCase())} />
+      </div>
+    );
+  }
+
+  const chip = (task: TaskItem) => <CalendarChip key={task.id} task={task} disabled={false} flip={flipKey(task.id)} />;
+  const onDragEnd = (event: DragEndEvent) => {
+    flipFrom(flipKey(String(event.active.id)), document.querySelector<HTMLElement>(".pcal-drag"));
+    setDragging(null);
+    const task = all.find((item) => item.id === event.active.id);
+    const drop = event.over ? parseDrop(String(event.over.id)) : null;
+    // O painel das atrasadas não é um destino: só os dias da grade mudam a data.
+    if (!task || !drop || drop.date === null) return;
+    const change = calendarDrop(task, drop);
+    if (change) void actions.reschedule(task, change.dueDate, change.dueTime);
+  };
+
+  return (
+    <div className="content pcal">
+      {side && (
+        <div className="pcal-bar pcal-bar-end">
+          <button type="button" className={`btn${sideOpen ? " on" : ""}`} aria-expanded={sideOpen} aria-controls="pcal-nodate"
+            onClick={() => setSideOpen((open) => !open)}>
+            <IconCalendar />{side.title}<span key={side.tasks.length} className="badge pcal-count">{side.tasks.length}</span>
+          </button>
+        </div>
+      )}
+      <DndContext sensors={sensors} collisionDetection={pointerWithin}
+        onDragStart={(event) => setDragging(all.find((task) => task.id === event.active.id) ?? null)}
+        onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}
+        accessibility={{ screenReaderInstructions: { draggable: t("Para mudar a data sem arrastar, abra a tarefa e use o campo de data.") } }}>
+        <div className="pcal-body">
+          <div className="pcal-scroll">
+            <div key={view} className="pcal-view" data-dir="none">
+              <WeekGrid dates={dates} reference={app.reference} timezone={app.timezone} byDate={byDate} chip={chip} onAdd={onAdd} />
+            </div>
+          </div>
+          {side && (
+            <NoDatePanel open={sideOpen} tasks={side.tasks} chip={chip} onClose={() => setSideOpen(false)} droppable={false}
+              text={{
+                title: side.title, close: t("Fechar painel {0}", [side.title]),
+                hint: t("Arraste para um horário para reagendar."), empty: t("Nenhuma tarefa atrasada."),
+              }} />
+          )}
+        </div>
+        <DragOverlay dropAnimation={null}>
+          {dragging && <div className={`drag-overlay pcal-drag p${dragging.priority}`}><ChipBody task={dragging} /></div>}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 }

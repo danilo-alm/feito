@@ -12,7 +12,8 @@ import { FlatGroup } from "../components/flat-list";
 import { CreateSlot, useStartCreate } from "../components/task-editor";
 import { IconChevronLeft, IconChevronRight, IconPlus } from "../components/icons";
 import { useTaskActions } from "../components/task-actions";
-import { ReadFallback } from "../components/ui";
+import { ReadFallback, useIsMobile } from "../components/ui";
+import { AgendaLayout, AgendaViewMenu, isWideAgenda, useAgendaLayout } from "../components/agenda-view";
 
 export default function UpcomingPage() {
   const t = useT();
@@ -25,6 +26,12 @@ export default function UpcomingPage() {
   const query = useQuery<UpcomingView>(`upcoming:${first}`, () => api.views.upcoming(first));
   const data = query.data?.start === first ? query.data : undefined;
   const last = addDays(first, 6);
+  const mobile = useIsMobile();
+  const [layout, setLayout] = useAgendaLayout("upcomingLayout");
+  const wide = isWideAgenda(layout, mobile);
+  const viewMenu = <AgendaViewMenu layout={layout} onChange={setLayout} />;
+  const dayTitle = (date: string) =>
+    dateLabel(date, app.reference) === t("Amanhã") ? t("Amanhã · {0}", [shortDate(date)]) : shortDate(date);
   const nav = (
     <>
       <button type="button" className="icon-btn" aria-label={t("Semana anterior")} disabled={first <= tomorrow}
@@ -35,11 +42,11 @@ export default function UpcomingPage() {
   );
   return (
     <>
-      <PageHeader crumb={t("Próximos sete dias")} title={t("Em breve")} tools={nav} />
-      <div className="content">
-        <div className="col">
+      <PageHeader crumb={t("Próximos sete dias")} title={t("Em breve")} tools={<>{nav}{viewMenu}</>} />
+      <div className={wide ? "project-content" : "content"}>
+        <div className={wide ? "project-head" : "col"} style={wide ? { padding: "4px 32px 0" } : undefined}>
           <div className="page-h"><h1 className="title">{t("Em breve")}</h1>{data && <PageTaskCount count={data.days.reduce((sum, day) => sum + day.tasks.length, 0)} />}</div>
-          <div className="week" role="list" aria-label={t("Dias da semana")}>
+          {!wide && <div className="week" role="list" aria-label={t("Dias da semana")}>
             {Array.from({ length: 7 }, (_, index) => addDays(first, index)).map((date) => {
               const { weekday, day } = dayParts(date);
               const count = data?.days.find((item) => item.date === date)?.tasks.length ?? 0;
@@ -50,10 +57,9 @@ export default function UpcomingPage() {
                 </a>
               );
             })}
-          </div>
-          {!data ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : data.days.map((day) => {
-            const relative = dateLabel(day.date, app.reference);
-            const title = relative === t("Amanhã") ? t("Amanhã · {0}", [shortDate(day.date)]) : shortDate(day.date);
+          </div>}
+          {!data ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : !wide && data.days.map((day) => {
+            const title = dayTitle(day.date);
             return (
               <div key={day.date} id={`dia-${day.date}`} style={{ scrollMarginTop: 80 }}>
                 <FlatGroup title={title} count={day.tasks.length || undefined} tasks={day.tasks} actions={actions} timeOnly
@@ -69,6 +75,8 @@ export default function UpcomingPage() {
             );
           })}
         </div>
+        {data && wide && <AgendaLayout layout={layout} mobile={mobile} actions={actions} dates={data.days.map((day) => day.date)}
+          groups={data.days.map((day) => ({ key: day.date, title: dayTitle(day.date), date: day.date, tasks: day.tasks }))} />}
       </div>
       {actions.moveDialog}
     </>

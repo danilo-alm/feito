@@ -36,7 +36,7 @@ export function writableTask(task: Task) {
 }
 
 export function protectInbox(project: Project) {
-  if (project.isInbox) throw new ApiError(422, "INBOX_PROTECTED", "A Caixa de entrada é protegida.");
+  if (project.isInbox) throw new ApiError(422, "INBOX_PROTECTED", "A Entrada é protegida.");
 }
 
 export function validateSection(product: Product, projectId: string, sectionId: string | null) {

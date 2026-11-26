@@ -257,3 +257,17 @@ test("aplica a reordenação de projetos e etiquetas feita offline", async () =>
   expect(after.projects.map(({ id }) => id)).toEqual([b.id, a.id]);
   expect(after.labels.map(({ id }) => id)).toEqual([rua.id, casa.id]);
 });
+
+test("guarda o layout de Hoje e Em breve na conta e sincroniza cada um por campo", async () => {
+  const client = await accountFixture();
+  const initial = await pull(client);
+  expect(await payload(await client("PATCH", "/preferences", { todayLayout: "board" }))).toMatchObject({ todayLayout: "board" });
+  await failure(await client("PATCH", "/preferences", { upcomingLayout: "grid" }), 422, "VALIDATION_FAILED");
+  const offline = command("PATCH", "/preferences", { todayLayout: "table", upcomingLayout: "calendar" });
+  await payload(await client("PATCH", "/preferences", { todayLayout: "calendar" }));
+  expect(await push(client, offline)).toEqual({ outcome: "applied" });
+  const latest = await pull(client, initial.cursor);
+  expect(latest.workspace?.preferences).toMatchObject({ todayLayout: "calendar", upcomingLayout: "calendar" });
+  expect((await payload<{ preferences: Preferences }>(await client("GET", "/me"))).preferences)
+    .toMatchObject({ todayLayout: "calendar", upcomingLayout: "calendar" });
+});

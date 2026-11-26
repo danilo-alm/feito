@@ -17,7 +17,7 @@ test.describe("organizar um projeto", () => {
     const editor = page.getByRole("form", { name: "Salvar" });
     await editor.getByRole("textbox", { name: "Título da tarefa" }).fill("Título atualizado");
     await editor.getByRole("button", { name: "Projeto", exact: true }).click();
-    await page.getByRole("listbox", { name: "Destino" }).getByRole("option", { name: "Caixa de entrada" }).click();
+    await page.getByRole("listbox", { name: "Destino" }).getByRole("option", { name: "Entrada" }).click();
     await editor.getByRole("button", { name: "Salvar" }).click();
 
     await expect(page.getByRole("status").getByText("Tarefa atualizada")).toBeVisible();

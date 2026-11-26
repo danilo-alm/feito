@@ -23,7 +23,7 @@ async function inspectDestination(tx: Transaction, reader: ProductReader) {
   const rows = await tx.select().from(projects).limit(2);
   if (!rows.length) {
     const [tenant] = await tx.select({ id: tenants.id }).from(tenants);
-    if (tenant) throw new Error("Caixa de entrada indisponível.");
+    if (tenant) throw new Error("Entrada indisponível.");
     return { kind: "unprovisioned" as const };
   }
   if (rows.length !== 1 || !rows[0].isInbox) return { kind: "filled" as const };

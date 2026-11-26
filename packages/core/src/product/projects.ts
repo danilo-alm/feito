@@ -71,7 +71,7 @@ export function createProjectsService<Access>({ allocateId, mutateProduct, readP
   function updateProjectView(access: Access, id: string, patch: Partial<ProjectView>) {
     return mutateProduct(access, (product, original) => {
       const current = writableProject(visibleRecord(product.projects, id));
-      if (current.isInbox && patch.layout === "board") throw validation("layout", "Use Lista na Caixa de entrada.");
+      if (current.isInbox && patch.layout === "board") throw validation("layout", "Use Lista na Entrada.");
       if (!Object.keys(patch).length) return current.data.view;
       const view = { ...current.data.view, ...patch };
       product.projects.set(id, nextRevision(original.projects, { ...current, data: { ...current.data, view } }));

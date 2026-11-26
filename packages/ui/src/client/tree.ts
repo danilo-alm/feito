@@ -27,7 +27,7 @@ export function taskMap(page: ProjectPage) {
 }
 
 export function sectionName(page: ProjectPage, sectionId: string | null) {
-  if (sectionId === null) return page.project.isInbox ? t("Caixa de entrada") : page.project.defaultSectionName ?? t("Sem seção");
+  if (sectionId === null) return page.project.isInbox ? t("Entrada") : page.project.defaultSectionName ?? t("Sem seção");
   return page.sections.find((section) => section.id === sectionId)?.name ?? t("Seção");
 }
 

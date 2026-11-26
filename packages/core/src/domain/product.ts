@@ -2,6 +2,7 @@ import { Temporal } from "@js-temporal/polyfill";
 import type { CompletedOccurrencePayload, LabelPayload, ProjectPayload, SectionPayload, TaskPayload } from "../validation/product";
 import { walkTaskTree } from "./task-tree";
 
+// Nome gravado no projeto da Entrada (dados e importação); a interface mostra “Entrada”.
 export const inboxName = "Caixa de entrada";
 
 type RecordData<T> = { id: string; revision: number; data: T };

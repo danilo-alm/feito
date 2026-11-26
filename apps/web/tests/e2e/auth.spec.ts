@@ -34,6 +34,6 @@ test.describe("entrar", () => {
     await page.waitForURL(/\/entrar\?voltar=%2Fentrada/);
     await login(page, { email: fresh.email, password: next }, page.url());
     await page.waitForURL("**/entrada");
-    await expect(page.getByRole("heading", { name: "Caixa de entrada", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Entrada", level: 1 })).toBeVisible();
   });
 });

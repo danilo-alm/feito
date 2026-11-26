@@ -4,7 +4,7 @@ import { mockDesktop, newPortugueseWorkspace, test } from "./fixtures";
 
 const titles = ["Medir a parede", "Comprar a tinta"];
 
-/** Tarefas para hoje: aparecem em Hoje (com a origem na linha do título) e na Caixa de entrada (sem origem). */
+/** Tarefas para hoje: aparecem em Hoje (com a origem na linha do título) e na Entrada (sem origem). */
 async function openTasks(page: Page) {
   let workspace = newPortugueseWorkspace();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: workspace.preferences.timezone }).format(new Date());

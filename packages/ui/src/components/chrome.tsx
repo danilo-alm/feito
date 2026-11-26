@@ -94,7 +94,7 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
       <Link href="/busca" className={`nav nav-search${is("/busca") ? " on" : ""}`} aria-current={is("/busca") ? "page" : undefined}>
         <IconSearch /><SidebarName>{t("Buscar")}</SidebarName><span className="kbd" style={{ marginLeft: "auto" }}>/</span>
       </Link>
-      <NavLink href="/entrada" icon={<IconInbox />} label={t("Caixa de entrada")} count={nav?.inbox.activeCount} active={is("/entrada")} />
+      <NavLink href="/entrada" icon={<IconInbox />} label={t("Entrada")} count={nav?.inbox.activeCount} active={is("/entrada")} />
       <NavLink href="/hoje" icon={<IconToday />} label={t("Hoje")} count={nav?.todayCount} active={is("/hoje")} />
       <NavLink href="/em-breve" icon={<IconUpcoming />} label={t("Em breve")} active={is("/em-breve")} />
       {/* Só projetos e etiquetas rolam: o topo e os Ajustes ficam sempre à vista. */}

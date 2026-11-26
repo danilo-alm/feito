@@ -248,6 +248,9 @@ button.t-origin:hover{background:var(--hover)}
 .col-h{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;padding:8px 6px 10px}
 .col-h .count{font-weight:500;color:var(--muted);font-size:13px}
 .col-h .icon-btn{margin-left:auto;width:28px;height:28px}
+/* Painel das agendas: colunas fixas (Atrasadas e os dias), só para ver e concluir. */
+.col-h.late{color:var(--late)}
+.agenda-empty{padding:4px 6px 8px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px 10px 10px;display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;position:relative}
 .card.sub{margin-inline-start:calc(var(--task-depth,1) * var(--task-indent-step,18px))}
 .card:hover,.card.hover-demo{border-color:var(--border-strong)}
@@ -1075,9 +1078,11 @@ svg.ic-repeat{color:var(--brand-text)}
 .pcal-nodate-list{display:flex;flex-direction:column;gap:4px;max-height:560px;overflow-y:auto}
 .pcal-nodate-list .pcal-chip{min-height:32px;font-size:13px}
 .pcal-week{position:relative;min-width:860px}
+.pcal-week[data-days="1"]{min-width:0}
+.pcal-bar-end{justify-content:flex-end}
 .pcal-scroll:has(.pcal-week){max-height:max(460px,calc(100dvh - 300px));overflow:auto}
 .pcal-wtop{position:sticky;top:0;z-index:3;background:var(--surface)}
-.pcal-wrow{display:grid;grid-template-columns:60px repeat(7,minmax(0,1fr))}
+.pcal-wrow{display:grid;grid-template-columns:60px repeat(var(--pcal-days,7),minmax(0,1fr))}
 .pcal-whead{background:var(--bg);border-bottom:1px solid var(--border)}
 .pcal-wday{display:flex;align-items:center;gap:6px;padding:8px;border-left:1px solid var(--border);min-width:0}
 .pcal-wday .pcal-add{margin-left:auto}

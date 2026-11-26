@@ -252,7 +252,7 @@ function RestoreRow() {
           {!preview.errors.length && !preview.destinationEmpty && (
             <div style={{ display: "flex", gap: 8, color: "var(--late)", fontWeight: 600, alignItems: "flex-start" }}>
               <IconAlert className="sm" style={{ marginTop: 2 }} />
-              {t("O destino já tem dados. Use um espaço vazio, com apenas a Caixa de entrada inicial.")}</div>
+              {t("O destino já tem dados. Use um espaço vazio, com apenas a Entrada inicial.")}</div>
           )}
         </>
       )}
@@ -268,7 +268,7 @@ function RestoreRow() {
 
   return (
     <SettingsRow icon={<IconUpload />} label={t("Restaurar backup")}
-      hint={t("Restaura um arquivo do Feito num espaço vazio, com apenas a Caixa de entrada inicial.")}
+      hint={t("Restaura um arquivo do Feito num espaço vazio, com apenas a Entrada inicial.")}
       control={<>
         <input ref={fileInput} type="file" accept="application/json,.json" className="sr-only" id="import-file" tabIndex={-1}
           aria-hidden="true" onChange={(event) => { void choose(event.target.files?.[0]); event.target.value = ""; }} />

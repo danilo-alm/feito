@@ -43,6 +43,9 @@ describe("executor local: rotas gerais", () => {
     expect(patched.body).toMatchObject({ theme: "dark" });
     expect(workspace.preferences.theme).toBe("dark");
     expect(code(await call("PATCH", "/preferences", { theme: "neon" }))).toBe("VALIDATION_FAILED");
+    expect((await call("PATCH", "/preferences", { todayLayout: "board", upcomingLayout: "calendar" })).body)
+      .toMatchObject({ todayLayout: "board", upcomingLayout: "calendar" });
+    expect(code(await call("PATCH", "/preferences", { todayLayout: "grid" }))).toBe("VALIDATION_FAILED");
   });
 
   it("rejeita caminhos, métodos e segmentos desconhecidos", async () => {

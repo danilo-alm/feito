@@ -72,7 +72,7 @@ for (const layout of ["list", "board"] as const) {
 
 test("abre as ações do projeto na barra lateral e no cabeçalho, e as da seção no título", async ({ page }) => {
   await openProject(page);
-  await page.getByRole("link", { name: "Caixa de entrada" }).click();
+  await page.getByRole("link", { name: "Entrada", exact: true }).click();
   const menu = page.getByRole("menu", { name: projectName });
   const sidebarTrigger = page.getByRole("button", { name: `Ações de ${projectName}` });
   const project = page.getByRole("link", { name: projectName });

@@ -55,13 +55,13 @@ function validateReferences(document: PortableDocument) {
   const labels = collection(document.labels, "labels");
 
   const inboxes = document.projects.filter((project) => project.isInbox);
-  if (inboxes.length !== 1) report("projects", "O documento deve conter exatamente uma Caixa de entrada.");
+  if (inboxes.length !== 1) report("projects", "O documento deve conter exatamente uma Entrada.");
   else {
     const [inbox] = inboxes;
     if (inbox.archived || inbox.view.layout === "board" || inbox.name !== inboxName) {
-      report("projects", "A Caixa de entrada deve estar ativa, com nome fixo e sem layout Painel.");
+      report("projects", "A Entrada deve estar ativa, com nome fixo e sem layout Painel.");
     }
-    if (inbox.defaultSectionName) report("projects", "A Caixa de entrada não pode ter seção.");
+    if (inbox.defaultSectionName) report("projects", "A Entrada não pode ter seção.");
   }
   for (const [index, section] of document.sections.entries()) {
     const path = `sections.${index}`;

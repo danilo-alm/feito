@@ -120,7 +120,7 @@ describe("Todoist import", () => {
     const toInbox = into(inboxId, ["x.csv", csv]);
     const inboxPreview = await payload<Preview>((await preview(call, toInbox)).response);
     expect(inboxPreview).toMatchObject({ counts: { sections: 0, tasks: 2 } });
-    expect(inboxPreview.warnings).toEqual([expect.stringContaining("Caixa de entrada não tem seções")]);
+    expect(inboxPreview.warnings).toEqual([expect.stringContaining("Entrada não tem seções")]);
 
     expect((await call("POST", `/projects/${project.id}/archive`, { revision: project.revision })).status).toBe(200);
     expect(await payload<Receipt>(await confirm(call, raw, started.operationId!, inspected.previewToken!)))

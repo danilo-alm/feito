@@ -12,6 +12,7 @@ const migrations = [
   readSql("migrations/003-save-profile.sql"),
   readSql("migrations/004-read-profile.sql"),
   readSql("migrations/005-manual-order.sql"),
+  readSql("migrations/006-agenda-layouts.sql"),
 ];
 const fixture = readFileSync(new URL("../../../../scripts/sqlite-proof/relational-fixture.sql", import.meta.url), "utf8");
 const queries = Object.fromEntries(
@@ -340,7 +341,7 @@ it("migrates an account selected before its first server snapshot arrives", asyn
   }
 });
 
-it("keeps the manual order of projects and labels across saves, reads and the upgrade from version 4", async () => {
+it("keeps the manual order, the agenda layouts and older data across saves, reads and the upgrade from version 4", async () => {
   const { createProfileStorage } = await import("../../src/browser/sqlite/profile-storage");
   const { handleLocal, newWorkspace } = await import("@feito/core/product/local-executor");
   const sqlite = await sqlite3InitModule();
@@ -373,9 +374,12 @@ it("keeps the manual order of projects and labels across saves, reads and the up
     const rua = workspace.labels.find((label) => label.data.name === "rua")!;
     workspace = await run(read(), "POST", `/projects/${b.id}/move`, { beforeId: a.id });
     workspace = await run(workspace, "POST", `/labels/${rua.id}/move`, {});
+    workspace = await run(workspace, "PATCH", "/preferences", { todayLayout: "board" });
     expect(store.commit(store.read()!.generation, { data: { workspace } })).toBe(true);
 
     const saved = read();
+    expect(saved.preferences).toMatchObject({ todayLayout: "board" });
+    expect(saved.preferences).not.toHaveProperty("upcomingLayout");
     expect(saved.projects.find((project) => project.id === b.id)?.data.position).toBe(0);
     expect(saved.projects.find((project) => project.id === a.id)?.data.position).toBe(1);
     expect(saved.projects.find((project) => project.isInbox)?.data).not.toHaveProperty("position");

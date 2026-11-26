@@ -323,17 +323,17 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
 
   const crumb = project.isInbox ? t("Captura e triagem") : <>{t("Meus projetos")}{" "}<span aria-hidden="true">/</span></>;
   const compactTitle = showCompactTitle && (
-    <span className="compact-title" aria-hidden={!titleAboveView} data-tooltip={project.isInbox ? t("Caixa de entrada") : project.name} onContextMenu={contextMenu.onContextMenu}>
+    <span className="compact-title" aria-hidden={!titleAboveView} data-tooltip={project.isInbox ? t("Entrada") : project.name} onContextMenu={contextMenu.onContextMenu}>
       <Glyph icon={project.icon} style={{ color: project.color ? colorValue(project.color) : tagColor(project.id) }} />
-      <span>{project.isInbox ? t("Caixa de entrada") : project.name}</span>
+      <span>{project.isInbox ? t("Entrada") : project.name}</span>
     </span>
   );
   const tools = (visible: boolean) => (
     <>
       {!project.isInbox && <ShareMenu projectId={project.id} archived={archived} sharing={sharing} />}
-      {!archived && <ViewMenu page={page} onChange={(patch) => void changeView(patch)} />}
+      {!archived && <ViewMenu view={view} scope={project.isInbox ? "inbox" : "project"} onChange={(patch) => void changeView(patch)} />}
       {!project.isInbox && (
-        <MenuButton label={t("Mais ações")} tooltip={t("Mais ações")} title={project.isInbox ? t("Caixa de entrada") : project.name} items={projectMenu} contextMenu={visible ? contextMenu : undefined}><IconMore /></MenuButton>
+        <MenuButton label={t("Mais ações")} tooltip={t("Mais ações")} title={project.isInbox ? t("Entrada") : project.name} items={projectMenu} contextMenu={visible ? contextMenu : undefined}><IconMore /></MenuButton>
       )}
     </>
   );
@@ -341,7 +341,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
   return (
     <>
       <PageHeader crumb={crumb} tools={tools(!mobile)} mobileTools={tools(mobile)} compactTitle={compactTitle}
-        mobileTitle={project.isInbox ? t("Caixa de entrada") : undefined} back={project.isInbox ? undefined : "/navegar"} />
+        mobileTitle={project.isInbox ? t("Entrada") : undefined} back={project.isInbox ? undefined : "/navegar"} />
       {importDialog}
       {exportDialog}
       {projectDetails.dialog}
@@ -562,7 +562,7 @@ function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]
 
   if (project.isInbox || project.status === "archived") {
     return <>
-      <div ref={titleRef}><h1 className="title">{project.isInbox ? t("Caixa de entrada") : project.name}</h1></div>
+      <div ref={titleRef}><h1 className="title">{project.isInbox ? t("Entrada") : project.name}</h1></div>
       {!project.isInbox && project.description && <p className="project-description">{project.description}</p>}
     </>;
   }
@@ -748,7 +748,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
             return <GroupDrop key="none" sectionId={null} className="list-group" label={t("Tarefas do projeto")}><span /></GroupDrop>;
           }
           return (
-            <GroupDrop key={group.sectionId ?? "none"} sectionId={group.sectionId} label={title ?? (project.isInbox ? t("Caixa de entrada") : t("Tarefas do projeto"))}
+            <GroupDrop key={group.sectionId ?? "none"} sectionId={group.sectionId} label={title ?? (project.isInbox ? t("Entrada") : t("Tarefas do projeto"))}
               className={`list-group${over ? " over" : ""}`}>
               {!project.isInbox && title ? (
                 <SectionHeader sectionId={group.sectionId} name={title} count={activeCounts.get(group.sectionId) ?? 0}
@@ -793,7 +793,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
         )}
         {page.tasks.length === 0 && (
           <div className="empty">
-            <strong>{project.isInbox ? t("Caixa de entrada vazia") : t("Nenhuma tarefa ainda")}</strong>
+            <strong>{project.isInbox ? t("Entrada vazia") : t("Nenhuma tarefa ainda")}</strong>
             {project.isInbox ? t("Capture qualquer coisa com Q ou com o botão +.") : t("Adicione tarefas e organize em seções.")}
           </div>
         )}

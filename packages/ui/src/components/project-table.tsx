@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useEffect, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { Priority, ProjectPage, TaskItem } from "@feito/core/types";
 import { tagColor } from "../client/colors";
 import { dueLabel, dueTone } from "../client/dates";
+import type { InsertDefaults } from "../client/editor-store";
 import { getLocale } from "../client/locale";
 import { maxOverviewDepth, sectionName, unnamedColumnTitle } from "../client/tree";
 import { useApp } from "./app";
@@ -82,7 +83,40 @@ export function tableRows(roots: TaskItem[], tasks: Map<string, TaskItem>, sort:
 
 type Editing = { taskId: string; field: "date" | "priority"; anchor: HTMLElement } | null;
 
+/** Grupo de linhas da tabela: uma seção de projeto ou um dia de agenda. */
+export type TableGroup = { key: string; title?: string; roots: TaskItem[]; add?: { slot: string; defaults: InsertDefaults } };
+
 export function TableLayout({ page, actions, archived }: { page: ProjectPage; actions: Actions; archived: boolean }) {
+  const t = useT();
+  const { project } = page;
+  const tasks = new Map(page.tasks.map((task) => [task.id, task]));
+  const showGroupHeaders = !project.isInbox && (page.sections.length > 0 || !!project.defaultSectionName);
+  const groups = page.groups.flatMap((group): TableGroup[] => {
+    const roots = group.rootIds.map((id) => tasks.get(id)).filter((task): task is TaskItem => !!task);
+    if (showGroupHeaders && group.sectionId === null && !project.defaultSectionName && !roots.length) return [];
+    const name = group.sectionId === null ? project.defaultSectionName : sectionName(page, group.sectionId);
+    return [{
+      key: group.sectionId ?? "none", title: showGroupHeaders ? name ?? t(unnamedColumnTitle) : undefined, roots,
+      add: { slot: `add:${project.id}:${group.sectionId ?? "none"}`, defaults: { projectId: project.id, sectionId: group.sectionId } },
+    }];
+  });
+  return (
+    <TaskTable groups={groups} tasks={page.tasks} actions={actions} archived={archived} label={t("Tarefas do projeto")}
+      empty={page.tasks.length === 0 && (
+        <div className="empty">
+          <strong>{project.isInbox ? t("Entrada vazia") : t("Nenhuma tarefa ainda")}</strong>
+          {project.isInbox ? t("Capture qualquer coisa com Q ou com o botão +.") : t("Adicione tarefas e organize em seções.")}
+        </div>
+      )} />
+  );
+}
+
+/** Tabela de tarefas em grupos, com colunas configuráveis e edição de data e prioridade na própria célula. */
+export function TaskTable({ groups, tasks: list, actions, archived, label, empty, flat = false }: {
+  groups: TableGroup[]; tasks: TaskItem[]; actions: Actions; archived: boolean; label: string; empty?: ReactNode;
+  /** Agendas: cada tarefa é uma linha, sem repetir subtarefas que também aparecem no grupo. */
+  flat?: boolean;
+}) {
   const t = useT();
   const app = useApp();
   const [columns, setColumnsState] = useState<TableColumn[]>(DEFAULT_COLUMNS);
@@ -92,8 +126,9 @@ export function TableLayout({ page, actions, archived }: { page: ProjectPage; ac
   const [columnsOpen, setColumnsOpen] = useState(false);
   useEffect(() => setColumnsState(storedColumns()), []);
 
-  const { project } = page;
-  const tasks = new Map(page.tasks.map((task) => [task.id, task]));
+  const tasks = new Map(list.map((task) => [task.id, task]));
+  const rowsOf = (roots: TaskItem[]) => flat
+    ? sortSiblings(roots, sort).map((task) => ({ task, depth: 0 })) : tableRows(roots, tasks, sort);
   const editingTask = editing ? tasks.get(editing.taskId) : undefined;
   const show = (column: TableColumn) => columns.includes(column);
   const span = columns.length + 1;
@@ -114,11 +149,6 @@ export function TableLayout({ page, actions, archived }: { page: ProjectPage; ac
       </button>
     </th>
   );
-  const groupTitle = (sectionId: string | null) => {
-    const name = sectionId === null ? project.defaultSectionName : sectionName(page, sectionId);
-    return name ?? t(unnamedColumnTitle);
-  };
-  const showGroupHeaders = !project.isInbox && (page.sections.length > 0 || !!project.defaultSectionName);
 
   const row = ({ task, depth }: { task: TaskItem; depth: number }) => {
     const tone = task.dueDate ? dueTone(task.dueDate, app.reference, task.overdue) : null;
@@ -196,7 +226,7 @@ export function TableLayout({ page, actions, archived }: { page: ProjectPage; ac
         </div>
       </Popover>
       <div className="ptable-scroll">
-        <table className="ptable-grid" aria-label={t("Tarefas do projeto")}>
+        <table className="ptable-grid" aria-label={label}>
           <thead>
             <tr>
               {header("title", t("Tarefa"))}
@@ -207,24 +237,21 @@ export function TableLayout({ page, actions, archived }: { page: ProjectPage; ac
               {show("description") && <th scope="col">{t("Descrição")}</th>}
             </tr>
           </thead>
-          {page.groups.map((group) => {
-            const roots = group.rootIds.map((id) => tasks.get(id)).filter((task): task is TaskItem => !!task);
-            const active = roots.filter((task) => task.status === "active");
-            const done = roots.filter((task) => task.status === "completed");
-            const title = groupTitle(group.sectionId);
-            if (showGroupHeaders && group.sectionId === null && !project.defaultSectionName && !roots.length) return null;
+          {groups.map((group) => {
+            const active = group.roots.filter((task) => task.status === "active");
+            const done = group.roots.filter((task) => task.status === "completed");
             return (
-              <tbody key={group.sectionId ?? "none"} aria-label={showGroupHeaders ? title : undefined}>
-                {showGroupHeaders && (
+              <tbody key={group.key} aria-label={group.title}>
+                {group.title !== undefined && (
                   <tr className="ptable-group">
-                    <th scope="colgroup" colSpan={span}>{title}<span className="count">{active.length}</span></th>
+                    <th scope="colgroup" colSpan={span}>{group.title}<span className="count">{active.length}</span></th>
                   </tr>
                 )}
-                {tableRows(active, tasks, sort).map(row)}
-                {!archived && (
+                {rowsOf(active).map(row)}
+                {!archived && group.add && (
                   <tr className="ptable-add">
                     <td colSpan={span}>
-                      <AddTaskSlot slot={`add:${project.id}:${group.sectionId ?? "none"}`} defaults={{ projectId: project.id, sectionId: group.sectionId }}>
+                      <AddTaskSlot slot={group.add.slot} defaults={group.add.defaults}>
                         {(start) => (
                           <button type="button" className="add-task" onClick={start}><span className="plus"><IconPlus /></span>{t("Adicionar tarefa")}</button>
                         )}
@@ -237,7 +264,7 @@ export function TableLayout({ page, actions, archived }: { page: ProjectPage; ac
                     <tr className="ptable-group ptable-done-h">
                       <th scope="colgroup" colSpan={span}>{t("Concluídas")}<span className="count">{done.length}</span></th>
                     </tr>
-                    {tableRows(done, tasks, sort).map(row)}
+                    {rowsOf(done).map(row)}
                   </Fragment>
                 )}
               </tbody>
@@ -245,12 +272,7 @@ export function TableLayout({ page, actions, archived }: { page: ProjectPage; ac
           })}
         </table>
       </div>
-      {page.tasks.length === 0 && (
-        <div className="empty">
-          <strong>{project.isInbox ? t("Caixa de entrada vazia") : t("Nenhuma tarefa ainda")}</strong>
-          {project.isInbox ? t("Capture qualquer coisa com Q ou com o botão +.") : t("Adicione tarefas e organize em seções.")}
-        </div>
-      )}
+      {empty}
       <Popover anchor={editing?.anchor ?? null} open={!!editing && !!editingTask} onClose={() => setEditing(null)}
         label={editing?.field === "priority" ? t("Prioridade") : t("Agendar")}>
         {editing && editingTask && (editing.field === "date"

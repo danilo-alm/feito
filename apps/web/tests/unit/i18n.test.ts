@@ -61,7 +61,7 @@ describe("idiomas compartilhados", () => {
     expect(translateMessage("Já existe uma etiqueta com esse nome.", "en")).toBe("A label with this name already exists.");
     expect(translateMessage("Envie de 1 a 20 arquivos.", "en")).toBe("Send 1 to 20 files.");
     expect(translate("Excluir “{0}”?", ["Hoje"], "de")).toBe("“Hoje” löschen?");
-    expect(translate("Caixa de entrada", [], "es")).toBe("Bandeja de entrada");
+    expect(translate("Entrada", [], "es")).toBe("Entrada");
     expect(translate("Salvar", [], "pt-PT")).toBe("Guardar");
     expect(translate("Ajustes", [], "fr")).toBe("Réglages");
     expect(translate("Hoje", [], "it")).toBe("Oggi");

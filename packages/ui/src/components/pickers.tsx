@@ -162,7 +162,7 @@ export function DestinationPicker({ projectId, sectionId, onPick }: {
   return (
     <div className="menu" style={{ maxHeight: 340, overflow: "auto", width: 280 }} role="listbox" aria-label={t("Destino")}>
       <button type="button" role="option" aria-selected={projectId === inboxId} className="mi" onClick={() => onPick(inboxId, null)}>
-        <IconInbox /><span style={{ flex: 1 }}>{t("Caixa de entrada")}</span>{projectId === inboxId && <IconCheck />}
+        <IconInbox /><span style={{ flex: 1 }}>{t("Entrada")}</span>{projectId === inboxId && <IconCheck />}
       </button>
       {projects.map((project) => (
         <div key={project.id}>
@@ -187,7 +187,7 @@ export function DestinationPicker({ projectId, sectionId, onPick }: {
 }
 
 export function destinationLabel(app: ReturnType<typeof useApp>, projectId: string, sectionName?: string | null) {
-  if (projectId === (app.nav?.inbox.projectId ?? app.me.inboxProjectId)) return t("Caixa de entrada");
+  if (projectId === (app.nav?.inbox.projectId ?? app.me.inboxProjectId)) return t("Entrada");
   const project = app.nav?.projects.find((item) => item.id === projectId);
   return sectionName ? `${project?.name ?? t("Projeto")} / ${sectionName}` : project?.name ?? t("Projeto");
 }

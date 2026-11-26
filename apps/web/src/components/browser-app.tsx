@@ -27,7 +27,7 @@ const routes: Record<string, ReactNode> = {
   "/ajustes": <BrowserSettings />,
 };
 const titles: Partial<Record<string, string>> = {
-  "/hoje": "Hoje", "/entrada": "Caixa de entrada", "/em-breve": "Em breve", "/busca": "Busca",
+  "/hoje": "Hoje", "/entrada": "Entrada", "/em-breve": "Em breve", "/busca": "Busca",
   "/navegar": "Navegar", "/ajustes": "Ajustes", "/entrar": "Entrar", "/trocar-senha": "Senha",
 };
 

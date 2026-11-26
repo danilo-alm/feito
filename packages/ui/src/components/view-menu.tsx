@@ -3,7 +3,7 @@
 import { useT } from "./language";
 
 import { useRef, useState } from "react";
-import type { Layout, ProjectPage, SortMode } from "@feito/core/types";
+import type { Layout, ProjectView, SortMode } from "@feito/core/types";
 import { IconBoard, IconCalendar, IconCheck, IconChevronDown, IconHelp, IconList, IconTable } from "./icons";
 import { Dialog, Popover, useIsMobile } from "./ui";
 
@@ -11,10 +11,14 @@ export const SORT_LABEL: Record<SortMode, string> = { manual: "Manual", date: "D
 export const LAYOUT_LABEL: Record<Layout, string> = { list: "Lista", board: "Painel", calendar: "Calendário", table: "Tabela" };
 const LAYOUT_HELP = "Lista, Painel e Tabela mostram as mesmas tarefas e seções. O Calendário distribui as tarefas pela data planejada.";
 const LAYOUT_ICON: Record<Layout, typeof IconList> = { list: IconList, board: IconBoard, calendar: IconCalendar, table: IconTable };
-const INBOX_LAYOUT_HELP = "A Caixa de entrada não tem seções para virar colunas.";
+const INBOX_LAYOUT_HELP = "A Entrada não tem seções para virar colunas.";
 
-export function ViewMenu({ page, onChange }: {
-  page: ProjectPage;
+/** Onde o menu aparece: um projeto, a Entrada ou uma agenda (Hoje e Em breve, agrupadas por dia e só com o layout). */
+export type ViewScope = "project" | "inbox" | "agenda";
+
+export function ViewMenu({ view, scope, onChange }: {
+  view: ProjectView;
+  scope: ViewScope;
   onChange: (patch: Partial<{ layout: Layout; sortMode: SortMode; showCompleted: boolean }>) => void;
 }) {
   const t = useT();
@@ -23,7 +27,8 @@ export function ViewMenu({ page, onChange }: {
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLButtonElement>(null);
   const mobile = useIsMobile();
-  const { view, isInbox } = { view: page.project.view, isInbox: page.project.isInbox };
+  const isInbox = scope === "inbox";
+  const agenda = scope === "agenda";
   const label = t("Mostrar: {0}", [t(LAYOUT_LABEL[view.layout])]);
   const LayoutIcon = LAYOUT_ICON[view.layout];
   const close = () => { setOpen(false); setSortOpen(false); };
@@ -41,7 +46,7 @@ export function ViewMenu({ page, onChange }: {
         </div>
       )}
       <div className="lbl" style={{ color: "var(--muted)", fontSize: 12 }}>Layout</div>
-      <div className="seg" role="radiogroup" aria-label={t("Layout do projeto")}>
+      <div className="seg" role="radiogroup" aria-label={agenda ? t("Layout") : t("Layout do projeto")}>
         <button type="button" className={`seg-o${view.layout === "list" ? " on" : ""}`} role="radio" aria-checked={view.layout === "list"}
           onClick={() => view.layout !== "list" && onChange({ layout: "list" })}><IconList />{t("Lista")}</button>
         <button type="button" className={`seg-o${view.layout === "board" ? " on" : ""}`} role="radio" aria-checked={view.layout === "board"}
@@ -52,25 +57,25 @@ export function ViewMenu({ page, onChange }: {
         <button type="button" className={`seg-o${view.layout === "table" ? " on" : ""}`} role="radio" aria-checked={view.layout === "table"}
           onClick={() => view.layout !== "table" && onChange({ layout: "table" })}><IconTable />{t("Tabela")}</button>
       </div>
-      <div className="row">
+      {!agenda && <div className="row">
         <span id="show-completed-label">{t("Mostrar concluídas")}</span>
         <button type="button" className={`switch${view.showCompleted ? " on" : ""}`} role="switch" aria-checked={view.showCompleted}
           aria-labelledby="show-completed-label" onClick={() => onChange({ showCompleted: !view.showCompleted })} />
-      </div>
+      </div>}
       <div className="msep" style={{ margin: mobile ? "0 -16px" : "0 -18px" }} />
-      <div className="grp-h">{t("Ordenar")}</div>
+      {!agenda && <div className="grp-h">{t("Ordenar")}</div>}
       <div className="row">
         <span>{t("Agrupar")}</span>
-        <span className="select" aria-disabled="true" style={{ color: "var(--muted)" }}>{view.layout === "calendar" ? t("Por dia") : isInbox ? t("Nenhum") : t("Seções do projeto")}</span>
+        <span className="select" aria-disabled="true" style={{ color: "var(--muted)" }}>{view.layout === "calendar" || agenda ? t("Por dia") : isInbox ? t("Nenhum") : t("Seções do projeto")}</span>
       </div>
-      <div className="row">
+      {!agenda && <div className="row">
         <span id="sort-label">{t("Ordenar")}</span>
         <button ref={sortRef} type="button" className="select" aria-haspopup="listbox" aria-expanded={sortOpen}
           aria-labelledby="sort-label sort-value" onClick={() => setSortOpen((value) => !value)}>
           <span id="sort-value">{t(SORT_LABEL[view.sortMode])}</span>
           <IconChevronDown />
         </button>
-      </div>
+      </div>}
       <Popover anchor={sortRef.current} open={sortOpen} onClose={closeSort} label={t("Ordenar tarefas")} role="listbox" width={200} align="end">
         <div className="ps-list" role="presentation">
           {(Object.keys(SORT_LABEL) as SortMode[]).map((mode) => {

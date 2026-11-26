@@ -29,8 +29,8 @@ test("reabre e grava no espaço sem conta sem rede depois da preparação", asyn
   expect(await reopened.evaluate(() => fetch("/api/health/live").then(() => true, () => false))).toBe(false);
 
   const nav = reopened.getByRole("navigation", { name: isMobile ? "Navegação" : "Navegação principal", exact: true });
-  await nav.getByRole("link", { name: isMobile ? "Entrada" : "Caixa de entrada", exact: true }).click();
-  await expect(reopened.getByRole("heading", { name: "Caixa de entrada", level: 1 })).toBeVisible();
+  await nav.getByRole("link", { name: "Entrada", exact: true }).click();
+  await expect(reopened.getByRole("heading", { name: "Entrada", level: 1 })).toBeVisible();
   if (isMobile) await reopened.locator("button[aria-label='Adicionar tarefa']").click();
   else await reopened.keyboard.press("q");
   const editor = reopened.getByRole("dialog", { name: "Adicionar tarefa" });
@@ -71,7 +71,7 @@ test("aguarda as abas abertas para atualizar e preserva edições locais", async
   await page.goto("/entrar");
   await openPortugueseLocalWorkspace(page);
   await page.goto("/entrada");
-  await expect(page.getByRole("heading", { name: "Caixa de entrada", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Entrada", level: 1 })).toBeVisible();
   if (isMobile) await page.locator("button[aria-label='Adicionar tarefa']").click();
   else await page.keyboard.press("q");
   const title = page.getByRole("dialog", { name: "Adicionar tarefa" }).getByLabel("Título da tarefa");

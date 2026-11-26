@@ -87,7 +87,7 @@ export function readWorkspace(db: Database, keys: KeyConfig, tenantId: string) {
   return withTenant(db, tenantId, async (tx) => {
     const [inbox] = await tx.select({ id: projects.id }).from(projects)
       .where(and(eq(projects.tenantId, tenantId), eq(projects.isInbox, true)));
-    if (!inbox) throw new Error("Caixa de entrada indisponível.");
+    if (!inbox) throw new Error("Entrada indisponível.");
     return {
       inboxProjectId: inbox.id,
       preferences: await readPreferences(tx, keys, await preferenceRow(tx, tenantId)),
@@ -112,7 +112,7 @@ export async function persistPreferences(
     const clocks = metadata?.clocks ?? {};
     const clock = desktopClock(desktopOperation?.authoredAt ?? new Date().toISOString(), desktopOperation?.id);
     const accepted = { ...patch };
-    for (const field of ["theme", "timezone", "locale"] as const) {
+    for (const field of ["theme", "timezone", "locale", "todayLayout", "upcomingLayout"] as const) {
       if (accepted[field] === undefined) continue;
       if (clock > (clocks[field] ?? "")) clocks[field] = clock;
       else if (desktopOperation) delete accepted[field];

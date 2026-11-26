@@ -122,7 +122,7 @@ function MoveDialog({ task, onClose }: { task: TaskItem | null; onClose: () => v
   const [busy, setBusy] = useState(false);
   const projects = useMemo(() => {
     if (!app.nav) return [];
-    const inbox = { id: app.nav.inbox.projectId, name: t("Caixa de entrada"), isInbox: true, defaultSectionName: null };
+    const inbox = { id: app.nav.inbox.projectId, name: t("Entrada"), isInbox: true, defaultSectionName: null };
     return [inbox, ...app.nav.projects];
   }, [app.nav, t]);
   const sections = useQuery<ProjectPage>(expanded ? `project:${expanded}` : null, () => api.projects.get(expanded!));

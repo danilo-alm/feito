@@ -62,7 +62,7 @@ export default function SearchPage() {
   const done = results.filter((task) => task.status === "completed");
 
   const inboxId = app.nav?.inbox.projectId ?? app.me.inboxProjectId;
-  const projectName = projectId === inboxId ? t("Caixa de entrada") : app.nav?.projects.find((item) => item.id === projectId)?.name;
+  const projectName = projectId === inboxId ? t("Entrada") : app.nav?.projects.find((item) => item.id === projectId)?.name;
   const labelName = app.nav?.labels.find((item) => item.id === labelId)?.name;
   const dateName = date ? (date.kind === "range" ? `${dateLabel(date.from, app.reference)} – ${dateLabel(date.to, app.reference)}` : t(DATE_NAMES[date.kind])) : null;
   const clear = () => { setProjectId(undefined); setLabelId(undefined); setPriority(undefined); setDate(undefined); };
@@ -131,7 +131,7 @@ export default function SearchPage() {
 
       <Popover anchor={anchors.current.project ?? null} open={open === "project"} onClose={close} label={t("Projeto")}>
         <div className="menu" style={{ maxHeight: 320, overflow: "auto" }}>
-          <button type="button" className="mi" onClick={() => { setProjectId(inboxId); close(); }}><IconInbox />{t("Caixa de entrada")}</button>
+          <button type="button" className="mi" onClick={() => { setProjectId(inboxId); close(); }}><IconInbox />{t("Entrada")}</button>
           {app.nav?.projects.map((project) => (
             <button key={project.id} type="button" className="mi" onClick={() => { setProjectId(project.id); close(); }}><ProjectGlyph id={project.id} />{project.name}</button>
           ))}

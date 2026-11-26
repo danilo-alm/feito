@@ -46,13 +46,13 @@ export function readFiles(file: Uint8Array) {
   return parsed.data;
 }
 
-/** Junta todos os arquivos num único projeto de destino. A Caixa de entrada não tem seções. */
+/** Junta todos os arquivos num único projeto de destino. A Entrada não tem seções. */
 function mergeInto(target: Project, plan: ImportPlan, warnings: string[]): ImportPlan {
   const tasks = plan.projects.flatMap((project) => project.tasks);
   let sections = plan.projects.flatMap((project) => project.sections);
   if (target.isInbox && sections.length) {
     tasks.push(...sections.flatMap((section) => section.tasks));
-    warnings.push(`${sections.length === 1 ? "1 seção foi desfeita" : `${sections.length} seções foram desfeitas`}: a Caixa de entrada não tem seções, então as tarefas ficam soltas.`);
+    warnings.push(`${sections.length === 1 ? "1 seção foi desfeita" : `${sections.length} seções foram desfeitas`}: a Entrada não tem seções, então as tarefas ficam soltas.`);
     sections = [];
   }
   return { projects: [{ name: target.data.name, layout: target.data.view.layout, tasks, sections }] };

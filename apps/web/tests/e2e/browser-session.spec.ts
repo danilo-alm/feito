@@ -39,12 +39,12 @@ test("sair offline confirma o descarte, encerra as abas e preserva o espaço sem
   await page.goto("/entrar");
   await openPortugueseLocalWorkspace(page);
   await page.goto("/entrada");
-  await expect(page.getByRole("heading", { name: "Caixa de entrada", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Entrada", level: 1 })).toBeVisible();
   await add(page, isMobile, "Só neste navegador");
   await expect(row(page, "Só neste navegador")).toBeVisible();
 
   await login(page, active[info.project.name], "/entrar?voltar=%2Fentrada");
-  await expect(page.getByRole("heading", { name: "Caixa de entrada", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Entrada", level: 1 })).toBeVisible();
   await expect(row(page, "Só neste navegador")).toHaveCount(0);
   const settings = await context.newPage();
   await settings.goto("/ajustes");

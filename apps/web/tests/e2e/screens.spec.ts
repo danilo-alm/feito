@@ -215,7 +215,7 @@ test.describe("telas do dia a dia", () => {
     await expect(dialog.getByRole("button", { name: "Data" })).toContainText("Hoje");
     await dialog.getByLabel("Título da tarefa").fill(title);
     await page.keyboard.press("Enter");
-    await expect(page.getByText(/Tarefa adicionada em Caixa de entrada/)).toBeVisible();
+    await expect(page.getByText(/Tarefa adicionada em Entrada/)).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(row(page, title)).toBeVisible();
 
@@ -224,7 +224,7 @@ test.describe("telas do dia a dia", () => {
     await expect(row(page, title)).toBeHidden();
 
     await page.goto("/entrada");
-    await expect(page.getByRole("heading", { name: "Caixa de entrada", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Entrada", level: 1 })).toBeVisible();
     await page.getByRole("button", { name: /Mostrar/ }).click();
     await page.getByRole("switch", { name: "Mostrar concluídas" }).click();
     await page.keyboard.press("Escape");
