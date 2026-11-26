@@ -147,19 +147,36 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: pnpm tauri build --ci --target "$RUST_TARGET" --bundles "$BUNDLES" -- --locked
 
+      # Os nomes publicados identificam sistema e arquitetura. Pacotes deb e rpm mantêm o formato
+      # nativo do Tauri, apenas em minúsculas.
       - name: Collect installers
         if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         run: |
           mkdir -p installers
           bundle_dir="apps/desktop/src-tauri/target/$RUST_TARGET/release/bundle"
+          version="$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').version")"
+          linux_arch="${RUST_TARGET%%-*}"
+          arch=x64
+          if [[ "$linux_arch" == aarch64 ]]; then arch=arm64; fi
           IFS=, read -ra bundles <<< "$BUNDLES"
           for bundle in "${bundles[@]}"; do
+            extension="$bundle"
+            name=
             case "$bundle" in
-              appimage) extension=AppImage ;;
-              nsis) extension=exe ;;
-              *) extension="$bundle" ;;
+              appimage) extension=AppImage name="Feito-$version-linux-$linux_arch.AppImage" ;;
+              nsis) extension=exe name="Feito-$version-windows-$arch-setup.exe" ;;
+              msi) name="Feito-$version-windows-$arch.msi" ;;
+              dmg) name="Feito-$version-macos-$arch.dmg" ;;
             esac
-            cp "$bundle_dir/$bundle/"*."$extension" installers/
+            files=("$bundle_dir/$bundle/"*."$extension")
+            if [[ "${#files[@]}" -ne 1 || ! -f "${files[0]}" ]]; then
+              echo "::error::Esperado um instalador .$extension para $RUST_TARGET."
+              exit 1
+            fi
+            if [[ -z "$name" ]]; then
+              name="$(basename "${files[0]}" | tr '[:upper:]' '[:lower:]')"
+            fi
+            cp "${files[0]}" "installers/$name"
           done
 
       - name: Save installers

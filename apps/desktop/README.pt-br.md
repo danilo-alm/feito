@@ -62,6 +62,8 @@ O GitHub Actions roda os checks do desktop em pull requests, pushes para `main` 
 | Windows | ARM64 | `-setup.exe` |
 | macOS | Intel e Apple Silicon | `.dmg` |
 
+O workflow renomeia os arquivos de Windows, macOS e AppImage para `Feito-<versão>-<sistema>-<arquitetura>`, com `x64` ou `arm64` no Windows e no macOS e `x86_64` ou `aarch64` no Linux. Por exemplo: `Feito-1.0.0-windows-x64-setup.exe`, `Feito-1.0.0-macos-arm64.dmg` e `Feito-1.0.0-linux-x86_64.AppImage`. Os pacotes `.deb` e `.rpm` mantêm o formato nativo do Tauri em minúsculas, como `feito_1.0.0_amd64.deb` e `feito-1.0.0-1.x86_64.rpm`. Publicar de novo em uma release existente não remove os assets enviados com outros nomes.
+
 Envie uma tag `vX.Y.Z` que corresponda ao campo `version` de `src-tauri/tauri.conf.json`. A mesma tag publica as imagens Docker versionadas da web. [Passo a passo de release](../../docs/03-operations.md#releases)
 
 O push da tag publica a release no GitHub depois que os seis alvos geram os 11 instaladores. Uma execução manual com `release_tag` também publica ou atualiza os assets de uma release existente. Os pacotes macOS são assinados com um certificado autoassinado fixo, sem notarização da Apple. A identidade fixa permite que o macOS lembre o "Permitir sempre" do item do chaveiro do Feito entre atualizações. Gere o certificado uma vez com `scripts/macos-signing-cert.sh` e guarde o resultado nos secrets `MACOS_CERTIFICATE` e `MACOS_CERTIFICATE_PASSWORD` do repositório. Sem os secrets, o workflow volta para a assinatura ad hoc, e o macOS pede acesso ao chaveiro de novo a cada atualização. Na primeira atualização que troca a identidade de assinatura, o macOS pergunta mais uma vez. Os instaladores Windows não têm assinatura de distribuição.

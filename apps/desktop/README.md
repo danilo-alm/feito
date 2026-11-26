@@ -62,6 +62,8 @@ GitHub Actions runs desktop checks on pull requests, pushes to `main` and `dev`,
 | Windows | ARM64 | `-setup.exe` |
 | macOS | Intel and Apple Silicon | `.dmg` |
 
+The workflow renames Windows, macOS, and AppImage files to `Feito-<version>-<system>-<architecture>`, with `x64` or `arm64` on Windows and macOS and `x86_64` or `aarch64` on Linux. For example: `Feito-1.0.0-windows-x64-setup.exe`, `Feito-1.0.0-macos-arm64.dmg`, and `Feito-1.0.0-linux-x86_64.AppImage`. `.deb` and `.rpm` packages keep Tauri's native format in lowercase, such as `feito_1.0.0_amd64.deb` and `feito-1.0.0-1.x86_64.rpm`. Publishing again to an existing release does not remove assets uploaded under other names.
+
 Push a `vX.Y.Z` tag matching the `version` field in `src-tauri/tauri.conf.json`. The same tag publishes versioned web Docker images. [Release walkthrough](../../docs/03-operations.md#releases)
 
 Pushing the tag publishes the GitHub release after the six targets generate all 11 installers. A manual run with `release_tag` also publishes or updates assets for an existing release. macOS packages are signed with a fixed self-signed certificate, without Apple notarization. The fixed identity lets macOS remember "Always Allow" for the Feito keychain item across updates. Generate the certificate once with `scripts/macos-signing-cert.sh` and store its output as the `MACOS_CERTIFICATE` and `MACOS_CERTIFICATE_PASSWORD` repository secrets. Without the secrets, the workflow falls back to an ad hoc signature, and macOS asks for keychain access again after every update. After the first update that changes the signing identity, macOS asks once more. Windows installers are not signed for distribution.
