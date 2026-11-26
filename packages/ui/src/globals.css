@@ -88,6 +88,14 @@ h1,h2,h3,p{margin:0}
 .proj-row .proj-menu{position:absolute;z-index:1;right:var(--nav-end-inset);top:50%;transform:translateY(-50%);width:var(--nav-end-size);height:24px;opacity:0;pointer-events:none}
 .proj-row:hover .count,.proj-row:focus-within .count,.proj-row:has(.proj-menu[aria-expanded=true]) .count{opacity:0}
 .proj-row:not(:has(.project-shortcut)):is(:hover,:focus-within,:has(.proj-menu[aria-expanded=true])) .proj-menu{opacity:1;pointer-events:auto}
+/* Toque (tablets): nada aparece por hover. A contagem fica, e o menu ⋯ ganha um lugar fixo ao lado dela. */
+@media (hover:none),(pointer:coarse){
+  .proj-row:not(:has(.count,.project-shortcut)) .proj-link{padding-inline-end:0}
+  .proj-row .proj-menu{position:relative;top:auto;right:auto;transform:none;flex:none;width:36px;height:36px;margin-inline:-6px;opacity:1;pointer-events:auto}
+  /* Com os atalhos de teclado à mostra, o espaço da direita é deles e continua abrindo o projeto. */
+  .proj-row:has(.project-shortcut) .proj-menu{display:none}
+  .proj-row:hover .count,.proj-row:focus-within .count,.proj-row:has(.proj-menu[aria-expanded=true]) .count{opacity:1}
+}
 .side-add{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;border-radius:8px;border:0;background:none;color:var(--brand-text);font-weight:600;margin-bottom:8px;width:100%;text-align:left}
 .side-add .plus{width:24px;height:24px;border-radius:50%;background:var(--brand);color:var(--on-brand);display:grid;place-items:center}
 .side-add>span{flex-shrink:0;white-space:nowrap}
