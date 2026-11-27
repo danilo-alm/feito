@@ -32,6 +32,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             workspace::read_workspace,
+            workspace::reset_workspace,
             workspace::read_workspace_context,
             workspace::write_workspace,
             workspace::write_workspace_title,

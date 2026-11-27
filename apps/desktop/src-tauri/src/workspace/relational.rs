@@ -1,9 +1,13 @@
 use super::*;
 use hkdf::Hkdf;
-use rusqlite::{params, TransactionBehavior};
+use rusqlite::{params, ErrorCode, TransactionBehavior};
 use serde_json::json;
 use sha2::Sha256;
-use std::{fmt::Write, path::Path};
+use std::{
+    fmt::Write,
+    path::Path,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 const MIGRATIONS: &[&str] = &[
     include_str!("../../../../../packages/core/sqlite/migrations/001-initial.sql"),
@@ -15,6 +19,9 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../../../../packages/core/sqlite/migrations/007-parent-projects.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/008-task-comments.sql"),
 ];
+const LEGACY_DATABASE: &str = "feito.sqlite3";
+const DATABASE: &str = "feito-relational.sqlite3";
+const RECOVERY_DIRECTORY: &str = "recovery";
 const READ_PROFILE: &str =
     include_str!("../../../../../packages/core/sqlite/queries/read-profile.sql");
 const SAVE_PROFILE: &str =
@@ -44,7 +51,11 @@ fn connect(path: &Path, root: &StoreKey) -> StoreResult<Connection> {
     db.busy_timeout(Duration::from_secs(5))
         .map_err(|_| STORE_ERROR)?;
     db.query_row("SELECT count(*) FROM sqlite_schema", [], |_| Ok(()))
-        .map_err(|_| DECRYPTION_ERROR)?;
+        .map_err(|error| match error.sqlite_error_code() {
+            // Only a wrong key or a damaged file. A busy or failing disk is not a lost workspace.
+            Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt) => DECRYPTION_ERROR,
+            _ => STORE_ERROR,
+        })?;
     db.execute_batch(
         "PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON;
          PRAGMA temp_store = MEMORY; PRAGMA synchronous = FULL;",
@@ -101,13 +112,9 @@ fn document(profile: Value) -> Option<VersionedWorkspace> {
 }
 
 impl WorkspaceStore {
-    pub(super) fn open_relational(
-        &self,
-        load_key: impl FnOnce(bool) -> StoreResult<StoreKey>,
-    ) -> StoreResult<Connection> {
-        let path = self.directory.join("feito-relational.sqlite3");
+    /// Serializes key creation, conversion and recovery across app processes.
+    fn lock_initialization(&self) -> StoreResult<fs::File> {
         self.create_directory()?;
-        // Serialize first-run key creation and conversion across app processes.
         let initialization = fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -116,7 +123,79 @@ impl WorkspaceStore {
             .open(self.directory.join("feito-relational.lock"))
             .map_err(|_| STORE_ERROR)?;
         initialization.lock().map_err(|_| STORE_ERROR)?;
-        let legacy_path = self.directory.join("feito.sqlite3");
+        Ok(initialization)
+    }
+
+    pub(super) fn open_relational(
+        &self,
+        load_key: impl FnOnce(bool) -> StoreResult<StoreKey>,
+    ) -> StoreResult<Connection> {
+        let _initialization = self.lock_initialization()?;
+        self.open_locked(load_key)
+    }
+
+    /// Moves the databases into a recovery folder, only when the key is gone or cannot open them.
+    /// Nothing is deleted: restoring the key and the files brings the workspace back.
+    pub(super) fn archive_unreadable(
+        &self,
+        load_key: impl FnOnce(bool) -> StoreResult<StoreKey>,
+    ) -> StoreResult<()> {
+        let _initialization = self.lock_initialization()?;
+        match self.open_locked(load_key) {
+            // The data opens again, for instance after the key was restored. Keep it in place.
+            Ok(_) => Ok(()),
+            Err(KEY_MISSING_ERROR | DECRYPTION_ERROR) => self.archive_databases(),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn archive_databases(&self) -> StoreResult<()> {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| STORE_ERROR)?
+            .as_millis();
+        let recovery = self.directory.join(RECOVERY_DIRECTORY);
+        private_directory()
+            .recursive(true)
+            .create(&recovery)
+            .map_err(|_| STORE_ERROR)?;
+        // Fails instead of reusing a folder, so an earlier copy is never overwritten.
+        let archive = recovery.join(stamp.to_string());
+        private_directory()
+            .create(&archive)
+            .map_err(|_| STORE_ERROR)?;
+        let mut moved = Vec::new();
+        // The legacy file goes first: left alone, it would be imported into the new workspace.
+        for database in [LEGACY_DATABASE, DATABASE] {
+            // Journals move before their database, so none is left to apply to a new file.
+            for suffix in ["-journal", "-wal", "-shm", ""] {
+                let name = format!("{database}{suffix}");
+                let source = self.directory.join(&name);
+                let result = source.try_exists().and_then(|exists| {
+                    if exists {
+                        fs::rename(&source, archive.join(&name))?;
+                        moved.push(name.clone());
+                    }
+                    Ok(())
+                });
+                if result.is_err() {
+                    for name in moved.iter().rev() {
+                        // Best effort: whatever cannot return stays safe in the recovery folder.
+                        let _ = fs::rename(archive.join(name), self.directory.join(name));
+                    }
+                    return Err(STORE_ERROR);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn open_locked(
+        &self,
+        load_key: impl FnOnce(bool) -> StoreResult<StoreKey>,
+    ) -> StoreResult<Connection> {
+        let path = self.directory.join(DATABASE);
+        let legacy_path = self.directory.join(LEGACY_DATABASE);
         let legacy = || -> StoreResult<Option<Connection>> {
             if !legacy_path.try_exists().map_err(|_| STORE_ERROR)? {
                 return Ok(None);
@@ -162,7 +241,7 @@ impl WorkspaceStore {
             let version: usize = tx
                 .pragma_query_value(None, "user_version", |row| row.get(0))
                 .map_err(|_| STORE_ERROR)?;
-            let remaining = MIGRATIONS.get(version..).ok_or(STORE_ERROR)?;
+            let remaining = MIGRATIONS.get(version..).ok_or(NEWER_VERSION_ERROR)?;
             if version == 0
                 && tx
                     .query_row("SELECT count(*) FROM sqlite_schema", [], |row| {
@@ -338,6 +417,160 @@ mod tests {
             }],
             "sections": [], "labels": [], "taskLabels": [], "occurrences": [], "tasks": [],
         })
+    }
+
+    fn store_at(directory: &Path) -> WorkspaceStore {
+        WorkspaceStore::new(directory.to_path_buf(), "app.feito.sqlite.test".into())
+    }
+
+    fn local_document() -> Value {
+        json!({ "version": 1, "active": "local", "local": workspace() })
+    }
+
+    fn missing_key(can_create: bool) -> StoreResult<StoreKey> {
+        assert!(!can_create, "existing data must never receive a new key");
+        Err(KEY_MISSING_ERROR)
+    }
+
+    fn archived(directory: &Path) -> std::path::PathBuf {
+        let mut entries = fs::read_dir(directory.join(RECOVERY_DIRECTORY)).unwrap();
+        let archive = entries.next().unwrap().unwrap().path();
+        assert!(entries.next().is_none());
+        archive
+    }
+
+    #[test]
+    fn sets_aside_the_databases_when_the_key_is_gone_and_starts_empty() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        let store = store_at(path);
+        store.write(None, local_document(), key).unwrap();
+        // Converting the legacy file already created the first generation.
+        store
+            .write_relational(Some(1), local_document(), key)
+            .unwrap();
+        fs::write(path.join("feito-relational.sqlite3-journal"), b"journal").unwrap();
+        let legacy = fs::read(path.join(LEGACY_DATABASE)).unwrap();
+        let relational = fs::read(path.join(DATABASE)).unwrap();
+        assert_eq!(
+            store.read_relational(missing_key).err(),
+            Some(KEY_MISSING_ERROR)
+        );
+
+        store.archive_unreadable(missing_key).unwrap();
+
+        let archive = archived(path);
+        assert_eq!(fs::read(archive.join(LEGACY_DATABASE)).unwrap(), legacy);
+        assert_eq!(fs::read(archive.join(DATABASE)).unwrap(), relational);
+        assert!(archive.join("feito-relational.sqlite3-journal").exists());
+        assert!(!path.join(LEGACY_DATABASE).exists());
+        assert!(!path.join(DATABASE).exists());
+        assert!(!path.join("feito-relational.sqlite3-journal").exists());
+        let fresh = store
+            .read_relational(|can_create| {
+                assert!(can_create);
+                Ok(Zeroizing::new([8; 32]))
+            })
+            .unwrap();
+        assert!(fresh.is_none());
+        // The copy still opens once the original key and files are back.
+        let restored = tempfile::tempdir().unwrap();
+        fs::copy(archive.join(DATABASE), restored.path().join(DATABASE)).unwrap();
+        let loaded = store_at(restored.path())
+            .read_relational(key)
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.value["local"]["projects"][0]["id"], "inbox");
+    }
+
+    #[test]
+    fn sets_aside_a_legacy_only_workspace_whose_key_is_gone() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = store_at(directory.path());
+        store.write(None, local_document(), key).unwrap();
+
+        store.archive_unreadable(missing_key).unwrap();
+
+        assert!(archived(directory.path()).join(LEGACY_DATABASE).exists());
+        assert!(store.read_relational(key).unwrap().is_none());
+    }
+
+    #[test]
+    fn sets_aside_data_that_the_vault_key_cannot_open() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = store_at(directory.path());
+        store.write_relational(None, local_document(), key).unwrap();
+        let wrong = |_| Ok(Zeroizing::new([8; 32]));
+        assert_eq!(store.read_relational(wrong).err(), Some(DECRYPTION_ERROR));
+
+        store.archive_unreadable(wrong).unwrap();
+
+        assert!(archived(directory.path()).join(DATABASE).exists());
+        assert!(store.read_relational(wrong).unwrap().is_none());
+    }
+
+    #[test]
+    fn keeps_data_that_opens_or_may_open_later() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = store_at(directory.path());
+        store.write_relational(None, local_document(), key).unwrap();
+
+        store.archive_unreadable(key).unwrap();
+        assert_eq!(
+            store.archive_unreadable(|_| Err(KEY_ERROR)).err(),
+            Some(KEY_ERROR)
+        );
+
+        assert!(!directory.path().join(RECOVERY_DIRECTORY).exists());
+        assert!(store.read_relational(key).unwrap().is_some());
+    }
+
+    #[test]
+    fn keeps_data_written_by_a_newer_version() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = store_at(directory.path());
+        store.write_relational(None, local_document(), key).unwrap();
+        store
+            .open_relational(key)
+            .unwrap()
+            .pragma_update(None, "user_version", MIGRATIONS.len() + 1)
+            .unwrap();
+
+        assert_eq!(store.read_relational(key).err(), Some(NEWER_VERSION_ERROR));
+        assert_eq!(
+            store.archive_unreadable(key).err(),
+            Some(NEWER_VERSION_ERROR)
+        );
+        assert!(directory.path().join(DATABASE).exists());
+        assert!(!directory.path().join(RECOVERY_DIRECTORY).exists());
+    }
+
+    #[test]
+    fn keeps_data_behind_a_storage_failure() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = store_at(directory.path());
+        // SQLite cannot open a directory: a disk problem, not a lost key.
+        fs::create_dir(directory.path().join(DATABASE)).unwrap();
+
+        assert_eq!(store.archive_unreadable(key).err(), Some(STORE_ERROR));
+        assert!(directory.path().join(DATABASE).exists());
+        assert!(!directory.path().join(RECOVERY_DIRECTORY).exists());
+    }
+
+    #[test]
+    fn names_each_open_failure_for_the_interface() {
+        for (message, code) in [
+            (KEY_MISSING_ERROR, "key-missing"),
+            (KEY_ERROR, "vault-unavailable"),
+            (DECRYPTION_ERROR, "unreadable"),
+            (NEWER_VERSION_ERROR, "newer-version"),
+            (STORE_ERROR, "storage"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(OpenFailure::from(message)).unwrap(),
+                json!({ "code": code, "message": message })
+            );
+        }
     }
 
     #[test]

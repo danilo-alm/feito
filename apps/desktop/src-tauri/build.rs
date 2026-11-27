@@ -2,6 +2,7 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "read_workspace",
+            "reset_workspace",
             "read_workspace_context",
             "write_workspace",
             "write_workspace_title",

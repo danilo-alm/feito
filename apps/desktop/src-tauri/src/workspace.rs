@@ -26,7 +26,9 @@ mod title;
 
 const STORE_ERROR: &str = "Não foi possível acessar os dados locais.";
 const KEY_ERROR: &str = "Não foi possível acessar a chave do Feito no cofre do sistema.";
+const KEY_MISSING_ERROR: &str = "A chave do Feito não foi encontrada no cofre do sistema.";
 const DECRYPTION_ERROR: &str = "Não foi possível desbloquear os dados locais do Feito.";
+const NEWER_VERSION_ERROR: &str = "Os dados locais foram gravados por outra versão do Feito.";
 const SAVE_CONFLICT: &str = "Os dados locais mudaram em outra janela. Recarregue e tente de novo.";
 const MAX_DOCUMENT_BYTES: usize = 64 * 1024 * 1024;
 const MAX_GENERATION: i64 = 9_007_199_254_740_991;
@@ -34,6 +36,26 @@ const NONCE_BYTES: usize = 24;
 
 type StoreKey = Zeroizing<[u8; 32]>;
 type StoreResult<T> = Result<T, &'static str>;
+
+/// Why the local data did not open. The interface uses the code to decide what to offer.
+#[derive(Debug, Serialize)]
+pub struct OpenFailure {
+    code: &'static str,
+    message: &'static str,
+}
+
+impl From<&'static str> for OpenFailure {
+    fn from(message: &'static str) -> Self {
+        let code = match message {
+            KEY_MISSING_ERROR => "key-missing",
+            KEY_ERROR => "vault-unavailable",
+            DECRYPTION_ERROR => "unreadable",
+            NEWER_VERSION_ERROR => "newer-version",
+            _ => "storage",
+        };
+        Self { code, message }
+    }
+}
 
 #[derive(Clone)]
 pub struct WorkspaceStore {
@@ -69,15 +91,16 @@ impl WorkspaceStore {
         Ok(key)
     }
 
+    fn forget_key(&self) -> StoreResult<()> {
+        self.key_cache.lock().map_err(|_| KEY_ERROR)?.take();
+        Ok(())
+    }
+
     fn create_directory(&self) -> StoreResult<()> {
-        let mut directory = fs::DirBuilder::new();
-        directory.recursive(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::DirBuilderExt;
-            directory.mode(0o700);
-        }
-        directory.create(&self.directory).map_err(|_| STORE_ERROR)
+        private_directory()
+            .recursive(true)
+            .create(&self.directory)
+            .map_err(|_| STORE_ERROR)
     }
 
     #[cfg(test)]
@@ -228,6 +251,17 @@ impl WorkspaceStore {
     }
 }
 
+fn private_directory() -> fs::DirBuilder {
+    #[allow(unused_mut)]
+    let mut directory = fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        directory.mode(0o700);
+    }
+    directory
+}
+
 fn session_aad(origin: &str) -> Vec<u8> {
     format!("session-v1:{origin}").into_bytes()
 }
@@ -302,6 +336,7 @@ fn system_key(service: &str, can_create: bool) -> StoreResult<StoreKey> {
             OsRng.try_fill_bytes(&mut key[..]).map_err(|_| KEY_ERROR)?;
             entry.set_secret(&key[..]).map_err(|_| KEY_ERROR)?;
         }
+        Err(keyring::Error::NoEntry) => return Err(KEY_MISSING_ERROR),
         Err(_) => return Err(KEY_ERROR),
     }
     Ok(key)
@@ -310,14 +345,32 @@ fn system_key(service: &str, can_create: bool) -> StoreResult<StoreKey> {
 #[tauri::command]
 pub async fn read_workspace(
     store: State<'_, WorkspaceStore>,
-) -> Result<Option<VersionedWorkspace>, String> {
+) -> Result<Option<VersionedWorkspace>, OpenFailure> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        store.read_relational(|can_create| store.system_key(can_create))
+        let result = store.read_relational(|can_create| store.system_key(can_create));
+        if matches!(result, Err(DECRYPTION_ERROR)) {
+            // The vault item may be fixed while the app is open: read it again on the next try.
+            store.forget_key()?;
+        }
+        result
     })
     .await
     .map_err(|_| STORE_ERROR)?
-    .map_err(String::from)
+    .map_err(OpenFailure::from)
+}
+
+/// Sets aside local data that can no longer be opened, so the app can start empty.
+#[tauri::command]
+pub async fn reset_workspace(store: State<'_, WorkspaceStore>) -> Result<(), OpenFailure> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        store.forget_key()?;
+        store.archive_unreadable(|can_create| store.system_key(can_create))
+    })
+    .await
+    .map_err(|_| STORE_ERROR)?
+    .map_err(OpenFailure::from)
 }
 
 #[tauri::command]
