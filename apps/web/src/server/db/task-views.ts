@@ -113,6 +113,8 @@ async function viewContext(
     sections: await mapRows(sectionRows, (row) => readSectionRecord(reader, row)),
     labels: await mapRows(labelRows, (row) => readLabelRecord(reader, row)),
     taskLabels: mapTaskLabels(links),
+    // Agenda, search and label pages list task items, which carry no comment count.
+    commentCounts: new Map(),
   } satisfies Product;
 }
 

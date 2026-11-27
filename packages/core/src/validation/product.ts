@@ -88,6 +88,16 @@ export const taskPayload = z.strictObject({
   recurrenceRule: recurrenceRule.nullable().default(null),
 }).refine((task) => task.dueTime === null || task.dueDate !== null);
 
+/** Comment text: trimmed and non-empty, with the same limit as task descriptions. */
+export const commentBody = boundedText(z.string().trim().min(1), 10_000);
+export const taskCommentPayload = z.strictObject({
+  body: commentBody,
+  createdAt: instant,
+  editedAt: instant.nullable().default(null),
+});
+export const createCommentInput = z.strictObject({ body: commentBody });
+export const editCommentInput = z.strictObject({ revision, body: commentBody });
+
 export const nameInput = z.strictObject({ name });
 export const editNameInput = z.strictObject({ name, revision });
 export const createNamedDetailsInput = z.strictObject({ name, description: description.default("") });
@@ -209,6 +219,9 @@ export type ProjectPayload = z.infer<typeof projectPayload>;
 export type SectionPayload = z.infer<typeof sectionPayload>;
 export type TaskPayload = z.infer<typeof taskPayload>;
 export type LabelPayload = z.infer<typeof labelPayload>;
+export type TaskCommentPayload = z.infer<typeof taskCommentPayload>;
+export type CreateCommentInput = z.infer<typeof createCommentInput>;
+export type EditCommentInput = z.infer<typeof editCommentInput>;
 export type CreateTaskInput = z.infer<typeof createTaskInput>;
 export type EditTaskInput = z.infer<typeof editTaskInput>;
 export type TaskMoveInput = z.infer<typeof taskMoveInput>;

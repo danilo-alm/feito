@@ -220,6 +220,21 @@ export const completedOccurrences = domain.table("completed_occurrences", {
   tenantPolicy(row.tenantId),
 ]).enableRLS();
 
+export const taskComments = domain.table("task_comments", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull(),
+  taskId: uuid("task_id").notNull(),
+  ...payloadColumns(),
+}, (row) => [
+  primaryKey({ columns: [row.tenantId, row.id] }),
+  index("task_comment_task_idx").on(row.tenantId, row.taskId),
+  foreignKey({ name: "task_comment_task", columns: [row.tenantId, row.taskId], foreignColumns: [tasks.tenantId, tasks.id] })
+    .onDelete("cascade"),
+  foreignKey({ name: "task_comment_dek", columns: [row.tenantId, row.dekVersion],
+    foreignColumns: [tenantKeys.tenantId, tenantKeys.version] }),
+  tenantPolicy(row.tenantId),
+]).enableRLS();
+
 export const taskLabels = domain.table("task_labels", {
   tenantId: uuid("tenant_id").notNull(),
   taskId: uuid("task_id").notNull(),

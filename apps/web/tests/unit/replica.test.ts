@@ -34,10 +34,12 @@ describe("canSync", () => {
       ["POST", "/tasks/a/complete"], ["POST", "/tasks/a/duplicate"], ["PUT", "/tasks/a/recurrence"],
       ["DELETE", "/tasks/a/recurrence"], ["POST", "/projects/a/archive"], ["POST", "/projects/a/sections"],
       ["POST", "/sections/a/move"], ["PATCH", "/projects/a/view"], ["POST", "/projects/a/move"], ["POST", "/labels/a/move"],
+      ["POST", "/tasks/a/comments"], ["PATCH", "/comments/a"], ["DELETE", "/comments/a?revision=1"],
     ];
     const no: [string, string][] = [
       ["GET", "/tasks"], ["POST", "/sections"], ["POST", "/tasks/a/outra"], ["PUT", "/tasks/a"],
       ["POST", "/search"], ["PATCH", "/tasks/a/b/c"], ["POST", "/labels/a/outra"], ["DELETE", "/preferences"],
+      ["GET", "/tasks/a/comments"], ["POST", "/comments"], ["POST", "/comments/a"], ["PATCH", "/tasks/a/comments"],
     ];
     for (const [method, path] of yes) expect(canSync(method, path), `${method} ${path}`).toBe(true);
     for (const [method, path] of no) expect(canSync(method, path), `${method} ${path}`).toBe(false);
@@ -185,6 +187,35 @@ describe("reconcileReplica", () => {
     });
     expect(removal.confirmed.tasks.map((item) => item.id)).toEqual([user.id]);
     expect(removal.confirmed.taskLabels).toEqual([]);
+  });
+
+  it("aplica comentários incrementais e descarta os da tarefa removida", async () => {
+    const withTask = await queued(replica(), "/tasks", { title: "Comentada" });
+    const [task] = withTask.working.tasks;
+    const withComment = await queued(withTask, `/tasks/${task.id}/comments`, { body: "Primeiro" });
+    const confirmed = withComment.working;
+    const [comment] = confirmed.comments!;
+    const base = replica({ confirmed, working: confirmed });
+    const edited = { ...comment, revision: 2, data: { ...comment.data, body: "Editado" } };
+    const added = { ...comment, id: user.id, data: { ...comment.data, body: "Do servidor" } };
+    const next = await reconcileReplica(base, {
+      remote: snapshot(null, 2, user, { comments: { upsert: [edited, added], remove: [] } }), fromCursor: 1,
+    });
+    expect(next.confirmed.comments!.map(({ data }) => data.body)).toEqual(["Editado", "Do servidor"]);
+    const removed = await reconcileReplica(next, {
+      remote: snapshot(null, 3, user, { comments: { upsert: [], remove: [user.id] } }), fromCursor: 2,
+    });
+    expect(removed.confirmed.comments!.map(({ id }) => id)).toEqual([comment.id]);
+    const deleted = await reconcileReplica(removed, {
+      remote: snapshot(null, 4, user, { tasks: { upsert: [], remove: [task.id] } }), fromCursor: 3,
+    });
+    expect(deleted.confirmed.comments).toEqual([]);
+
+    // Baselines from servers without comments keep the pending comment in the working copy.
+    const { comments: _comments, ...legacy } = withTask.working;
+    const pending = await reconcileReplica(withComment, { remote: snapshot(legacy, 5) });
+    expect(pending.confirmed.comments).toBeUndefined();
+    expect(pending.working.comments!.map(({ id }) => id)).toEqual([comment.id]);
   });
 
   it("não reaplica um delta quando outra aba já gravou a mesma revisão", async () => {

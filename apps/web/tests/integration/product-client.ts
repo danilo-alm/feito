@@ -31,6 +31,8 @@ import * as undoCompletion from "@/app/api/v1/tasks/[id]/undo-completion/route";
 import * as reopen from "@/app/api/v1/tasks/[id]/reopen/route";
 import * as move from "@/app/api/v1/tasks/[id]/move/route";
 import * as recurrence from "@/app/api/v1/tasks/[id]/recurrence/route";
+import * as taskComments from "@/app/api/v1/tasks/[id]/comments/route";
+import * as comment from "@/app/api/v1/comments/[id]/route";
 import * as today from "@/app/api/v1/views/today/route";
 import * as upcoming from "@/app/api/v1/views/upcoming/route";
 import * as search from "@/app/api/v1/search/route";
@@ -86,6 +88,8 @@ const routes: Record<string, Partial<Record<Method, Handler>>> = {
   "/labels/:id/move": moveLabelRoute,
   "/labels/:id/tasks": labelTasks,
   "/tasks/:id/recurrence": recurrence,
+  "/tasks/:id/comments": taskComments,
+  "/comments/:id": comment,
   "/views/today": today,
   "/views/upcoming": upcoming,
   "/search": search,
@@ -131,7 +135,7 @@ export function send(
   const shared = /^\/public\/projects\/([^/]+)$/.exec(pathname);
   if (shared && method === "GET") return publicProject.GET(request, { params: Promise.resolve({ token: shared[1] }) });
   const id = pathname.startsWith("/import/operations/") ? pathname.split("/").at(-1)! : pathname.split("/")[2] ?? "";
-  const pattern = ["/projects/", "/sections/", "/tasks/", "/labels/", "/import/operations/"].some((prefix) => pathname.startsWith(prefix))
+  const pattern = ["/projects/", "/sections/", "/tasks/", "/labels/", "/comments/", "/import/operations/"].some((prefix) => pathname.startsWith(prefix))
     ? pathname.replace(`/${id}`, "/:id") : pathname;
   const source = /^\/import\/sources\/([^/]+)\/(preview|confirm)$/.exec(pathname);
   if (source) {

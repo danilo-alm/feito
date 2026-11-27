@@ -1,5 +1,7 @@
 import { Temporal } from "@js-temporal/polyfill";
-import { byPosition, childrenByParent, isActive, type CompletedOccurrence, type Product } from "../domain/product";
+import {
+  byPosition, childrenByParent, compareComments, isActive, type CompletedOccurrence, type Product, type TaskComment,
+} from "../domain/product";
 import { walkTaskTree } from "../domain/task-tree";
 import type { Preferences } from "../types";
 import { documentType, schemaVersion, type PortableDocument } from "./document";
@@ -11,7 +13,9 @@ function localIds<T>(values: readonly T[], key: (value: T) => string, prefix: st
 const idOf = (record: { id: string }) => record.id;
 const occurrenceKey = (taskId: string, occurrenceId: string) => `${taskId}/${occurrenceId}`;
 
-export function exportDocument(product: Product, settings: Preferences, occurrences: readonly CompletedOccurrence[]) {
+export function exportDocument(
+  product: Product, settings: Preferences, occurrences: readonly CompletedOccurrence[], comments: readonly TaskComment[] = [],
+) {
   const projects = [...product.projects.values()].sort((a, b) =>
     Number(b.isInbox) - Number(a.isInbox) || Temporal.Instant.compare(a.data.createdAt, b.data.createdAt)
     || a.id.localeCompare(b.id));
@@ -72,6 +76,9 @@ export function exportDocument(product: Product, settings: Preferences, occurren
       occurrenceId: occurrenceIds.get(occurrenceKey(taskId, occurrenceId))!,
       nominalDate, dueDate, dueTime, completedAt,
     })),
+    comments: comments.filter((comment) => taskIds.has(comment.taskId))
+      .sort((a, b) => taskOrder.get(a.taskId)! - taskOrder.get(b.taskId)! || compareComments(a, b))
+      .map(({ taskId, data: { body, createdAt, editedAt } }) => ({ taskId: taskIds.get(taskId)!, body, createdAt, editedAt })),
   };
   return { document, referenceDate: product.referenceDate };
 }

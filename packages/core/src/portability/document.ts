@@ -1,16 +1,19 @@
 import { z } from "zod";
 import { preferences } from "../validation/preferences";
 import {
-  civilDate, defaultSectionName, description, entityId, instant, localTime, name, position, priority, projectColor, projectIcon, projectView, recurrenceRule, title,
+  civilDate, commentBody, defaultSectionName, description, entityId, instant, localTime, name, position, priority, projectColor, projectIcon, projectView, recurrenceRule, title,
 } from "../validation/product";
 
 export const documentType = "feito-data";
-export const schemaVersion = 1;
+/** Version written by exports. Version 2 added comments. */
+export const schemaVersion = 2;
+/** Versions accepted by imports. Version 1 files have no comments. */
+export const readableSchemaVersions: readonly number[] = [1, 2];
 const ref = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 
 export const portableDocument = z.strictObject({
   type: z.literal(documentType),
-  schemaVersion: z.literal(schemaVersion),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   exportedAt: instant,
   preferences,
   projects: z.array(z.strictObject({
@@ -35,6 +38,10 @@ export const portableDocument = z.strictObject({
     // Older exports accidentally included the internal pointer used for undo.
     nextOccurrenceId: entityId.optional(),
   }).transform(({ nextOccurrenceId: _nextOccurrenceId, ...occurrence }) => occurrence)),
+  // Required in version 2 and absent in version 1.
+  comments: z.array(z.strictObject({
+    taskId: ref, body: commentBody, createdAt: instant, editedAt: instant.nullable(),
+  })).optional(),
 });
 
 export type PortableDocument = z.infer<typeof portableDocument>;

@@ -3,7 +3,7 @@ import { gt, lte } from "drizzle-orm";
 import type { Transaction } from "./client";
 import { desktopJournal } from "./schema";
 
-const collections = ["projects", "sections", "tasks", "labels", "taskLabels", "occurrences"] as const;
+const collections = ["projects", "sections", "tasks", "labels", "taskLabels", "occurrences", "comments"] as const;
 type Collection = typeof collections[number];
 export type DesktopJournalReferences = Partial<Record<Collection, string[]>> & { preferences?: true };
 

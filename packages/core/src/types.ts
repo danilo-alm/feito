@@ -49,7 +49,26 @@ export type TaskDetail = TaskItem & {
   createdAt: string;
   recurrenceRule: RecurrenceRule | null;
   children: TaskItem[];
+  /** Comments on this task. Load them with `GET /tasks/{id}/comments`. */
+  commentCount: number;
 };
+
+/**
+ * Comment on a task. Accounts have a single user, so the author is always the account owner
+ * (`Me.user`); local workspaces have no account.
+ */
+export type TaskComment = {
+  id: string;
+  taskId: string;
+  revision: number;
+  body: string;
+  createdAt: string;
+  /** Instant of the latest edit, or null when never edited. */
+  editedAt: string | null;
+};
+
+/** Comments of one task, oldest first. */
+export type TaskComments = { comments: TaskComment[] };
 
 export type NamedDetails = { name: string; description: string };
 export type Section = NamedDetails & { id: string; revision: number; taskCount: number };

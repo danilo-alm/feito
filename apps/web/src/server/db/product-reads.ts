@@ -4,7 +4,7 @@ import type { Product, Project } from "@feito/core/domain/product";
 import { notFound } from "@/server/errors";
 import type { Transaction } from "./client";
 import {
-  mapRows, mapTaskLabels, readCalendar, readLabelRecord, readProjectRecord, readSectionRecord,
+  mapRows, mapTaskLabels, readCalendar, readCommentCounts, readLabelRecord, readProjectRecord, readSectionRecord,
   readTaskRecord, type ProductAccess,
 } from "./product";
 import { withProductReader, type ProductReader } from "./product-crypto";
@@ -46,6 +46,8 @@ export async function loadProjectView(tx: Transaction, reader: ProductReader, te
     sections: await mapRows(sectionRows, (row) => readSectionRecord(reader, row)),
     tasks: await mapRows(taskRows, (row) => readTaskRecord(reader, row)),
     ...await loadLabels(tx, reader, tenantId, scope),
+    // Project pages list task items, which carry no comment count.
+    commentCounts: new Map(),
   } satisfies Product;
 }
 
@@ -94,6 +96,7 @@ export function readTaskDetail(access: ProductAccess, id: string) {
       sections: await mapRows(sectionRows, (item) => readSectionRecord(reader, item)),
       tasks: related,
       ...await loadLabels(tx, reader, tenantId, or(eq(tasks.id, id), eq(tasks.parentId, id))!),
+      commentCounts: await readCommentCounts(tx, [id]),
     } satisfies Product;
     return { product, task };
   });

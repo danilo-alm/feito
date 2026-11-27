@@ -6,7 +6,7 @@ mod title;
 use title::generation;
 pub use title::{commit_title, Commit, Selection, TitleEdit};
 
-const MIGRATIONS: [&str; 7] = [
+const MIGRATIONS: [&str; 8] = [
     include_str!("../../../../../packages/core/sqlite/migrations/001-initial.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/002-import-layer.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/003-save-profile.sql"),
@@ -14,6 +14,7 @@ const MIGRATIONS: [&str; 7] = [
     include_str!("../../../../../packages/core/sqlite/migrations/005-manual-order.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/006-agenda-layouts.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/007-parent-projects.sql"),
+    include_str!("../../../../../packages/core/sqlite/migrations/008-task-comments.sql"),
 ];
 macro_rules! query {
     ($name:literal) => {

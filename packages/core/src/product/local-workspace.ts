@@ -2,10 +2,13 @@ import { Temporal } from "@js-temporal/polyfill";
 import type { Preferences } from "../types";
 import { defaultPreferences, referenceDate } from "../domain/preferences";
 import {
-  inboxName, isActive, type CompletedOccurrence, type Label, type OccurrenceReference,
-  type Product, type Project, type Section, type Task,
+  countComments, inboxName, isActive, type CompletedOccurrence, type Label, type OccurrenceReference,
+  type Product, type Project, type Section, type Task, type TaskComment,
 } from "../domain/product";
-import type { MutationHistory, ProductCalendar, ProductProjection, ProductSummary, TaskView, TaskViewScope } from "./port";
+import type {
+  CommentTarget, CommentWrite, CommentContext, MutationHistory, ProductCalendar, ProductProjection, ProductSummary,
+  TaskView, TaskViewScope,
+} from "./port";
 import { notFound } from "./errors";
 import { defaultsForView } from "../validation/product";
 
@@ -17,6 +20,8 @@ export type Workspace = {
   labels: Label[];
   taskLabels: [string, string[]][];
   occurrences: CompletedOccurrence[];
+  /** Absent in workspaces saved before comments existed. */
+  comments?: TaskComment[];
 };
 
 export function newWorkspace(): Workspace {
@@ -30,7 +35,7 @@ export function newWorkspace(): Workspace {
         view: { ...defaultsForView }, createdAt: Temporal.Now.instant().toString(),
       },
     }],
-    sections: [], tasks: [], labels: [], taskLabels: [], occurrences: [],
+    sections: [], tasks: [], labels: [], taskLabels: [], occurrences: [], comments: [],
   };
 }
 
@@ -43,7 +48,7 @@ export function asProduct(workspace: Workspace, now = Temporal.Now.instant()): P
   return {
     projects: records(workspace.projects), sections: records(workspace.sections),
     tasks: records(workspace.tasks), labels: records(workspace.labels), taskLabels: new Map(workspace.taskLabels),
-    now, timezone, referenceDate: referenceDate(timezone, now),
+    commentCounts: countComments(workspace.comments ?? []), now, timezone, referenceDate: referenceDate(timezone, now),
   };
 }
 
@@ -82,7 +87,36 @@ export async function mutateProduct<T>(
     projects: Array.from(draft.projects.values()), sections: Array.from(draft.sections.values()),
     tasks: Array.from(draft.tasks.values()), labels: Array.from(draft.labels.values()),
     taskLabels: Array.from(draft.taskLabels), occurrences,
+    comments: (workspace.comments ?? []).filter((comment) => draft.tasks.has(comment.taskId)),
   };
+  return value;
+}
+
+export async function readComments(access: ProductAccess, taskId: string) {
+  if (!access.workspace.tasks.some((task) => task.id === taskId)) throw notFound();
+  return (access.workspace.comments ?? []).filter((comment) => comment.taskId === taskId);
+}
+
+export async function mutateComments<T>(
+  access: ProductAccess, target: CommentTarget, apply: (context: CommentContext) => CommentWrite<T>,
+): Promise<T> {
+  const workspace = access.workspace;
+  const comments = workspace.comments ?? [];
+  const comment = "commentId" in target ? comments.find(({ id }) => id === target.commentId) : undefined;
+  const taskId = "taskId" in target ? target.taskId : comment?.taskId;
+  const task = workspace.tasks.find(({ id }) => id === taskId);
+  const project = task && workspace.projects.find(({ id }) => id === task.projectId);
+  if (!task || !project) throw notFound();
+  const now = access.authoredAt ? Temporal.Instant.from(access.authoredAt) : Temporal.Now.instant();
+  const { value, upsert, remove } = apply({
+    task, project, comment, now: now.toString(), count: comments.filter((item) => item.taskId === task.id).length,
+  });
+  // Replaying a creation the server already confirmed keeps the confirmed comment.
+  const replayed = upsert?.revision === 1 && comments.some(({ id }) => id === upsert.id);
+  if ((upsert && !replayed) || remove) {
+    const replaced = comments.filter(({ id }) => id !== upsert?.id && id !== remove?.id);
+    access.workspace = { ...workspace, comments: upsert ? [...replaced, upsert] : replaced };
+  }
   return value;
 }
 

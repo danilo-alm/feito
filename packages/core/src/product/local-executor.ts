@@ -6,18 +6,19 @@ import { inboxProject, taskItemsWithOrigin } from "./product-dto";
 import { validation } from "./product-rules";
 import { preferencesPatch } from "../validation/preferences";
 import {
-  completeTaskInput, createProjectInput, createSectionInput, createTaskInput, deleteQuery, editNameInput,
-  editNamedDetailsInput, editProjectInput, editTaskInput, entityId, labelTasksQuery, nameInput, projectListQuery,
+  completeTaskInput, createCommentInput, createProjectInput, createSectionInput, createTaskInput, deleteQuery, editNameInput,
+  editCommentInput, editNamedDetailsInput, editProjectInput, editTaskInput, entityId, labelTasksQuery, nameInput, projectListQuery,
   orderMoveInput, projectMoveInput, projectPageQuery, projectViewPatch, revisionInput, searchInput, sectionMoveInput, setRecurrenceInput,
   taskDeleteQuery, taskMoveInput, todayQuery, undoTaskCompletionInput, upcomingQuery,
 } from "../validation/product";
 import { createAgendaService } from "./agenda";
+import { createCommentsService } from "./comments";
 import { createLabelsService } from "./labels";
 import type { ProductPort, TaskAccess } from "./port";
 import { createProjectsService } from "./projects";
 import { createTasksService } from "./tasks";
 import {
-  asProduct, mutateProduct, readProductSummary, readProjectView, readTaskDetail, readTaskView,
+  asProduct, mutateComments, mutateProduct, readComments, readProductSummary, readProjectView, readTaskDetail, readTaskView,
   type ProductAccess, type Workspace,
 } from "./local-workspace";
 
@@ -36,6 +37,9 @@ const {
   completeTask, createTask, deleteTask, duplicateTask, editTask, getTask, moveTask,
   removeRecurrence, reopenTask, setRecurrence, undoTaskCompletion,
 } = createTasksService(product);
+const { createComment, deleteComment, editComment, listComments } = createCommentsService<ProductAccess>({
+  allocateId: product.allocateId, readComments, mutateComments,
+});
 
 export { newWorkspace, type Workspace } from "./local-workspace";
 
@@ -146,6 +150,10 @@ async function taskRoute({ access, method, url, body }: RouteRequest, idText?: s
       return json(null, 204);
     }
   }
+  if (action === "comments") {
+    if (method === "GET") return json(await listComments(access, id));
+    if (method === "POST") return json(await createComment(access, id, parse(createCommentInput, body)), 201);
+  }
   if (action === "recurrence") {
     if (method === "PUT") return json(await setRecurrence(access, id, parse(setRecurrenceInput, body)));
     if (method === "DELETE") {
@@ -238,6 +246,17 @@ async function labelRoute({ access, method, url, body }: RouteRequest, idText?: 
   throw notFound();
 }
 
+async function commentRoute({ access, method, url, body }: RouteRequest, id: string, action?: string) {
+  if (!action) {
+    if (method === "PATCH") return json(await editComment(access, id, parse(editCommentInput, body)));
+    if (method === "DELETE") {
+      await deleteComment(access, id, parse(deleteQuery, Object.fromEntries(url.searchParams)).revision);
+      return json(null, 204);
+    }
+  }
+  throw notFound();
+}
+
 async function handleRoute(request: RouteRequest) {
   const { access, session, method, url, body } = request;
   const [root, id, action, extra] = url.pathname.slice(1).split("/");
@@ -246,6 +265,7 @@ async function handleRoute(request: RouteRequest) {
   if (root === "projects") return projectRoute(request, id, action);
   if (root === "sections") return sectionRoute(request, idFrom(id), action);
   if (root === "labels") return labelRoute(request, id, action);
+  if (root === "comments") return commentRoute(request, idFrom(id), action);
 
   switch (`${method} ${url.pathname}`) {
     case "GET /me": {
@@ -289,6 +309,7 @@ function replayBody(workspace: Workspace, url: URL, method: string, body: unknow
   const [collection, id] = url.pathname.slice(1).split("/");
   const entries = {
     tasks: workspace.tasks, projects: workspace.projects, sections: workspace.sections, labels: workspace.labels,
+    comments: workspace.comments ?? [],
   };
   if (!Object.hasOwn(entries, collection)) return body;
   const record = entries[collection as keyof typeof entries].find((item) => item.id === id);

@@ -24,9 +24,13 @@ describe("portable document", () => {
   it("accepts v1 and reports an unknown version by path", () => {
     const file = emptyDocument();
     expect(parse(file)).toEqual({ schemaVersion: 1, document: file, errors: [] });
-    expect(parse({ ...file, schemaVersion: 2 })).toMatchObject({
-      schemaVersion: 2, document: null, errors: [{ path: "schemaVersion" }],
+    expect(parse({ ...file, schemaVersion: 3 })).toMatchObject({
+      schemaVersion: 3, document: null, errors: [{ path: "schemaVersion" }],
     });
+    // Version 2 adds comments; version 1 files have none.
+    expect(parse({ ...file, schemaVersion: 2, comments: [] })).toMatchObject({ schemaVersion: 2, errors: [] });
+    expect(parse({ ...file, schemaVersion: 2 }).errors.map(({ path }) => path)).toEqual(["comments"]);
+    expect(parse({ ...file, comments: [] }).errors.map(({ path }) => path)).toEqual(["comments"]);
     expect(parse({ ...file, tenantId: randomUUID() }).document).toBeNull();
   });
 
@@ -76,6 +80,41 @@ describe("portable document", () => {
       const broken = { ...file, projects: file.projects.map((project) => project === exported ? { ...project, parentId } : project) };
       expect(parse(broken).errors.map(({ path }) => path)).toContain(`projects.${file.projects.indexOf(exported)}.parentId`);
     }
+  });
+
+  it("keeps comments through export and restore and rejects comments outside the document", async () => {
+    const { handleLocal, newWorkspace } = await import("@feito/core/product/local-executor");
+    const { exportLocalWorkspace, restoreLocalWorkspace } = await import("@feito/core/portability/local");
+    let workspace = newWorkspace();
+    const send = async (path: string, body: unknown, authoredAt: string, method = "POST") => {
+      const result = await handleLocal(workspace, { method, path, body, authoredAt });
+      workspace = result.workspace;
+      return result.body as { id: string };
+    };
+    expect(exportLocalWorkspace(workspace).document).toMatchObject({ schemaVersion: 2, comments: [] });
+    const task = await send("/tasks", { title: "Comentada" }, "2026-11-17T12:00:00Z");
+    const later = await send(`/tasks/${task.id}/comments`, { body: "Segundo" }, "2026-11-17T12:10:00Z");
+    await send(`/tasks/${task.id}/comments`, { body: "Primeiro" }, "2026-11-17T12:05:00Z");
+    await send(`/comments/${later.id}`, { revision: 1, body: "Segundo, editado" }, "2026-11-17T12:20:00Z", "PATCH");
+
+    const file = exportLocalWorkspace(workspace).document;
+    const exportedTask = file.tasks[0].id;
+    expect(file.comments).toEqual([
+      { taskId: exportedTask, body: "Primeiro", createdAt: "2026-11-17T12:05:00Z", editedAt: null },
+      { taskId: exportedTask, body: "Segundo, editado", createdAt: "2026-11-17T12:10:00Z", editedAt: "2026-11-17T12:20:00Z" },
+    ]);
+    expect(parse(file).errors).toEqual([]);
+    const restored = restoreLocalWorkspace(newWorkspace(), file);
+    expect(restored.comments!.map(({ taskId, revision, data }) => ({ taskId, revision, body: data.body })))
+      .toEqual([
+        { taskId: restored.tasks[0].id, revision: 1, body: "Primeiro" },
+        { taskId: restored.tasks[0].id, revision: 1, body: "Segundo, editado" },
+      ]);
+
+    const broken = { ...file, comments: [{ ...file.comments![0], taskId: "missing" }, { ...file.comments![1], body: " " }] };
+    expect(parse(broken).errors.map(({ path }) => path)).toEqual(["comments.1.body"]);
+    expect(parse({ ...file, comments: [{ ...file.comments![0], taskId: "missing" }] }).errors.map(({ path }) => path))
+      .toEqual(["comments.0.taskId"]);
   });
 
   it("defaults missing project and section descriptions in older v1 files", () => {

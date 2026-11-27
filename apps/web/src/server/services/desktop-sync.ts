@@ -7,10 +7,11 @@ import { ensureWorkspace, persistPreferences } from "@/server/db/workspace";
 import { ApiError } from "@/server/errors";
 import { preferencesPatch } from "@feito/core/validation/preferences";
 import {
-  completeTaskInput, createProjectInput, createSectionInput, createTaskInput, deleteQuery, editNameInput,
-  editNamedDetailsInput, editProjectInput, editTaskInput, entityId, instant, nameInput, orderMoveInput, projectMoveInput, projectViewPatch,
+  completeTaskInput, createCommentInput, createProjectInput, createSectionInput, createTaskInput, deleteQuery, editNameInput,
+  editCommentInput, editNamedDetailsInput, editProjectInput, editTaskInput, entityId, instant, nameInput, orderMoveInput, projectMoveInput, projectViewPatch,
   revisionInput, sectionMoveInput, setRecurrenceInput, taskDeleteQuery, taskMoveInput, undoTaskCompletionInput,
 } from "@feito/core/validation/product";
+import { createComment, deleteComment, editComment } from "./comments";
 import { createLabel, deleteLabel, moveLabel, renameLabel } from "./labels";
 import {
   createProject, createSection, deleteProject, deleteSection, editProject, editSection,
@@ -138,6 +139,19 @@ function dispatch(access: ProductAccess, operation: DesktopOperation, input: Inp
         }
         case "DELETE recurrence":
           return removeRecurrence(bind({ id, field: "schedule" }), id, validate(query, deleteQuery).revision);
+        case "POST comments":
+          return createComment(bind(undefined, [first ?? operation.id]), id, validate(input.body, createCommentInput));
+        default:
+          return unsupported();
+      }
+    }
+    case "comments": {
+      if (params.length && verb !== "DELETE") return unsupported();
+      switch (verb) {
+        case "PATCH":
+          return editComment(bind(), id, validate(input.body, editCommentInput));
+        case "DELETE":
+          return deleteComment(bind(), id, validate(query, deleteQuery).revision);
         default:
           return unsupported();
       }

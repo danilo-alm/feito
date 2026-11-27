@@ -1,6 +1,6 @@
 import {
   childrenByParent, childrenOf, compareLabels, projectParentId, isActive, isOverdue, orderedRoots, orderedSections,
-  type Label, type Product, type Project, type Section, type Task,
+  type Label, type Product, type Project, type Section, type Task, type TaskComment,
 } from "../domain/product";
 import { walkTaskTree } from "../domain/task-tree";
 import { taskDescriptionExcerpt } from "../domain/task-description";
@@ -123,7 +123,12 @@ export function taskDetail(product: Product, task: Task) {
     description: task.data.description,
     createdAt: task.data.createdAt,
     children: children.map((child) => taskItem(product, child, { children: byParent.get(child.id) ?? [] })),
+    commentCount: product.commentCounts.get(task.id) ?? 0,
   };
+}
+
+export function commentDto({ id, taskId, revision, data }: TaskComment) {
+  return { id, taskId, revision, body: data.body, createdAt: data.createdAt, editedAt: data.editedAt };
 }
 
 export function projectPage(product: Product, project: Project, includeCompleted?: boolean) {

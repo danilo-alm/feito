@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { inboxName, normalizeLabelName } from "../domain/product";
+import { maxCommentsPerTask } from "../product/comments";
 import { validNominalDate } from "../domain/recurrence";
-import { portableDocument, schemaVersion, type ImportIssue, type PortableDocument } from "./document";
+import { portableDocument, readableSchemaVersions, type ImportIssue, type PortableDocument } from "./document";
 
 const MAX_ERRORS = 50;
 const MAX_DEPTH = 10;
@@ -142,11 +143,20 @@ function validateReferences(document: PortableDocument) {
     if (!tasks.has(occurrence.taskId)) report(`${path}.taskId`, "Tarefa ausente do documento.");
     unique(identifiers, occurrence.occurrenceId, `${path}.occurrenceId`, "Identificador de ocorrência duplicado.");
   }
+  const commentCounts = new Map<string, number>();
+  for (const [index, comment] of (document.comments ?? []).entries()) {
+    const path = `comments.${index}`;
+    if (!tasks.has(comment.taskId)) report(`${path}.taskId`, "Tarefa ausente do documento.");
+    const count = (commentCounts.get(comment.taskId) ?? 0) + 1;
+    commentCounts.set(comment.taskId, count);
+    if (count === maxCommentsPerTask + 1) report(path, "A tarefa excede o limite de comentários.");
+  }
   return errors;
 }
 
 const collectionLimits = {
   projects: 10_000, sections: 20_000, tasks: 30_000, labels: 20_000, taskLabels: 100_000, occurrences: 50_000,
+  comments: 100_000,
 } as const;
 const envelope = portableDocument.extend({
   projects: z.array(z.unknown()).max(collectionLimits.projects),
@@ -155,6 +165,7 @@ const envelope = portableDocument.extend({
   labels: z.array(z.unknown()).max(collectionLimits.labels),
   taskLabels: z.array(z.unknown()).max(collectionLimits.taskLabels),
   occurrences: z.array(z.unknown()).max(collectionLimits.occurrences),
+  comments: z.array(z.unknown()).max(collectionLimits.comments).optional(),
 });
 
 function validationIssues(error: z.ZodError, path?: string): ImportIssue[] {
@@ -192,25 +203,32 @@ export function parseDocument(bytes: Uint8Array): ParsedDocument {
   }
   const version = value !== null && typeof value === "object" && "schemaVersion" in value
     && typeof value.schemaVersion === "number" && Number.isSafeInteger(value.schemaVersion) ? value.schemaVersion : null;
-  if (version !== null && version !== schemaVersion) {
+  if (version !== null && !readableSchemaVersions.includes(version)) {
     return { schemaVersion: version, document: null,
       errors: [{ path: "schemaVersion", message: "Versão de documento incompatível." }] };
   }
   const parsed = envelope.safeParse(value);
   if (!parsed.success) return { schemaVersion: version, document: null, errors: validationIssues(parsed.error) };
   const header = parsed.data;
+  if ((header.comments === undefined) !== (header.schemaVersion === 1)) {
+    return { schemaVersion: version, document: null, errors: [{ path: "comments", message: "Campo fora do formato esperado." }] };
+  }
   const errors: ImportIssue[] = [];
+  const { comments, ...rest } = header;
   const document: PortableDocument = {
-    ...header,
+    ...rest,
     projects: parseRows(header.projects, portableDocument.shape.projects.element, "projects", errors),
     sections: parseRows(header.sections, portableDocument.shape.sections.element, "sections", errors),
     tasks: parseRows(header.tasks, portableDocument.shape.tasks.element, "tasks", errors),
     labels: parseRows(header.labels, portableDocument.shape.labels.element, "labels", errors),
     taskLabels: parseRows(header.taskLabels, portableDocument.shape.taskLabels.element, "taskLabels", errors),
     occurrences: parseRows(header.occurrences, portableDocument.shape.occurrences.element, "occurrences", errors),
+    ...comments && {
+      comments: parseRows(comments, portableDocument.shape.comments.unwrap().element, "comments", errors),
+    },
   };
   const issues = errors.length ? errors : validateReferences(document);
   return issues.length
-    ? { schemaVersion, document: null, errors: issues }
-    : { schemaVersion, document, errors: [] };
+    ? { schemaVersion: header.schemaVersion, document: null, errors: issues }
+    : { schemaVersion: header.schemaVersion, document, errors: [] };
 }

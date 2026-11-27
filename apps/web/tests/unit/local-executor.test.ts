@@ -453,3 +453,92 @@ describe("executor local: repetição de operações", () => {
     await expect(handleLocal(workspace, { method: "GET", path: "/me", session })).rejects.toThrow("falha inesperada");
   });
 });
+
+describe("executor local: comentários", () => {
+  type Comment = { id: string; taskId: string; revision: number; body: string; createdAt: string; editedAt: string | null };
+  const comments = async (taskId: string) =>
+    ((await call("GET", `/tasks/${taskId}/comments`)).body as { comments: Comment[] }).comments;
+  const commentCount = async (taskId: string) => ((await call("GET", `/tasks/${taskId}`)).body as { commentCount: number }).commentCount;
+
+  it("cria, lista, edita e remove comentários e conta-os no detalhe da tarefa", async () => {
+    const task = await create("/tasks", { title: "Com comentários" });
+    expect(await commentCount(task.id)).toBe(0);
+    const first = await create(`/tasks/${task.id}/comments`, { body: "  Primeiro  " }) as unknown as Comment;
+    expect(first).toEqual({
+      id: expect.any(String), taskId: task.id, revision: 1, body: "Primeiro", createdAt: authoredAt, editedAt: null,
+    });
+    const later = "2026-03-10T12:05:00Z";
+    const second = (await call("POST", `/tasks/${task.id}/comments`, { body: "Segundo" }, { authoredAt: later })).body as Comment;
+    expect((await comments(task.id)).map(({ body }) => body)).toEqual(["Primeiro", "Segundo"]);
+    expect(await commentCount(task.id)).toBe(2);
+
+    const edited = await call("PATCH", `/comments/${first.id}`, { revision: 1, body: "Editado" }, { authoredAt: later });
+    expect(edited.body).toMatchObject({ id: first.id, revision: 2, body: "Editado", createdAt: authoredAt, editedAt: later });
+    const same = await call("PATCH", `/comments/${first.id}`, { revision: 2, body: "Editado" });
+    expect(same.body).toMatchObject({ revision: 2 });
+    const stale = await call("PATCH", `/comments/${first.id}`, { revision: 1, body: "Antigo" });
+    expect(stale.status).toBe(409);
+    expect((stale.body as { error: { details: { current: Comment } } }).error.details.current).toMatchObject({ revision: 2 });
+
+    expect(code(await call("DELETE", `/comments/${second.id}?revision=9`))).toBe("REVISION_CONFLICT");
+    expect((await call("DELETE", `/comments/${second.id}?revision=1`)).status).toBe(204);
+    expect((await comments(task.id)).map(({ id }) => id)).toEqual([first.id]);
+    expect(code(await call("PATCH", `/comments/${second.id}`, { revision: 1, body: "x" }))).toBe("NOT_FOUND");
+  });
+
+  it("valida o texto, a tarefa e o projeto arquivado", async () => {
+    const task = await create("/tasks", { title: "Tarefa" });
+    for (const body of [{ body: "   " }, { body: "x".repeat(10_001) }, {}, { body: "ok", extra: true }]) {
+      expect(code(await call("POST", `/tasks/${task.id}/comments`, body))).toBe("VALIDATION_FAILED");
+    }
+    expect(code(await call("POST", `/tasks/${missing}/comments`, { body: "Sem tarefa" }))).toBe("NOT_FOUND");
+    expect(code(await call("GET", `/tasks/${missing}/comments`))).toBe("NOT_FOUND");
+    expect(code(await call("PATCH", `/comments/${missing}`, { revision: 1, body: "x" }))).toBe("NOT_FOUND");
+    expect(code(await call("GET", "/comments/nao-e-uuid"))).toBe("NOT_FOUND");
+
+    const project = await create("/projects", { name: "Arquivado" });
+    const archivedTask = await create("/tasks", { title: "Arquivada", projectId: project.id });
+    const comment = await create(`/tasks/${archivedTask.id}/comments`, { body: "Antes" });
+    await call("POST", `/projects/${project.id}/archive`, { revision: project.revision });
+    expect(code(await call("POST", `/tasks/${archivedTask.id}/comments`, { body: "Depois" }))).toBe("PROJECT_ARCHIVED");
+    expect(code(await call("PATCH", `/comments/${comment.id}`, { revision: 1, body: "x" }))).toBe("PROJECT_ARCHIVED");
+    expect(code(await call("DELETE", `/comments/${comment.id}?revision=1`))).toBe("PROJECT_ARCHIVED");
+    expect(await comments(archivedTask.id)).toHaveLength(1);
+  });
+
+  it("remove os comentários com a tarefa e as subtarefas", async () => {
+    const parent = await create("/tasks", { title: "Pai" });
+    const child = await create("/tasks", { title: "Filha", parentId: parent.id });
+    await create(`/tasks/${parent.id}/comments`, { body: "No pai" });
+    await create(`/tasks/${child.id}/comments`, { body: "Na filha" });
+    const other = await create("/tasks", { title: "Outra" });
+    await create(`/tasks/${other.id}/comments`, { body: "Fica" });
+    await call("DELETE", `/tasks/${parent.id}?revision=${taskRevision(parent.id)}&withChildren=true`);
+    expect(workspace.comments?.map(({ data }) => data.body)).toEqual(["Fica"]);
+  });
+
+  it("aceita espaços salvos antes dos comentários e repete a criação com o mesmo identificador", async () => {
+    const task = await create("/tasks", { title: "Antiga" });
+    const { comments: _comments, ...legacy } = workspace;
+    workspace = legacy;
+    expect(await comments(task.id)).toEqual([]);
+    expect(await commentCount(task.id)).toBe(0);
+
+    const before = workspace;
+    const created = await call("POST", `/tasks/${task.id}/comments`, { body: "Na fila" });
+    expect(created.generatedIds).toHaveLength(1);
+    workspace = before;
+    const replayed = await call("POST", `/tasks/${task.id}/comments`, { body: "Na fila" },
+      { replay: true, generatedIds: created.generatedIds });
+    expect((replayed.body as Comment).id).toBe(created.generatedIds![0]);
+
+    const comment = replayed.body as Comment;
+    await call("PATCH", `/comments/${comment.id}`, { revision: 1, body: "Primeira edição" });
+    // Na repetição, a revisão enviada passa a ser a atual do comentário.
+    const edit = await call("PATCH", `/comments/${comment.id}`, { revision: 1, body: "Segunda edição" }, { replay: true });
+    expect(edit.body).toMatchObject({ revision: 3, body: "Segunda edição" });
+    // Repetir a criação já confirmada mantém o comentário atual.
+    await call("POST", `/tasks/${task.id}/comments`, { body: "Na fila" }, { replay: true, generatedIds: created.generatedIds });
+    expect(await comments(task.id)).toMatchObject([{ id: comment.id, revision: 3, body: "Segunda edição" }]);
+  });
+});

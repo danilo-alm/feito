@@ -13,6 +13,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../../../../packages/core/sqlite/migrations/005-manual-order.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/006-agenda-layouts.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/007-parent-projects.sql"),
+    include_str!("../../../../../packages/core/sqlite/migrations/008-task-comments.sql"),
 ];
 const READ_PROFILE: &str =
     include_str!("../../../../../packages/core/sqlite/queries/read-profile.sql");
@@ -337,6 +338,47 @@ mod tests {
             }],
             "sections": [], "labels": [], "taskLabels": [], "occurrences": [], "tasks": [],
         })
+    }
+
+    #[test]
+    fn stores_task_comments_and_removes_them_with_their_task() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = WorkspaceStore::new(
+            directory.path().to_path_buf(),
+            "app.feito.sqlite.test".into(),
+        );
+        let mut local = workspace();
+        local["tasks"] = json!([{
+            "id": "task", "revision": 1, "projectId": "inbox", "sectionId": null, "parentId": null,
+            "occurrenceId": null,
+            "data": { "title": "Commented", "description": "", "priority": 4, "position": 0,
+                "createdAt": "2026-11-22T00:00:00Z", "completedAt": null, "dueDate": null,
+                "dueTime": null, "recurrenceRule": null }
+        }]);
+        local["comments"] = json!([{
+            "id": "comment", "taskId": "task", "revision": 2,
+            "data": { "body": "Synthetic note", "createdAt": "2026-11-22T00:00:00Z",
+                "editedAt": "2026-11-22T01:00:00Z" }
+        }]);
+        let document = json!({ "version": 1, "active": "local", "local": local });
+        store.write_relational(None, document.clone(), key).unwrap();
+        let loaded = store.read_relational(key).unwrap().unwrap();
+        assert_eq!(loaded.value["local"]["comments"], local["comments"]);
+
+        let mut without_task = document;
+        without_task["local"]["tasks"] = json!([]);
+        without_task["local"]
+            .as_object_mut()
+            .unwrap()
+            .remove("comments");
+        store.write_relational(Some(1), without_task, key).unwrap();
+        let loaded = store.read_relational(key).unwrap().unwrap();
+        assert_eq!(loaded.value["local"]["comments"], json!([]));
+        let db = store.open_relational(key).unwrap();
+        let count: i64 = db
+            .query_row("SELECT count(*) FROM task_comments", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
     }
 
     #[test]

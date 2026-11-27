@@ -14,6 +14,7 @@ const migrations = [
   readSql("migrations/005-manual-order.sql"),
   readSql("migrations/006-agenda-layouts.sql"),
   readSql("migrations/007-parent-projects.sql"),
+  readSql("migrations/008-task-comments.sql"),
 ];
 const fixture = readFileSync(new URL("../../../../scripts/sqlite-proof/relational-fixture.sql", import.meta.url), "utf8");
 const queries = Object.fromEntries(
@@ -434,6 +435,54 @@ it("keeps the parent project across saves, reads, project context and the upgrad
     expect(store.commit(store.read()!.generation, { data: { workspace } })).toBe(true);
     expect(read().projects.find((project) => project.id === b.id)?.data).not.toHaveProperty("parentId");
     expect(db.selectValue("SELECT parent_id FROM projects WHERE id = ?", [b.id])).toBeNull();
+  } finally {
+    db.close();
+  }
+});
+
+it("stores comments in each layer, removes them with their task and reads documents saved without them", async () => {
+  const { handleLocal, newWorkspace } = await import("@feito/core/product/local-executor");
+  const sqlite = await sqlite3InitModule();
+  const db = new sqlite.oo1.DB();
+  try {
+    migrateSqlite(db, sqlite.version.libVersionNumber, migrations);
+    const store = createSqliteStorage(db, queries);
+    let workspace = newWorkspace();
+    const send = async (method: string, path: string, body?: unknown) => {
+      const result = await handleLocal(workspace, { method, path, body, authoredAt: "2026-11-22T00:00:00Z" });
+      workspace = result.workspace;
+      return result.body as { id: string; revision: number };
+    };
+    const task = await send("POST", "/tasks", { title: "Commented" });
+    const other = await send("POST", "/tasks", { title: "Other" });
+    const comment = await send("POST", `/tasks/${task.id}/comments`, { body: "First" });
+    await send("POST", `/tasks/${other.id}/comments`, { body: "Elsewhere" });
+    await send("PATCH", `/comments/${comment.id}`, { revision: 1, body: "Edited" });
+    const selection = { generation: 1, epoch: "epoch", spaceId: "local", discoverSession: false };
+    store.importProfile({ selection, local: { id: "local", workspace }, remotes: [] });
+
+    const readWorkspace = () => JSON.parse(String(db.selectValue(readSql("queries/read-profile.sql"), [true]))).local.workspace;
+    expect(readWorkspace().comments).toEqual(expect.arrayContaining(workspace.comments!));
+    expect(readWorkspace().comments).toHaveLength(2);
+    const detail = await store.taskDetail({ ...selection, generation: 1 }, task.id);
+    expect(detail).toMatchObject({ status: 200, body: { commentCount: 1 } });
+    const listed = await handleLocal(readWorkspace(), { method: "GET", path: `/tasks/${task.id}/comments` });
+    expect(listed.body).toMatchObject({ comments: [{ id: comment.id, revision: 2, body: "Edited", editedAt: expect.any(String) }] });
+
+    const save = (document: unknown) => db.exec({
+      sql: readSql("queries/save-profile.sql"),
+      bind: [JSON.stringify({ selection: { ...selection, generation: 2 }, local: { id: "local", workspace: document } })],
+    });
+    await send("DELETE", `/tasks/${task.id}?revision=1`);
+    save(workspace);
+    expect(readWorkspace().comments.map(({ data }: { data: { body: string } }) => data.body)).toEqual(["Elsewhere"]);
+    expect(db.selectValue("SELECT count(*) FROM task_comments")).toBe(1);
+
+    const { comments: _comments, ...legacy } = workspace;
+    save(legacy);
+    expect(readWorkspace().comments).toEqual([]);
+    expect(() => save({ ...legacy, comments: {} })).toThrow(/Invalid workspace document/);
+    expect(db.selectObjects("PRAGMA foreign_key_check")).toEqual([]);
   } finally {
     db.close();
   }

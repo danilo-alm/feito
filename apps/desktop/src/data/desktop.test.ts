@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Me, TaskDetail } from "@feito/core/types";
+import type { Me, TaskComment, TaskComments, TaskDetail } from "@feito/core/types";
 import type { Task } from "@feito/core/domain/product";
 import { createDesktop, type Bridge } from "./desktop";
 import { handleLocal, newWorkspace, type LocalRequest } from "./local";
@@ -101,6 +101,7 @@ function testBridge(serverOrigin = origin) {
     loseResponse: () => { loseNextResponse = true; },
     expireSession: () => { connectedUser = undefined; },
     taskCount: () => workspace.tasks.length,
+    comments: () => workspace.comments ?? [],
   };
 }
 
@@ -305,6 +306,37 @@ describe("sincronização do desktop", () => {
     await reopened.sync();
     expect(await (await readTask(reopened, task.id)).json()).toMatchObject({ title: "Alterada no site" });
     expect(onRemoteChange).toHaveBeenCalled();
+  });
+
+  it("comenta offline, envia os comentários na fila e recebe os do site", async () => {
+    const server = testBridge();
+    const client = createDesktop(server.bridge, vi.fn());
+    await client.connect(origin, owner.email, "senha de teste");
+    const task = await (await createTask(client, "Comentada")).json() as TaskDetail;
+    await client.sync();
+
+    server.setOnline(false);
+    await client.sync();
+    const queued = client.getStatus().server?.pending ?? 0;
+    const comment = (path: string, method: string, body?: unknown) =>
+      client.fetch(`/api/v1${path}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+    const created = await comment(`/tasks/${task.id}/comments`, "POST", { body: "Sem conexão" });
+    expect(created.status).toBe(201);
+    const local = await created.json() as TaskComment;
+    expect((await comment(`/comments/${local.id}`, "PATCH", { revision: 1, body: "Editado sem conexão" })).status).toBe(200);
+    await client.sync();
+    expect(client.getStatus()).toMatchObject({ server: { pending: queued + 2 } });
+    expect(await (await readTask(client, task.id)).json()).toMatchObject({ commentCount: 1 });
+
+    server.setOnline(true);
+    await client.sync();
+    expect(client.getStatus()).toMatchObject({ sync: "current", server: { pending: 0 } });
+    expect(server.comments()).toMatchObject([{ id: local.id, revision: 2, data: { body: "Editado sem conexão" } }]);
+
+    await server.changeServer({ method: "POST", path: `/tasks/${task.id}/comments`, body: { body: "Do site" } });
+    await client.sync();
+    const listed = await (await comment(`/tasks/${task.id}/comments`, "GET")).json() as TaskComments;
+    expect(listed.comments.map(({ body }) => body)).toEqual(["Editado sem conexão", "Do site"]);
   });
 
   it("retoma a sessão guardada e envia a fila quando o desktop volta a ficar online", async () => {

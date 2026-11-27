@@ -67,7 +67,15 @@ SELECT json_object(
         SELECT json_group_array(json_array(task_id, json(label_ids)))
         FROM (SELECT task_id, json_group_array(label_id) AS label_ids FROM links GROUP BY task_id)
     )),
-    'occurrences', json_array()
+    'occurrences', json_array(),
+    'comments', json((
+        SELECT json_group_array(json_object(
+            'id', comment.id, 'taskId', comment.task_id, 'revision', comment.revision,
+            'data', json_object('body', comment.body, 'createdAt', comment.created_at, 'editedAt', comment.edited_at)
+        ))
+        FROM task_comments AS comment
+        WHERE comment.space_id = ?1 AND comment.layer = ?2 AND comment.task_id = root.id
+    ))
 )
 FROM root
 JOIN preferences ON preferences.space_id = root.space_id AND preferences.layer = root.layer

@@ -1,15 +1,20 @@
 import "server-only";
 import type { MutationHistory, TaskField } from "@feito/core/product/port";
 import { Temporal } from "@js-temporal/polyfill";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { referenceDate } from "@feito/core/domain/preferences";
-import { childrenByParent, type CompletedOccurrence, type Label, type OccurrenceReference, type Product, type Project, type Section, type Task } from "@feito/core/domain/product";
+import {
+  childrenByParent, type CompletedOccurrence, type Label, type OccurrenceReference, type Product, type Project, type Section,
+  type Task, type TaskComment,
+} from "@feito/core/domain/product";
 import { walkTaskTree } from "@feito/core/domain/task-tree";
 import type { KeyConfig } from "@/server/crypto/config";
 import { PAYLOAD_VERSION, sealPayload, type PayloadContext } from "@/server/crypto/envelope";
 import { ApiError } from "@/server/errors";
 import { preferences as preferenceSchema } from "@feito/core/validation/preferences";
-import { completedOccurrencePayload, labelPayload, projectPayload, sectionPayload, taskPayload } from "@feito/core/validation/product";
+import {
+  completedOccurrencePayload, labelPayload, projectPayload, sectionPayload, taskCommentPayload, taskPayload,
+} from "@feito/core/validation/product";
 import type { Database, Transaction } from "./client";
 import { readDesktopRevisions, writeDesktopRevision, type DesktopJournalReferences } from "./desktop-journal";
 import {
@@ -17,7 +22,9 @@ import {
   writeDesktopTaskClocks, type DesktopOperation,
 } from "./desktop-sync";
 import { withDekWrite, withProductReader, type OpenDek, type ProductReader } from "./product-crypto";
-import { completedOccurrences, labels, preferences, projects, projectShares, sections, taskLabels, tasks, tenants } from "./schema";
+import {
+  completedOccurrences, labels, preferences, projects, projectShares, sections, taskComments, taskLabels, tasks, tenants,
+} from "./schema";
 import { advanceProductRevision, lockTenant, withTenant } from "./tenant";
 import { ensureWorkspace, preferenceContext } from "./workspace";
 
@@ -106,6 +113,25 @@ export async function readOccurrenceRecord(
   };
 }
 
+function commentContext(row: Metadata & Pick<TaskComment, "id" | "taskId">) {
+  return context(row, "task_comment", [row.taskId]);
+}
+
+export async function readCommentRecord(reader: ProductReader, row: typeof taskComments.$inferSelect): Promise<TaskComment> {
+  return {
+    id: row.id, revision: row.revision, taskId: row.taskId,
+    data: await reader(row, commentContext(row), taskCommentPayload),
+  };
+}
+
+/** Comment counts come from row metadata, without decrypting the comments. */
+export async function readCommentCounts(tx: Transaction, taskIds?: string[]) {
+  if (taskIds?.length === 0) return new Map<string, number>();
+  const rows = await tx.select({ taskId: taskComments.taskId, count: count() }).from(taskComments)
+    .where(taskIds ? inArray(taskComments.taskId, taskIds) : undefined).groupBy(taskComments.taskId);
+  return new Map(rows.map((row) => [row.taskId, row.count]));
+}
+
 async function loadProduct(tx: Transaction, reader: ProductReader) {
   const [preference] = await tx.select().from(preferences);
   if (!preference) throw new Error("Preferências indisponíveis.");
@@ -117,6 +143,7 @@ async function loadProduct(tx: Transaction, reader: ProductReader) {
     tasks: await mapRows(await tx.select().from(tasks), (row) => readTaskRecord(reader, row)),
     labels: await mapRows(await tx.select().from(labels), (row) => readLabelRecord(reader, row)),
     taskLabels: mapTaskLabels(await tx.select().from(taskLabels)),
+    commentCounts: await readCommentCounts(tx),
   };
   return { product, settings };
 }
@@ -162,7 +189,9 @@ export async function readExportSnapshot({ db, keys, tenantId }: ProductAccess) 
     for (const row of await tx.select().from(completedOccurrences)) {
       occurrences.push(await readOccurrenceRecord(reader, row));
     }
-    return { ...snapshot, occurrences };
+    const comments: TaskComment[] = [];
+    for (const row of await tx.select().from(taskComments)) comments.push(await readCommentRecord(reader, row));
+    return { ...snapshot, occurrences, comments };
   }), readOnlySnapshot);
 }
 
@@ -178,6 +207,7 @@ async function readDesktopChanges(tx: Transaction, reader: ProductReader, refere
   const sectionIds = references.sections;
   const taskIds = references.tasks;
   const labelIds = references.labels;
+  const commentIds = references.comments;
   const links = references.taskLabels ? mapTaskLabels(await tx.select().from(taskLabels)
     .where(inArray(taskLabels.taskId, references.taskLabels))) : undefined;
   const history = new Map<string, CompletedOccurrence[]>();
@@ -213,6 +243,10 @@ async function readDesktopChanges(tx: Transaction, reader: ProductReader, refere
     ),
     taskLabels: references.taskLabels?.map((id): [string, string[]] => [id, links?.get(id) ?? []]),
     occurrences: references.occurrences?.map((id): [string, CompletedOccurrence[]] => [id, history.get(id) ?? []]),
+    comments: commentIds && await entityChanges(
+      commentIds, () => tx.select().from(taskComments).where(inArray(taskComments.id, commentIds)),
+      (row) => readCommentRecord(reader, row),
+    ),
   };
 }
 
@@ -243,6 +277,7 @@ export async function readDesktopSnapshot(
         taskLabels: [...product.taskLabels],
         occurrences: await Promise.all((await tx.select().from(completedOccurrences))
           .map((row) => readOccurrenceRecord(reader, row))),
+        comments: await Promise.all((await tx.select().from(taskComments)).map((row) => readCommentRecord(reader, row))),
       };
     });
     return { cursor: tenant.revision, workspace };
@@ -338,6 +373,11 @@ export function productEncoder(tenantId: string, version: number, key: Buffer) {
       const { taskId, occurrenceId, data } = occurrence;
       const aad = occurrenceContext({ tenantId, ...metadata, taskId, occurrenceId });
       return { ...metadata, taskId, occurrenceId, ...sealPayload(key, aad, data) };
+    },
+    comment(comment: TaskComment) {
+      const metadata = fields(comment.revision);
+      const { id, taskId, data } = comment;
+      return { ...metadata, id, taskId, ...sealPayload(key, commentContext({ tenantId, ...metadata, id, taskId }), data) };
     },
   };
 }

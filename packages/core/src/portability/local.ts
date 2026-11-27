@@ -8,7 +8,7 @@ import { exportDocument } from "./export";
 import { remapForImport } from "./remap";
 
 export function exportLocalWorkspace(workspace: Workspace) {
-  return exportDocument(asProduct(workspace), workspace.preferences, workspace.occurrences);
+  return exportDocument(asProduct(workspace), workspace.preferences, workspace.occurrences, workspace.comments);
 }
 
 export function localDestinationIsEmpty(workspace: Workspace) {

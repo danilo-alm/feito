@@ -4,11 +4,13 @@ import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { wrapDek } from "@/server/crypto/envelope";
 import type { Transaction } from "./client";
 import {
-  productEncoder, readLabelRecord, readOccurrenceRecord, readPreferenceRecord, readProjectRecord,
+  productEncoder, readCommentRecord, readLabelRecord, readOccurrenceRecord, readPreferenceRecord, readProjectRecord,
   readSectionRecord, readTaskRecord, type ProductAccess,
 } from "./product";
 import { reserveKek, useDek, withDekWrite, withProductReader, type ProductReader } from "./product-crypto";
-import { completedOccurrences, dekUsage, labels, preferences, projects, sections, tasks, tenantKeys, tenants } from "./schema";
+import {
+  completedOccurrences, dekUsage, labels, preferences, projects, sections, taskComments, tasks, tenantKeys, tenants,
+} from "./schema";
 import { advanceProductRevision, lockTenant, withTenant } from "./tenant";
 import { writePreferences } from "./workspace";
 
@@ -73,6 +75,7 @@ async function loadOlderRecords(tx: Transaction, version: number) {
     labels: await tx.select().from(labels).where(ne(labels.dekVersion, version)).limit(rekeyBatchSize),
     tasks: await tx.select().from(tasks).where(ne(tasks.dekVersion, version)).limit(rekeyBatchSize),
     occurrences: await tx.select().from(completedOccurrences).where(ne(completedOccurrences.dekVersion, version)).limit(rekeyBatchSize),
+    comments: await tx.select().from(taskComments).where(ne(taskComments.dekVersion, version)).limit(rekeyBatchSize),
   };
 }
 
@@ -102,6 +105,10 @@ async function rewriteRecords(tx: Transaction, tenantId: string, version: number
     await tx.update(completedOccurrences).set(encrypted).where(and(
       eq(completedOccurrences.taskId, taskId), eq(completedOccurrences.occurrenceId, occurrenceId),
     ));
+  }
+  for (const row of batch.comments) {
+    const { id, taskId: _taskId, ...encrypted } = encode.comment(await readCommentRecord(reader, row));
+    await tx.update(taskComments).set(encrypted).where(eq(taskComments.id, id));
   }
 }
 

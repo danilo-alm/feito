@@ -1,4 +1,4 @@
-import type { CompletedOccurrence, OccurrenceReference, Product, Project, Task } from "../domain/product";
+import type { CompletedOccurrence, OccurrenceReference, Product, Project, Task, TaskComment } from "../domain/product";
 import type { TaskChanges } from "../types";
 
 export type TaskField = "title" | "description" | "priority" | "schedule" | "placement" | "labels" | "completion";
@@ -51,4 +51,27 @@ export type ProductPort<Access> = {
     access: Access, projection: ProductProjection, select: (summary: ProductSummary, calendar: ProductCalendar | undefined) => T,
   ): Promise<T>;
   readTaskView<T>(access: Access, scope: TaskViewScope, run: (view: TaskView) => Promise<T>): Promise<T>;
+};
+
+export type CommentTarget = { taskId: string } | { commentId: string };
+
+/** State read for one comment write. `comment` is present when the target names a comment. */
+export type CommentContext = {
+  task: Task;
+  project: Project;
+  comment?: TaskComment;
+  /** Comments already on the task. */
+  count: number;
+  /** Instant of the write: the authoring time of a queued desktop operation, otherwise now. */
+  now: string;
+};
+
+export type CommentWrite<T> = { value: T; upsert?: TaskComment; remove?: TaskComment };
+
+export type CommentPort<Access> = {
+  allocateId: (access: Access, slot: number) => string;
+  /** Comments of an existing task, in any order. Missing tasks raise NOT_FOUND. */
+  readComments(access: Access, taskId: string): Promise<TaskComment[]>;
+  /** Missing tasks or comments raise NOT_FOUND. A write advances the product revision. */
+  mutateComments<T>(access: Access, target: CommentTarget, apply: (context: CommentContext) => CommentWrite<T>): Promise<T>;
 };

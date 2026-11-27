@@ -28,6 +28,7 @@ type SnapshotChanges = {
   labels?: TableChanges<Workspace["labels"][number]>;
   taskLabels?: Workspace["taskLabels"];
   occurrences?: [string, Workspace["occurrences"]][];
+  comments?: TableChanges<NonNullable<Workspace["comments"]>[number]>;
 };
 type Snapshot = { cursor: number; workspace: Workspace | null; user: User; changes?: SnapshotChanges };
 
@@ -74,7 +75,8 @@ export function canSync(method: string, path: string) {
   if (method === "PATCH" && pathname === "/preferences") return true;
   if (method === "POST" && /^\/(tasks|projects|labels)$/.test(pathname)) return true;
   if ((method === "PATCH" || method === "DELETE") && /^\/(tasks|projects|sections|labels)\/[^/]+$/.test(pathname)) return true;
-  if (method === "POST" && /^\/tasks\/[^/]+\/(complete|reopen|undo-completion|move|duplicate)$/.test(pathname)) return true;
+  if (method === "POST" && /^\/tasks\/[^/]+\/(complete|reopen|undo-completion|move|duplicate|comments)$/.test(pathname)) return true;
+  if ((method === "PATCH" || method === "DELETE") && /^\/comments\/[^/]+$/.test(pathname)) return true;
   if ((method === "PUT" || method === "DELETE") && /^\/tasks\/[^/]+\/recurrence$/.test(pathname)) return true;
   if (method === "POST" && /^\/projects\/[^/]+\/(archive|unarchive|sections|move)$/.test(pathname)) return true;
   if (method === "POST" && /^\/(sections|labels)\/[^/]+\/move$/.test(pathname)) return true;
@@ -102,7 +104,8 @@ export function queueOperation(
 function isWorkspace(value: unknown): value is Workspace {
   const workspace = value as Workspace | null;
   return !!workspace?.preferences && [workspace.projects, workspace.sections, workspace.tasks, workspace.labels,
-    workspace.taskLabels, workspace.occurrences].every(Array.isArray);
+    workspace.taskLabels, workspace.occurrences].every(Array.isArray)
+    && (workspace.comments === undefined || Array.isArray(workspace.comments));
 }
 
 function applyTableChanges<Row extends { id: string }>(rows: Row[], changes?: TableChanges<Row>) {
@@ -129,6 +132,8 @@ function applySnapshotChanges(workspace: Workspace, changes: SnapshotChanges): W
       ...workspace.occurrences.filter(({ taskId }) => ids.has(taskId) && !replacedOccurrences.has(taskId)),
       ...[...replacedOccurrences].flatMap(([id, rows]) => ids.has(id) ? rows : []),
     ],
+    // Deleting a task removes its comments on the server without listing them.
+    comments: applyTableChanges(workspace.comments ?? [], changes.comments).filter(({ taskId }) => ids.has(taskId)),
   };
 }
 

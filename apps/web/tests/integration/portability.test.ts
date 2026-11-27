@@ -113,7 +113,7 @@ describe("portable export and restoration", () => {
     expect(file).not.toContain(firstDone.task.occurrenceId!);
     expect(JSON.parse(file).occurrences[0]).not.toHaveProperty("nextOccurrenceId");
     const before = await inspect(target, file);
-    expect(before).toMatchObject({ schemaVersion: 1, destinationEmpty: true, errors: [], counts: {
+    expect(before).toMatchObject({ schemaVersion: 2, destinationEmpty: true, errors: [], counts: {
       projects: 3, archivedProjects: 1, sections: 2, tasks: 5, completedTasks: 2, labels: 1, occurrences: 1,
     } });
     expect(before.operationId).toMatch(/^[0-9a-f-]{36}$/);
@@ -197,7 +197,7 @@ describe("portable export and restoration", () => {
     const doc = JSON.parse(file) as PortableDocument;
     doc.tasks[0].projectId = "inexistente";
     expect(await inspect(target, JSON.stringify(doc))).toMatchObject({
-      schemaVersion: 1, counts: null, previewToken: null, errors: [{ path: "tasks.0.projectId" }],
+      schemaVersion: 2, counts: null, previewToken: null, errors: [{ path: "tasks.0.projectId" }],
     });
     expect(await hasWorkspace(target)).toBe(false);
 

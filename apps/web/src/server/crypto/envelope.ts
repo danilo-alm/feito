@@ -57,7 +57,7 @@ export function unwrapDek(config: KeyConfig, envelope: EnvelopeContext & Ciphert
 
 export type PayloadContext = {
   tenantId: string;
-  type: "preferences" | "project" | "section" | "task" | "label" | "completed_occurrence";
+  type: "preferences" | "project" | "section" | "task" | "label" | "completed_occurrence" | "task_comment";
   id: string;
   dekVersion: number;
   payloadVersion: number;

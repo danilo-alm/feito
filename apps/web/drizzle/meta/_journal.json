@@ -71,6 +71,13 @@
       "when": 1795202034640,
       "tag": "0009_desktop_journal",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795787939052,
+      "tag": "0010_task_comments",
+      "breakpoints": true
     }
   ]
 }

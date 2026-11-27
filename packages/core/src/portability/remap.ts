@@ -1,4 +1,4 @@
-import type { CompletedOccurrence, Label, Project, Section, Task } from "../domain/product";
+import type { CompletedOccurrence, Label, Project, Section, Task, TaskComment } from "../domain/product";
 import type { PortableDocument } from "./document";
 
 function mapIds(ids: string[], allocateId: () => string, preserveOrder = false) {
@@ -43,6 +43,9 @@ export function remapForImport(
     })),
     occurrences: document.occurrences.map(({ taskId, occurrenceId, ...data }): CompletedOccurrence => ({
       taskId: taskIds.get(taskId)!, occurrenceId: occurrenceIds.get(occurrenceId)!, data,
+    })),
+    comments: (document.comments ?? []).map(({ taskId, ...data }): TaskComment => ({
+      id: allocateId(), taskId: taskIds.get(taskId)!, revision: 1, data,
     })),
   };
 }

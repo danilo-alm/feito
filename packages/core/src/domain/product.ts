@@ -1,5 +1,7 @@
 import { Temporal } from "@js-temporal/polyfill";
-import type { CompletedOccurrencePayload, LabelPayload, ProjectPayload, SectionPayload, TaskPayload } from "../validation/product";
+import type {
+  CompletedOccurrencePayload, LabelPayload, ProjectPayload, SectionPayload, TaskCommentPayload, TaskPayload,
+} from "../validation/product";
 import { walkTaskTree } from "./task-tree";
 
 // Nome gravado no projeto da Entrada (dados e importação); a interface mostra “Entrada”.
@@ -14,6 +16,8 @@ export type Task = RecordData<TaskPayload> & TaskGroup & { occurrenceId: string 
 
 export type OccurrenceReference = { taskId: string; occurrenceId: string };
 export type CompletedOccurrence = OccurrenceReference & { data: CompletedOccurrencePayload };
+/** Comments live beside the product records: task deletion removes them, and only their count joins task reads. */
+export type TaskComment = RecordData<TaskCommentPayload> & { taskId: string };
 
 export type Product = {
   projects: Map<string, Project>;
@@ -21,10 +25,22 @@ export type Product = {
   tasks: Map<string, Task>;
   labels: Map<string, Label>;
   taskLabels: Map<string, string[]>;
+  /** Comment count per task. Readers that never build a task detail may leave it empty. */
+  commentCounts: ReadonlyMap<string, number>;
   referenceDate: string;
   timezone: string;
   now: Temporal.Instant;
 };
+
+export function countComments(comments: Iterable<Pick<TaskComment, "taskId">>) {
+  const counts = new Map<string, number>();
+  for (const { taskId } of comments) counts.set(taskId, (counts.get(taskId) ?? 0) + 1);
+  return counts;
+}
+
+export function compareComments(a: TaskComment, b: TaskComment) {
+  return Temporal.Instant.compare(a.data.createdAt, b.data.createdAt) || a.id.localeCompare(b.id);
+}
 
 export function byPosition<T extends { id: string; data: { position: number } }>(a: T, b: T) {
   return a.data.position - b.data.position || a.id.localeCompare(b.id);

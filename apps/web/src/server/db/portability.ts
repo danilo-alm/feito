@@ -12,7 +12,9 @@ import { defaultsForView } from "@feito/core/validation/product";
 import type { Transaction } from "./client";
 import { productEncoder, readPreferenceRecord, readProjectRecord, type ProductAccess } from "./product";
 import { withDekWrite, withProductReader, type ProductReader } from "./product-crypto";
-import { completedOccurrences, importOperations, labels, preferences, projects, sections, taskLabels, tasks, tenants } from "./schema";
+import {
+  completedOccurrences, importOperations, labels, preferences, projects, sections, taskComments, taskLabels, tasks, tenants,
+} from "./schema";
 import { advanceProductRevision, withTenant } from "./tenant";
 import { bootstrapWorkspace, writePreferences } from "./workspace";
 
@@ -107,6 +109,8 @@ async function storeDocument(
     (rows) => tx.insert(taskLabels).values(rows));
   await insertBatches(data.occurrences, (occurrence) => ({ tenantId, ...encode.occurrence(occurrence) }),
     (rows) => tx.insert(completedOccurrences).values(rows));
+  await insertBatches(data.comments, (comment) => ({ tenantId, ...encode.comment(comment) }),
+    (rows) => tx.insert(taskComments).values(rows));
 
   const summary = countsFor(document);
   await tx.insert(importOperations).values({ tenantId, operationId, fingerprint, summary });
@@ -132,7 +136,7 @@ export async function restoreDocument(
   if (state.destination.kind === "filled") throw occupied();
 
   const writes = 1 + document.projects.length + document.sections.length + document.labels.length
-    + document.tasks.length + document.occurrences.length;
+    + document.tasks.length + document.occurrences.length + (document.comments?.length ?? 0);
   if (state.destination.kind === "unprovisioned") {
     // The initial workspace and the restoration share one commit.
     const initial = await bootstrapWorkspace(db, keys, tenantId, writes, (tx, tenant, key, inboxId) =>
