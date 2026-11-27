@@ -9,7 +9,8 @@ import { type ReactNode } from "react";
 import { api } from "../client/api";
 import { cacheScope, setQueryData, useQuery } from "../client/store";
 import { setSyncIndicatorHidden, useSyncIndicatorHidden } from "../client/sync-indicator";
-import type { Me, ProjectSummary, Preferences } from "@feito/core/types";
+import type { DarkTheme, LightTheme, Me, ProjectSummary, Preferences } from "@feito/core/types";
+import { chosenAccent, chosenDark, chosenLight, darkThemes, isLightTheme, lightThemes, themeName, type ThemeName } from "../client/themes";
 import { refreshProjects, useApp } from "./app";
 import {
   IconChevronRight, IconClock, IconHash, IconMonitor, IconMoon, IconRepeat, IconSun,
@@ -72,11 +73,6 @@ export function SettingsLinkRow({ href, onClick, trailing, ...content }: RowCont
     : <button type="button" className="set-row set-link" onClick={onClick}>{inner}</button>;
 }
 
-const THEMES: { value: Preferences["theme"]; label: string; icon: ReactNode }[] = [
-  { value: "light", label: "Claro", icon: <IconSun /> },
-  { value: "dark", label: "Escuro", icon: <IconMoon /> },
-  { value: "system", label: "Sistema", icon: <IconMonitor /> },
-];
 
 function useSavePreferences() {
   const t = useT();
@@ -95,6 +91,82 @@ function useSavePreferences() {
   };
 }
 
+/** Miniatura do tema, pintada com os próprios tokens dele (data-theme no elemento). */
+function ThemeCard({ theme, checked, onPick }: { theme: ThemeName; checked: boolean; onPick: () => void }) {
+  const t = useT();
+  return (
+    <button type="button" role="radio" aria-checked={checked} className={`theme-card${checked ? " on" : ""}`} onClick={onPick}>
+      <span className="theme-preview" data-theme={theme} aria-hidden="true">
+        <span className="tp-side"><i className="tp-accent" /><i /><i /></span>
+        <span className="tp-main">
+          <i className="tp-title" />
+          <span className="tp-row"><b style={{ borderColor: "var(--proj-violeta)" }} /><i /></span>
+          <span className="tp-row"><b style={{ borderColor: "var(--proj-ambar)" }} /><i /></span>
+          <span className="tp-row"><b style={{ borderColor: "var(--proj-turquesa)" }} /><i /></span>
+        </span>
+      </span>
+      <span className="theme-name">{themeName(theme, t)}</span>
+    </button>
+  );
+}
+
+function ThemeGrid({ label, themes, value, onPick }: {
+  label: string; themes: readonly ThemeName[]; value: ThemeName; onPick: (theme: ThemeName) => void;
+}) {
+  return (
+    <div className="theme-grid" role="radiogroup" aria-label={label}>
+      {themes.map((theme) => <ThemeCard key={theme} theme={theme} checked={theme === value} onPick={() => onPick(theme)} />)}
+    </div>
+  );
+}
+
+/** Tema: segue o sistema com um tema claro e um escuro, ou fica fixo em um tema. */
+function ThemeSettings() {
+  const t = useT();
+  const app = useApp();
+  const save = useSavePreferences();
+  const preferences = app.me.preferences;
+  const follow = preferences.theme === "system";
+  const light = chosenLight(preferences);
+  const dark = chosenDark(preferences);
+  const accent = chosenAccent(preferences);
+  const systemDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const current = preferences.theme === "dark" ? dark : light;
+  const pickFixed = (theme: ThemeName) => void save(isLightTheme(theme) ? { theme: "light", lightTheme: theme } : { theme: "dark", darkTheme: theme });
+  return (
+    <>
+      <SettingsRow icon={<IconMonitor />} label={t("Seguir o sistema")} labelFor="theme-follow"
+        hint={t("Usa um tema quando o sistema estiver claro e outro quando estiver escuro.")}
+        control={<button id="theme-follow" type="button" role="switch" aria-checked={follow} className={`switch${follow ? " on" : ""}`}
+          onClick={() => void save({ theme: follow ? (systemDark() ? "dark" : "light") : "system" })} />}
+        extra={follow ? (
+          <div className="theme-groups">
+            <div className="theme-group-h"><IconSun />{t("Quando o sistema estiver claro")}</div>
+            <ThemeGrid label={t("Quando o sistema estiver claro")} themes={lightThemes} value={light} onPick={(theme) => void save({ lightTheme: theme as LightTheme })} />
+            <div className="theme-group-h"><IconMoon />{t("Quando o sistema estiver escuro")}</div>
+            <ThemeGrid label={t("Quando o sistema estiver escuro")} themes={darkThemes} value={dark} onPick={(theme) => void save({ darkTheme: theme as DarkTheme })} />
+          </div>
+        ) : (
+          <div className="theme-groups">
+            <ThemeGrid label={t("Tema")} themes={[...lightThemes, ...darkThemes]} value={current} onPick={pickFixed} />
+          </div>
+        )} />
+      <SettingsRow icon={<IconMonitor />} label={t("Cor de destaque")}
+        hint={t("Botões, item ativo e foco nos temas do Feito. Os temas de editor usam a cor deles.")}
+        control={
+          <div className="seg compact" role="radiogroup" aria-label={t("Cor de destaque")}>
+            {(["green", "violet"] as const).map((value) => (
+              <button key={value} type="button" role="radio" aria-checked={accent === value} className={`seg-o${accent === value ? " on" : ""}`}
+                onClick={() => void save({ accent: value })}>
+                <span className={`accent-dot accent-${value}`} aria-hidden="true" />{t(value === "green" ? "Verde" : "Violeta")}
+              </button>
+            ))}
+          </div>
+        } />
+    </>
+  );
+}
+
 export function AppearanceSettings() {
   const t = useT();
   const app = useApp();
@@ -106,17 +178,7 @@ export function AppearanceSettings() {
         <SettingsRow icon={<IconMonitor />} label={t("Idioma")} labelFor="language" hint={t("Idioma da interface neste espaço.")}
           control={<LanguagePicker id="language" value={app.me.preferences.locale ?? defaultLocale}
             onChange={(locale) => save({ locale })} />} />
-        <SettingsRow icon={<IconMonitor />} label={t("Tema")} hint={t("Claro, escuro ou igual ao sistema.")} control={
-          <div className="seg compact" role="radiogroup" aria-label={t("Tema")}>
-            {THEMES.map((theme) => (
-              <button key={theme.value} type="button" role="radio" aria-checked={app.me.preferences.theme === theme.value}
-                className={`seg-o${app.me.preferences.theme === theme.value ? " on" : ""}`}
-                onClick={() => void save({ theme: theme.value })}>
-                {theme.icon}{t(theme.label)}
-              </button>
-            ))}
-          </div>
-        } />
+        <ThemeSettings />
         <SettingsRow icon={<IconRepeat />} label={t("Mostrar indicador de sincronização")} labelFor="sync-indicator"
           hint={t("Exibe a bolinha com o estado da sincronização neste dispositivo.")}
           control={

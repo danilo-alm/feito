@@ -1,6 +1,6 @@
 /* Feito — tokens e componentes compartilhados (derivados do design do MVP) */
 /* Temas: gerados a partir de uma tabela única. Um tema novo é só mais um bloco com as mesmas variáveis. */
-:root,html[data-theme="feito-light"]{
+:root,[data-theme="feito-light"]{
   --bg:#F7F7F4;--sidebar:#EFEFEA;--surface:#FFFFFF;--surface-raised:#FFFFFF;--surface-sunken:#F3F3EF;
   --overlay:#FFFFFF;--overlay-line:#DCDCD5;--hover:#E7E7E1;--line:#E3E3DD;--line-strong:#C9C9C1;
   --text:#1B1B19;--text-2:#5B5B55;--text-3:#6F6F68;
@@ -10,7 +10,7 @@
   --proj-cereja:#B8325E;--proj-vermelho:#C63F35;--proj-coral:#C4473A;--proj-salmao:#B05A50;--proj-laranja:#BD5A10;--proj-terracota:#B0562E;--proj-ambar:#A86400;--proj-amarelo:#8C7000;--proj-oliva:#6B7F1F;--proj-limao:#4E8A1F;--proj-verde:#2B7A58;--proj-floresta:#2F5D3A;--proj-menta:#1E8069;--proj-turquesa:#13797F;--proj-petroleo:#1E6A8A;--proj-ceu:#1F7DB5;--proj-azul:#2E6BD0;--proj-marinho:#2B4A8C;--proj-indigo:#4B4FC2;--proj-uva:#5B3A9E;--proj-violeta:#6E45C9;--proj-lavanda:#7A5FC0;--proj-magenta:#A63C9E;--proj-rosa:#B8487A;--proj-marrom:#7A5235;--proj-taupe:#7D6B58;--proj-grafite:#4A4740;--proj-cinza:#75716A;
   color-scheme:light;
 }
-html.dark,html[data-theme="feito-dark"]{
+html.dark,[data-theme="feito-dark"]{
   --bg:#141518;--sidebar:#191A1E;--surface:#1D1F23;--surface-raised:#202227;--surface-sunken:#17181C;
   --overlay:#25272C;--overlay-line:#3A3D44;--hover:#26282D;--line:#2A2C32;--line-strong:#3D4047;
   --text:#ECEDEF;--text-2:#A6A9B0;--text-3:#8A8D95;
@@ -20,7 +20,7 @@ html.dark,html[data-theme="feito-dark"]{
   --proj-cereja:#F0779E;--proj-vermelho:#FF7B6E;--proj-coral:#FF9580;--proj-salmao:#F2A69E;--proj-laranja:#F59A4E;--proj-terracota:#EE9A70;--proj-ambar:#F2AA3E;--proj-amarelo:#E8C547;--proj-oliva:#B5C76A;--proj-limao:#A3D86A;--proj-verde:#8CD1AB;--proj-floresta:#7FB58C;--proj-menta:#7FDCC3;--proj-turquesa:#6CC9CF;--proj-petroleo:#6BB4D6;--proj-ceu:#7CC4F2;--proj-azul:#74AAFF;--proj-marinho:#8EA6E6;--proj-indigo:#9A9DFF;--proj-uva:#A88BE8;--proj-violeta:#B39BFF;--proj-lavanda:#C9B6F2;--proj-magenta:#E58AD9;--proj-rosa:#F08DB6;--proj-marrom:#C9A07E;--proj-taupe:#BBA893;--proj-grafite:#CFC9BE;--proj-cinza:#A09A90;
   color-scheme:dark;
 }
-html[data-theme="feito-black"]{
+html[data-theme="feito-black"],[data-theme="feito-black"]{
   --bg:#000000;--sidebar:#000000;--surface:#0B0C0E;--surface-raised:#0E0F11;--surface-sunken:#050506;
   --overlay:#141518;--overlay-line:#5A5F68;--hover:#17181B;--line:#2C2F34;--line-strong:#4A4E55;
   --text:#FFFFFF;--text-2:#CDD0D5;--text-3:#A5A9B0;
@@ -30,7 +30,7 @@ html[data-theme="feito-black"]{
   --proj-cereja:#FF72A0;--proj-vermelho:#FF8478;--proj-coral:#FF9E8A;--proj-salmao:#FDA49B;--proj-laranja:#FF9F4E;--proj-terracota:#FF9B6A;--proj-ambar:#FFB13B;--proj-amarelo:#FDD33C;--proj-oliva:#C1D764;--proj-limao:#A9E963;--proj-verde:#89DEAF;--proj-floresta:#7CC38D;--proj-menta:#7AEBCD;--proj-turquesa:#66D8E0;--proj-petroleo:#64BDE7;--proj-ceu:#79CBFF;--proj-azul:#7EB0FF;--proj-marinho:#8BA7F3;--proj-indigo:#999CFF;--proj-uva:#AA88F6;--proj-violeta:#B199FF;--proj-lavanda:#BB9FF9;--proj-magenta:#F387E4;--proj-rosa:#FD8ABA;--proj-marrom:#CCA585;--proj-taupe:#BFAD99;--proj-grafite:#D3CEC4;--proj-cinza:#A59F95;
   color-scheme:dark;
 }
-html[data-theme="catppuccin-latte"]{
+html[data-theme="catppuccin-latte"],[data-theme="catppuccin-latte"]{
   --bg:#E6E9EF;--sidebar:#DCE0E8;--surface:#EFF1F5;--surface-raised:#EFF1F5;--surface-sunken:#DCE0E8;
   --overlay:#EFF1F5;--overlay-line:#BCC0CC;--hover:#DCE0E8;--line:#CCD0DA;--line-strong:#ACB0BE;
   --text:#4C4F69;--text-2:#5C5F77;--text-3:#6C6F85;
@@ -40,7 +40,7 @@ html[data-theme="catppuccin-latte"]{
   --proj-cereja:#D20F39;--proj-vermelho:#D20F39;--proj-coral:#E64553;--proj-salmao:#B0565A;--proj-laranja:#C2540A;--proj-terracota:#C2540A;--proj-ambar:#B3700F;--proj-amarelo:#B3700F;--proj-oliva:#2F7D1E;--proj-limao:#2F7D1E;--proj-verde:#2F7D1E;--proj-floresta:#2F7D1E;--proj-menta:#137F87;--proj-turquesa:#137F87;--proj-petroleo:#1A7EA6;--proj-ceu:#0379A8;--proj-azul:#1E66F5;--proj-marinho:#5F6CE0;--proj-indigo:#5F6CE0;--proj-uva:#8839EF;--proj-violeta:#8839EF;--proj-lavanda:#5F6CE0;--proj-magenta:#B8429A;--proj-rosa:#B8429A;--proj-marrom:#A0605A;--proj-taupe:#B0565A;--proj-grafite:#6C6F85;--proj-cinza:#7C7F93;
   color-scheme:light;
 }
-html[data-theme="catppuccin-macchiato"]{
+html[data-theme="catppuccin-macchiato"],[data-theme="catppuccin-macchiato"]{
   --bg:#24273A;--sidebar:#1E2030;--surface:#2B2F45;--surface-raised:#363A4F;--surface-sunken:#1E2030;
   --overlay:#363A4F;--overlay-line:#494D64;--hover:#363A4F;--line:#363A4F;--line-strong:#494D64;
   --text:#CAD3F5;--text-2:#B8C0E0;--text-3:#A5ADCB;
@@ -50,7 +50,7 @@ html[data-theme="catppuccin-macchiato"]{
   --proj-cereja:#ED8796;--proj-vermelho:#ED8796;--proj-coral:#EE99A0;--proj-salmao:#F0C6C6;--proj-laranja:#F5A97F;--proj-terracota:#F5A97F;--proj-ambar:#EED49F;--proj-amarelo:#EED49F;--proj-oliva:#A6DA95;--proj-limao:#A6DA95;--proj-verde:#A6DA95;--proj-floresta:#A6DA95;--proj-menta:#8BD5CA;--proj-turquesa:#8BD5CA;--proj-petroleo:#7DC4E4;--proj-ceu:#91D7E3;--proj-azul:#8AADF4;--proj-marinho:#B7BDF8;--proj-indigo:#B7BDF8;--proj-uva:#C6A0F6;--proj-violeta:#C6A0F6;--proj-lavanda:#B7BDF8;--proj-magenta:#F5BDE6;--proj-rosa:#F5BDE6;--proj-marrom:#F4DBD6;--proj-taupe:#F0C6C6;--proj-grafite:#A5ADCB;--proj-cinza:#939AB7;
   color-scheme:dark;
 }
-html[data-theme="catppuccin-mocha"]{
+html[data-theme="catppuccin-mocha"],[data-theme="catppuccin-mocha"]{
   --bg:#1E1E2E;--sidebar:#181825;--surface:#24243A;--surface-raised:#313244;--surface-sunken:#181825;
   --overlay:#313244;--overlay-line:#45475A;--hover:#313244;--line:#313244;--line-strong:#45475A;
   --text:#CDD6F4;--text-2:#BAC2DE;--text-3:#A6ADC8;
@@ -60,7 +60,7 @@ html[data-theme="catppuccin-mocha"]{
   --proj-cereja:#F38BA8;--proj-vermelho:#F38BA8;--proj-coral:#EBA0AC;--proj-salmao:#F2CDCD;--proj-laranja:#FAB387;--proj-terracota:#FAB387;--proj-ambar:#F9E2AF;--proj-amarelo:#F9E2AF;--proj-oliva:#A6E3A1;--proj-limao:#A6E3A1;--proj-verde:#A6E3A1;--proj-floresta:#A6E3A1;--proj-menta:#94E2D5;--proj-turquesa:#94E2D5;--proj-petroleo:#74C7EC;--proj-ceu:#89DCEB;--proj-azul:#89B4FA;--proj-marinho:#B4BEFE;--proj-indigo:#B4BEFE;--proj-uva:#CBA6F7;--proj-violeta:#CBA6F7;--proj-lavanda:#B4BEFE;--proj-magenta:#F5C2E7;--proj-rosa:#F5C2E7;--proj-marrom:#F5E0DC;--proj-taupe:#F2CDCD;--proj-grafite:#A6ADC8;--proj-cinza:#9399B2;
   color-scheme:dark;
 }
-html[data-theme="monokai-pro-spectrum"]{
+html[data-theme="monokai-pro-spectrum"],[data-theme="monokai-pro-spectrum"]{
   --bg:#222222;--sidebar:#191919;--surface:#2B2A2C;--surface-raised:#363537;--surface-sunken:#191919;
   --overlay:#363537;--overlay-line:#525053;--hover:#363537;--line:#363537;--line-strong:#525053;
   --text:#F7F1FF;--text-2:#BAB6C0;--text-3:#8B888F;
@@ -70,7 +70,7 @@ html[data-theme="monokai-pro-spectrum"]{
   --proj-cereja:#FC618D;--proj-vermelho:#FC618D;--proj-coral:#FC618D;--proj-salmao:#FD9353;--proj-laranja:#FD9353;--proj-terracota:#FD9353;--proj-ambar:#FCE566;--proj-amarelo:#FCE566;--proj-oliva:#7BD88F;--proj-limao:#7BD88F;--proj-verde:#7BD88F;--proj-floresta:#7BD88F;--proj-menta:#5AD4E6;--proj-turquesa:#5AD4E6;--proj-petroleo:#5AD4E6;--proj-ceu:#5AD4E6;--proj-azul:#5AD4E6;--proj-marinho:#5AD4E6;--proj-indigo:#948AE3;--proj-uva:#948AE3;--proj-violeta:#948AE3;--proj-lavanda:#948AE3;--proj-magenta:#FC618D;--proj-rosa:#FC618D;--proj-marrom:#FD9353;--proj-taupe:#8B888F;--proj-grafite:#8B888F;--proj-cinza:#8B888F;
   color-scheme:dark;
 }
-html[data-theme="dracula"]{
+html[data-theme="dracula"],[data-theme="dracula"]{
   --bg:#282A36;--sidebar:#21222C;--surface:#2E3040;--surface-raised:#343746;--surface-sunken:#21222C;
   --overlay:#343746;--overlay-line:#44475A;--hover:#383A4A;--line:#383A4A;--line-strong:#44475A;
   --text:#F8F8F2;--text-2:#C9CBD6;--text-3:#9AA3C8;
@@ -80,7 +80,7 @@ html[data-theme="dracula"]{
   --proj-cereja:#FF5555;--proj-vermelho:#FF5555;--proj-coral:#FF5555;--proj-salmao:#FFB86C;--proj-laranja:#FFB86C;--proj-terracota:#FFB86C;--proj-ambar:#F1FA8C;--proj-amarelo:#F1FA8C;--proj-oliva:#50FA7B;--proj-limao:#50FA7B;--proj-verde:#50FA7B;--proj-floresta:#50FA7B;--proj-menta:#8BE9FD;--proj-turquesa:#8BE9FD;--proj-petroleo:#8BE9FD;--proj-ceu:#8BE9FD;--proj-azul:#9AA8FF;--proj-marinho:#9AA8FF;--proj-indigo:#BD93F9;--proj-uva:#BD93F9;--proj-violeta:#BD93F9;--proj-lavanda:#BD93F9;--proj-magenta:#FF79C6;--proj-rosa:#FF79C6;--proj-marrom:#FFB86C;--proj-taupe:#9AA3C8;--proj-grafite:#9AA3C8;--proj-cinza:#9AA3C8;
   color-scheme:dark;
 }
-html[data-theme="nord"]{
+html[data-theme="nord"],[data-theme="nord"]{
   --bg:#2E3440;--sidebar:#292E39;--surface:#3B4252;--surface-raised:#434C5E;--surface-sunken:#292E39;
   --overlay:#434C5E;--overlay-line:#4C566A;--hover:#434C5E;--line:#434C5E;--line-strong:#4C566A;
   --text:#ECEFF4;--text-2:#D8DEE9;--text-3:#A3ACBD;
@@ -90,7 +90,7 @@ html[data-theme="nord"]{
   --proj-cereja:#D57780;--proj-vermelho:#D57780;--proj-coral:#D57780;--proj-salmao:#D08770;--proj-laranja:#D08770;--proj-terracota:#D08770;--proj-ambar:#EBCB8B;--proj-amarelo:#EBCB8B;--proj-oliva:#A3BE8C;--proj-limao:#A3BE8C;--proj-verde:#A3BE8C;--proj-floresta:#A3BE8C;--proj-menta:#8FBCBB;--proj-turquesa:#8FBCBB;--proj-petroleo:#88C0D0;--proj-ceu:#88C0D0;--proj-azul:#81A1C1;--proj-marinho:#81A1C1;--proj-indigo:#B48EAD;--proj-uva:#B48EAD;--proj-violeta:#B48EAD;--proj-lavanda:#B48EAD;--proj-magenta:#B48EAD;--proj-rosa:#C895BF;--proj-marrom:#D08770;--proj-taupe:#A3ACBD;--proj-grafite:#A3ACBD;--proj-cinza:#A3ACBD;
   color-scheme:dark;
 }
-html[data-theme="tokyo-night"]{
+html[data-theme="tokyo-night"],[data-theme="tokyo-night"]{
   --bg:#1A1B26;--sidebar:#16161E;--surface:#1F2335;--surface-raised:#292E42;--surface-sunken:#16161E;
   --overlay:#292E42;--overlay-line:#414868;--hover:#292E42;--line:#292E42;--line-strong:#414868;
   --text:#C0CAF5;--text-2:#A9B1D6;--text-3:#8189B4;
@@ -100,7 +100,7 @@ html[data-theme="tokyo-night"]{
   --proj-cereja:#F7768E;--proj-vermelho:#F7768E;--proj-coral:#F7768E;--proj-salmao:#FF9E64;--proj-laranja:#FF9E64;--proj-terracota:#FF9E64;--proj-ambar:#E0AF68;--proj-amarelo:#E0AF68;--proj-oliva:#9ECE6A;--proj-limao:#9ECE6A;--proj-verde:#9ECE6A;--proj-floresta:#9ECE6A;--proj-menta:#73DACA;--proj-turquesa:#73DACA;--proj-petroleo:#7DCFFF;--proj-ceu:#7DCFFF;--proj-azul:#7AA2F7;--proj-marinho:#7AA2F7;--proj-indigo:#9D7CD8;--proj-uva:#9D7CD8;--proj-violeta:#9D7CD8;--proj-lavanda:#9D7CD8;--proj-magenta:#BB9AF7;--proj-rosa:#F7768E;--proj-marrom:#FF9E64;--proj-taupe:#8189B4;--proj-grafite:#8189B4;--proj-cinza:#8189B4;
   color-scheme:dark;
 }
-html[data-theme="gruvbox-dark"]{
+html[data-theme="gruvbox-dark"],[data-theme="gruvbox-dark"]{
   --bg:#282828;--sidebar:#1D2021;--surface:#32302F;--surface-raised:#3C3836;--surface-sunken:#1D2021;
   --overlay:#3C3836;--overlay-line:#504945;--hover:#3C3836;--line:#3C3836;--line-strong:#504945;
   --text:#EBDBB2;--text-2:#D5C4A1;--text-3:#A89984;
@@ -110,7 +110,7 @@ html[data-theme="gruvbox-dark"]{
   --proj-cereja:#FB4934;--proj-vermelho:#FB4934;--proj-coral:#FB4934;--proj-salmao:#FE8019;--proj-laranja:#FE8019;--proj-terracota:#FE8019;--proj-ambar:#FABD2F;--proj-amarelo:#FABD2F;--proj-oliva:#B8BB26;--proj-limao:#B8BB26;--proj-verde:#B8BB26;--proj-floresta:#B8BB26;--proj-menta:#8EC07C;--proj-turquesa:#8EC07C;--proj-petroleo:#83A598;--proj-ceu:#83A598;--proj-azul:#83A598;--proj-marinho:#83A598;--proj-indigo:#D3869B;--proj-uva:#D3869B;--proj-violeta:#D3869B;--proj-lavanda:#D3869B;--proj-magenta:#D3869B;--proj-rosa:#D3869B;--proj-marrom:#FE8019;--proj-taupe:#A89984;--proj-grafite:#A89984;--proj-cinza:#A89984;
   color-scheme:dark;
 }
-html[data-theme="one-dark"]{
+html[data-theme="one-dark"],[data-theme="one-dark"]{
   --bg:#282C34;--sidebar:#21252B;--surface:#2C313A;--surface-raised:#333842;--surface-sunken:#21252B;
   --overlay:#333842;--overlay-line:#4B5263;--hover:#3E4451;--line:#3E4451;--line-strong:#4B5263;
   --text:#DCDFE4;--text-2:#ABB2BF;--text-3:#8B929E;
@@ -120,7 +120,7 @@ html[data-theme="one-dark"]{
   --proj-cereja:#E06C75;--proj-vermelho:#E06C75;--proj-coral:#E06C75;--proj-salmao:#D19A66;--proj-laranja:#D19A66;--proj-terracota:#D19A66;--proj-ambar:#E5C07B;--proj-amarelo:#E5C07B;--proj-oliva:#98C379;--proj-limao:#98C379;--proj-verde:#98C379;--proj-floresta:#98C379;--proj-menta:#56B6C2;--proj-turquesa:#56B6C2;--proj-petroleo:#56B6C2;--proj-ceu:#56B6C2;--proj-azul:#61AFEF;--proj-marinho:#61AFEF;--proj-indigo:#C678DD;--proj-uva:#C678DD;--proj-violeta:#C678DD;--proj-lavanda:#C678DD;--proj-magenta:#C678DD;--proj-rosa:#E06C75;--proj-marrom:#D19A66;--proj-taupe:#8B929E;--proj-grafite:#8B929E;--proj-cinza:#8B929E;
   color-scheme:dark;
 }
-html[data-theme="rose-pine"]{
+html[data-theme="rose-pine"],[data-theme="rose-pine"]{
   --bg:#191724;--sidebar:#16141F;--surface:#1F1D2E;--surface-raised:#26233A;--surface-sunken:#16141F;
   --overlay:#26233A;--overlay-line:#403D52;--hover:#26233A;--line:#26233A;--line-strong:#403D52;
   --text:#E0DEF4;--text-2:#C2BED9;--text-3:#908CAA;
@@ -130,7 +130,7 @@ html[data-theme="rose-pine"]{
   --proj-cereja:#EB6F92;--proj-vermelho:#EB6F92;--proj-coral:#EB6F92;--proj-salmao:#EBBCBA;--proj-laranja:#EBBCBA;--proj-terracota:#EBBCBA;--proj-ambar:#F6C177;--proj-amarelo:#F6C177;--proj-oliva:#C6D8A2;--proj-limao:#C6D8A2;--proj-verde:#8FC8B0;--proj-floresta:#8FC8B0;--proj-menta:#9CCFD8;--proj-turquesa:#9CCFD8;--proj-petroleo:#9CCFD8;--proj-ceu:#9CCFD8;--proj-azul:#7FB4CA;--proj-marinho:#7FB4CA;--proj-indigo:#C4A7E7;--proj-uva:#C4A7E7;--proj-violeta:#C4A7E7;--proj-lavanda:#C4A7E7;--proj-magenta:#EB6F92;--proj-rosa:#EBBCBA;--proj-marrom:#EBBCBA;--proj-taupe:#908CAA;--proj-grafite:#908CAA;--proj-cinza:#908CAA;
   color-scheme:dark;
 }
-html[data-theme="solarized-light"]{
+html[data-theme="solarized-light"],[data-theme="solarized-light"]{
   --bg:#FDF6E3;--sidebar:#EEE8D5;--surface:#FFFBF0;--surface-raised:#FFFBF0;--surface-sunken:#EEE8D5;
   --overlay:#FFFBF0;--overlay-line:#D9D2BC;--hover:#EEE8D5;--line:#E4DCC6;--line-strong:#CFC7AF;
   --text:#073642;--text-2:#4F646B;--text-3:#5F737A;
@@ -140,7 +140,7 @@ html[data-theme="solarized-light"]{
   --proj-cereja:#C42A27;--proj-vermelho:#C42A27;--proj-coral:#C42A27;--proj-salmao:#B5450F;--proj-laranja:#B5450F;--proj-terracota:#B5450F;--proj-ambar:#8A6800;--proj-amarelo:#8A6800;--proj-oliva:#5F6E00;--proj-limao:#5F6E00;--proj-verde:#5F6E00;--proj-floresta:#5F6E00;--proj-menta:#1E7F78;--proj-turquesa:#1E7F78;--proj-petroleo:#1F6FB0;--proj-ceu:#1F6FB0;--proj-azul:#1F6FB0;--proj-marinho:#1F6FB0;--proj-indigo:#6C71C4;--proj-uva:#6C71C4;--proj-violeta:#6C71C4;--proj-lavanda:#6C71C4;--proj-magenta:#C02F79;--proj-rosa:#C02F79;--proj-marrom:#B5450F;--proj-taupe:#5F737A;--proj-grafite:#5F737A;--proj-cinza:#5F737A;
   color-scheme:light;
 }
-html[data-theme="solarized-dark"]{
+html[data-theme="solarized-dark"],[data-theme="solarized-dark"]{
   --bg:#002B36;--sidebar:#00232C;--surface:#073642;--surface-raised:#0A3F4C;--surface-sunken:#00232C;
   --overlay:#0A3F4C;--overlay-line:#2A5561;--hover:#0E4250;--line:#0E4250;--line-strong:#2A5561;
   --text:#C9D3D3;--text-2:#93A1A1;--text-3:#839496;
@@ -675,6 +675,28 @@ button.t-origin:hover{background:var(--hover)}
 .set-status{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--surface-sunken);display:flex;flex-direction:column;gap:6px;font-size:13px}
 .set-pill{font-size:12px;font-weight:600;line-height:18px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text)}
 .set-foot{padding:0 4px;font-size:13px;color:var(--text-2)}
+/* Seletor de temas: cada miniatura usa os tokens do próprio tema (data-theme no elemento). */
+.theme-groups{display:flex;flex-direction:column;gap:10px;padding-top:4px}
+.theme-group-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text-2)}
+.theme-group-h svg{width:15px;height:15px}
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px}
+.theme-card{display:flex;flex-direction:column;gap:6px;padding:0;border:0;background:none;color:var(--text);text-align:left;font-size:12px;line-height:1.3}
+.theme-preview{display:flex;height:60px;border-radius:10px;overflow:hidden;background:var(--bg);box-shadow:0 0 0 1px var(--line);transition:box-shadow var(--dur-fast) var(--ease-out)}
+.theme-card.on .theme-preview{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--focus)}
+.theme-card:focus-visible{outline:none}
+.theme-card:focus-visible .theme-preview{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--focus)}
+@media (hover:hover){.theme-card:not(.on):hover .theme-preview{box-shadow:0 0 0 1px var(--line-strong)}}
+.theme-card.on .theme-name{font-weight:700}
+.tp-side{width:26%;display:flex;flex-direction:column;gap:4px;padding:8px 5px;background:var(--sidebar)}
+.tp-side i{height:4px;border-radius:2px;background:var(--line-strong)}
+.tp-side .tp-accent{height:6px;background:var(--accent)}
+.tp-main{flex:1;display:flex;flex-direction:column;gap:5px;padding:8px 7px}
+.tp-title{width:50%;height:5px;border-radius:3px;background:var(--text)}
+.tp-row{display:flex;align-items:center;gap:4px}
+.tp-row b{width:7px;height:7px;flex:none;border-radius:50%;border:1.5px solid}
+.tp-row i{flex:1;height:4px;border-radius:2px;background:var(--line)}
+.accent-dot{width:12px;height:12px;border-radius:50%;flex:none}
+.accent-green{background:#3DD68C}.accent-violet{background:#9D8CFF}
 .seg.compact{display:inline-grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;padding:3px;border-radius:10px}
 .seg.compact .seg-o{flex-direction:row;gap:6px;min-height:34px;padding:0 12px;border-radius:7px;font-weight:600}
 .seg.compact .seg-o svg{width:15px;height:15px;stroke-width:2}

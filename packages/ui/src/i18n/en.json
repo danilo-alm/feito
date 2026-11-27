@@ -1010,5 +1010,14 @@
   "Começar do zero?": "Start over?",
   "Começar do zero": "Start over",
   "O Feito vai abrir vazio, com um novo espaço local, e você precisará entrar de novo nos servidores. Tarefas guardadas somente neste computador e alterações ainda não sincronizadas deixam de aparecer.": "Feito will open empty, with a new local workspace, and you will need to sign in to your servers again. Tasks stored only on this computer and changes not yet synced will no longer appear.",
-  "Os arquivos antigos não são apagados: ficam na pasta “recovery”, dentro da pasta de dados do Feito.": "The old files are not deleted: they stay in the “recovery” folder inside Feito’s data folder."
+  "Os arquivos antigos não são apagados: ficam na pasta “recovery”, dentro da pasta de dados do Feito.": "The old files are not deleted: they stay in the “recovery” folder inside Feito’s data folder.",
+  "Seguir o sistema": "Match system",
+  "Usa um tema quando o sistema estiver claro e outro quando estiver escuro.": "Uses one theme when the system is light and another when it is dark.",
+  "Quando o sistema estiver claro": "When the system is light",
+  "Quando o sistema estiver escuro": "When the system is dark",
+  "Cor de destaque": "Accent color",
+  "Botões, item ativo e foco nos temas do Feito. Os temas de editor usam a cor deles.": "Buttons, the active item and focus in the Feito themes. Editor themes use their own color.",
+  "Feito Claro": "Feito Light",
+  "Feito Escuro": "Feito Dark",
+  "Feito Preto": "Feito Black"
 }

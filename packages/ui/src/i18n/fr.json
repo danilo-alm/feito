@@ -1010,5 +1010,14 @@
   "Começar do zero?": "Repartir de zéro ?",
   "Começar do zero": "Repartir de zéro",
   "O Feito vai abrir vazio, com um novo espaço local, e você precisará entrar de novo nos servidores. Tarefas guardadas somente neste computador e alterações ainda não sincronizadas deixam de aparecer.": "Feito s’ouvrira vide, avec un nouvel espace local, et vous devrez vous reconnecter aux serveurs. Les tâches enregistrées uniquement sur cet ordinateur et les modifications non synchronisées n’apparaîtront plus.",
-  "Os arquivos antigos não são apagados: ficam na pasta “recovery”, dentro da pasta de dados do Feito.": "Les anciens fichiers ne sont pas supprimés : ils restent dans le dossier “recovery”, à l’intérieur du dossier de données de Feito."
+  "Os arquivos antigos não são apagados: ficam na pasta “recovery”, dentro da pasta de dados do Feito.": "Les anciens fichiers ne sont pas supprimés : ils restent dans le dossier “recovery”, à l’intérieur du dossier de données de Feito.",
+  "Seguir o sistema": "Suivre le système",
+  "Usa um tema quando o sistema estiver claro e outro quando estiver escuro.": "Utilise un thème quand le système est clair et un autre quand il est sombre.",
+  "Quando o sistema estiver claro": "Quand le système est clair",
+  "Quando o sistema estiver escuro": "Quand le système est sombre",
+  "Cor de destaque": "Couleur d’accent",
+  "Botões, item ativo e foco nos temas do Feito. Os temas de editor usam a cor deles.": "Boutons, élément actif et focus dans les thèmes Feito. Les thèmes d’éditeur gardent leur couleur.",
+  "Feito Claro": "Feito Clair",
+  "Feito Escuro": "Feito Sombre",
+  "Feito Preto": "Feito Noir"
 }
