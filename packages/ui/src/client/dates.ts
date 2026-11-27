@@ -131,6 +131,17 @@ export function completedLabel(instant: string, reference: string, timezone?: st
   return t("Concluída em {0}", [dateInSentence(dateLabel(local, reference))]);
 }
 
+/** Data e hora de um comentário: "Hoje 10:52", "Ontem 10:52" ou a data seguida da hora. */
+export function commentTimeLabel(instant: string, reference: string, timezone?: string) {
+  const date = new Date(instant);
+  const local = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" })
+    .format(date);
+  const time = new Intl.DateTimeFormat(intlLocale(), { timeZone: timezone, hour: "2-digit", minute: "2-digit" }).format(date);
+  const diff = daysBetween(reference, local);
+  const day = diff === 0 ? t("Hoje") : diff === -1 ? t("Ontem") : dateLabel(local, reference);
+  return `${day} ${time}`;
+}
+
 /** Rótulo de data no meio da frase. Inglês e alemão mantêm as maiúsculas de dias e meses. */
 export function dateInSentence(label: string) {
   const locale = getLocale();

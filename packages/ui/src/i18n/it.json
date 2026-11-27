@@ -983,5 +983,13 @@
   "Mostrar subtarefas de “{0}”": "Espandi le sottoattività di “{0}”",
   "Expandir painel": "Espandi pannello",
   "Reduzir painel": "Riduci pannello",
-  "Etiquetas: {0}": "Etichette: {0}"
+  "Etiquetas: {0}": "Etichette: {0}",
+  "Comentários": "Commenti",
+  "Comentar": "Commenta",
+  "Enviar comentário": "Invia commento",
+  "Ações do comentário": "Azioni del commento",
+  "Editar comentário": "Modifica commento",
+  "Excluir comentário?": "Eliminare il commento?",
+  "(editado)": "(modificato)",
+  "Você": "Tu"
 }

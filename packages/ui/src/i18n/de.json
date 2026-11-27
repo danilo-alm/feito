@@ -983,5 +983,13 @@
   "Mostrar subtarefas de “{0}”": "Unteraufgaben von “{0}” ausklappen",
   "Expandir painel": "Bereich vergrößern",
   "Reduzir painel": "Bereich verkleinern",
-  "Etiquetas: {0}": "Labels: {0}"
+  "Etiquetas: {0}": "Labels: {0}",
+  "Comentários": "Kommentare",
+  "Comentar": "Kommentieren",
+  "Enviar comentário": "Kommentar senden",
+  "Ações do comentário": "Kommentaraktionen",
+  "Editar comentário": "Kommentar bearbeiten",
+  "Excluir comentário?": "Kommentar löschen?",
+  "(editado)": "(bearbeitet)",
+  "Você": "Du"
 }

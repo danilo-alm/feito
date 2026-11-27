@@ -983,5 +983,13 @@
   "Mostrar subtarefas de “{0}”": "Expand subtasks of “{0}”",
   "Expandir painel": "Expand panel",
   "Reduzir painel": "Shrink panel",
-  "Etiquetas: {0}": "Labels: {0}"
+  "Etiquetas: {0}": "Labels: {0}",
+  "Comentários": "Comments",
+  "Comentar": "Comment",
+  "Enviar comentário": "Send comment",
+  "Ações do comentário": "Comment actions",
+  "Editar comentário": "Edit comment",
+  "Excluir comentário?": "Delete comment?",
+  "(editado)": "(edited)",
+  "Você": "You"
 }

@@ -390,6 +390,40 @@ button.t-origin:hover{background:var(--hover)}
 .td-list>.task{border-bottom:1px solid var(--border)}
 .td-list-empty{margin-top:8px}
 .td-hint{padding-left:34px}
+/* Comentários da tarefa (computador e celular). */
+.cm{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.cm-mobile{margin-top:0}
+.cm-mobile:not(:has(.cm-h)){display:none}
+.cm-mobile .cm-h{border-bottom:0;margin-left:0;padding:0 4px}
+.cm-mobile .td-sec-t{font-size:17px}
+.cm-list{list-style:none;margin:0;padding:6px 0 0;display:flex;flex-direction:column;gap:14px}
+.cm-item{display:flex;gap:12px;align-items:flex-start}
+.cm-item.pending{opacity:.6}
+.cm-avatar{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand-text);font-size:14px;font-weight:700}
+.cm-main{flex:1;min-width:0}
+.cm-meta{display:flex;align-items:center;gap:8px;min-height:28px}
+.cm-name{font-weight:700;font-size:14px}
+.cm-meta time,.cm-edited{color:var(--muted);font-size:13px}
+.cm-menu{margin-left:auto;width:28px;height:28px;opacity:0}
+.cm-item:hover .cm-menu,.cm-menu:focus-visible,.cm-menu[aria-expanded=true]{opacity:1}
+@media (hover:none),(pointer:coarse){.cm-menu{opacity:1}}
+.cm-body{font-size:14px;line-height:1.55;overflow-wrap:anywhere}
+.cm-edit{display:flex;flex-direction:column;gap:8px;padding-top:4px}
+.cm-edit .cm-field{border:1px solid var(--border-strong);border-radius:10px;padding:8px 12px}
+.cm-edit-actions{display:flex;gap:8px;justify-content:flex-end}
+.cm-composer{display:flex;gap:12px;align-items:flex-start;padding-top:10px}
+.cm-input{flex:1;min-width:0;display:flex;align-items:flex-end;gap:6px;min-height:40px;padding:4px 4px 4px 16px;border:1px solid var(--border-strong);border-radius:20px;background:transparent}
+.cm-input:focus-within{border-color:var(--faint)}
+.cm-field{flex:1;min-width:0;border:0;background:none;color:var(--text);font:inherit;font-size:14px;line-height:20px;padding:6px 0;resize:none;overflow:hidden;outline:none;display:block}
+.cm-field::placeholder{color:var(--faint)}
+.cm-send{width:32px;height:32px;flex:none;border:0;border-radius:50%;background:var(--brand);color:var(--on-brand);display:grid;place-items:center}
+.cm-send:hover{background:var(--brand-hover)}
+.cm-send svg{width:18px;height:18px}
+/* No celular o campo fica preso ao pé da folha, como uma barra flutuante. */
+.md-body>.cm-composer{position:sticky;bottom:calc(8px + env(safe-area-inset-bottom));z-index:2;margin-top:auto;padding-top:0}
+.md-body>.cm-composer .cm-avatar{display:none}
+.md-body>.cm-composer .cm-input{background:var(--raised);box-shadow:var(--lift);min-height:48px;border-radius:24px}
+.md-body .cm-field{font-size:16px}
 /* Detalhe da tarefa no celular: cartão principal, faixa de campos rolável na horizontal e subtarefas abaixo. */
 .md-body{display:flex;flex-direction:column;gap:20px;padding:12px 16px calc(24px + env(safe-area-inset-bottom))}
 .md-body>.banner{margin:0}

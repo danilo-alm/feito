@@ -983,5 +983,13 @@
   "Mostrar subtarefas de “{0}”": "Afficher les sous-tâches de “{0}”",
   "Expandir painel": "Agrandir le panneau",
   "Reduzir painel": "Réduire le panneau",
-  "Etiquetas: {0}": "Étiquettes : {0}"
+  "Etiquetas: {0}": "Étiquettes : {0}",
+  "Comentários": "Commentaires",
+  "Comentar": "Commenter",
+  "Enviar comentário": "Envoyer le commentaire",
+  "Ações do comentário": "Actions du commentaire",
+  "Editar comentário": "Modifier le commentaire",
+  "Excluir comentário?": "Supprimer le commentaire ?",
+  "(editado)": "(modifié)",
+  "Você": "Vous"
 }

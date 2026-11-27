@@ -19,6 +19,7 @@ import {
 import { ProjectGlyph } from "./project-style";
 import { DatePicker, LabelPicker, PRIORITY_NAMES, PriorityMenu, RepeatMenu, TimePicker } from "./pickers";
 import { useTaskActions } from "./task-actions";
+import { CommentComposer, TaskComments } from "./task-comments";
 import { TaskContent } from "./task-content";
 import { TaskDescription } from "./task-description";
 import { Checkbox } from "./task-row";
@@ -308,6 +309,8 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
             {current.recurrence && <p className="hint">{t("Tarefas recorrentes não recebem subtarefas.")}</p>}
           </section>
         )}
+        <TaskComments key={`comments:${current.id}`} task={current} variant="mobile" />
+        <CommentComposer key={`composer:${current.id}`} taskId={current.id} />
       </div>
     );
   };
@@ -364,6 +367,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
               <div className="td-list td-list-empty">{subtaskRows(task)}</div>
             )}
             {task.recurrence && <p className="hint td-hint">{t("Tarefas recorrentes não recebem subtarefas.")}</p>}
+            <TaskComments key={task.id} task={task} variant="desktop" />
           </div>
           <aside className="d-side" aria-label={t("Detalhes da tarefa")}>
             <Section title={t("Projeto")}>
