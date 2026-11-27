@@ -398,10 +398,6 @@ html:has(.dialog-wrap) .tb-app {
     overflow-x: hidden;
   }
 
-  .desktop-overlay .side::-webkit-scrollbar-track {
-    margin-top: var(--desktop-titlebar-height);
-  }
-
   /* Menu aberto: a primeira parte da faixa acompanha o menu, com Recolher menu à direita. */
   .desktop-overlay[data-sidebar="open"] .tb-lead {
     flex: 0 0 var(--sidebar-width);

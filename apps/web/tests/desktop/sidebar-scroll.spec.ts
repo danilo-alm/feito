@@ -24,6 +24,9 @@ test("com muitos projetos e etiquetas, só a lista rola e o topo e os Ajustes fi
   await expect(settings).toBeInViewport();
   await expect(lastLabel).not.toBeInViewport();
 
+  await expect(list).toHaveCSS("scrollbar-width", "none");
+  expect(await list.evaluate((node) => node.offsetWidth - node.clientWidth)).toBe(0);
+
   await list.hover();
   await page.mouse.wheel(0, 2000);
   await expect(lastLabel).toBeInViewport();
