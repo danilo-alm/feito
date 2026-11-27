@@ -250,6 +250,7 @@ h1,h2,h3,p{margin:0}
 .side-add:hover{background:var(--accent-hover)}
 .side-add .plus{display:grid;place-items:center;color:inherit}
 .side-add>span{flex-shrink:0;white-space:nowrap}
+.side-add>.side-add-label{flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .side-add .plus svg{width:18px;height:18px;stroke-width:2.4}
 .side-add .kbd{background:color-mix(in srgb,var(--on-accent) 16%,transparent);border:0;color:inherit}
 .side .nav-search{border:1px solid var(--line);background:var(--surface);color:var(--text-2);margin-bottom:6px;border-radius:10px}

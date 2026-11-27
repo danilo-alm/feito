@@ -83,6 +83,9 @@ for (const [device, width, height] of [["iPad mini em pé", 744, 1133], ["iPad e
     test("mostra a Tabela e a opção no menu", async ({ page }) => {
       await openTableProject(page);
       await expect(page.locator(".ptable")).toBeVisible();
+      // No iPad o menu lateral fica à esquerda; recolhido, a Tabela ganha a largura toda.
+      await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
+      await page.getByRole("button", { name: "Recolher menu lateral" }).click();
       // As colunas padrão cabem sem rolagem lateral, e o título longo usa uma segunda linha.
       await expect.poll(() => page.locator(".ptable-scroll").evaluate((node) => node.scrollWidth - node.clientWidth)).toBe(0);
       expect(await page.getByRole("button", { name: LONG_TITLE, exact: true }).evaluate((node) => {

@@ -11,6 +11,10 @@ for (const narrow of [false, true]) {
       confirmed: workspace, working: workspace, pending: [], cursor: 0,
     } } }, true);
     await page.goto("/#/ajustes");
+    // Abas pelo teclado: End leva à última, Espaços de trabalho.
+    await page.getByRole("tab", { name: "Aparência" }).focus();
+    await page.keyboard.press("End");
+    await expect(page.getByRole("tab", { name: "Espaços de trabalho" })).toHaveAttribute("aria-selected", "true");
     const edit = page.getByRole("button", { name: "Editar conexão", exact: true });
     const sync = page.getByRole("button", { name: "Sincronizar agora", exact: true });
     const logout = page.getByRole("button", { name: "Encerrar sessão", exact: true });

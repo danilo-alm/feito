@@ -34,7 +34,7 @@ A saída é mais curta que a entrada em elementos que o usuário fecha. O títul
 | --- | --- | --- | --- |
 | Scrim | Fade de opacidade (`base`). | Fade (`fast`; `base` no celular). | `Dialog` |
 | Diálogo no desktop | Fade + escala de 0,96 para 1 + 8 px de subida (`base`, `ease-out`). | Fade + escala 0,98 + 4 px (`fast`, `ease-in`). | `Dialog` |
-| Folha inferior (celular) | Desliza de baixo (`slow`). | Desce (`base`). | `Dialog` abaixo de 900 px, incluindo `MenuButton` |
+| Folha inferior (celular) | Desliza de baixo (`slow`). | Desce (`base`). | `Dialog` no layout de celular (abaixo de 600 px ou celular deitado), incluindo `MenuButton` |
 | Popover e menu | Fade + escala 0,96 com `transform-origin` no lado da âncora, inclusive quando vira para cima (`base`). | Fade + escala 0,98 (`fast`). | `Popover`, `MenuButton` no desktop |
 | Tooltip | Fade (`base`) após 320 ms com o ponteiro sobre o controle ou imediatamente ao receber foco pelo teclado. | Fade (`fast`). | `TooltipLayer`, em controles marcados com `data-tooltip` |
 | Aviso (toast) | Sobe 12 px com fade (`slow`). | Fade + escala 0,98 (`base`); os demais deslizam para o lugar (`useFlip`). | `ToastProvider` |

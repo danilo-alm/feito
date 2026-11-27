@@ -11,7 +11,7 @@ function civil(offset: number) {
   return date.toISOString().slice(0, 10);
 }
 
-async function openAgenda(page: Page, path: string, preferences: { todayLayout?: Layout } = {}) {
+async function openAgenda(page: Page, path: string, preferences: { todayLayout?: Layout; todayTimeline?: boolean } = {}) {
   let workspace = newPortugueseWorkspace();
   Object.assign(workspace.preferences, preferences);
   const write = async (route: string, body: object) => {
@@ -45,18 +45,23 @@ async function pickLayout(page: Page, current: string, next: string) {
   await page.keyboard.press("Escape");
 }
 
-test("Hoje troca entre Lista, Painel, Calendário e Tabela e guarda a escolha na conta", async ({ page }) => {
+test("Hoje abre na Linha do dia, troca entre os layouts e guarda a escolha na conta", async ({ page }) => {
   await openAgenda(page, "/#/hoje");
   await expect(page.getByRole("heading", { name: "Hoje", level: 1 })).toBeVisible();
   await expect(page.locator(".tb .tb-tools-wide .tool-btn .tool-label")).toHaveText("Mostrar");
+  // Sem escolha salva, Hoje abre na Linha do dia: com horário na régua, atrasadas e sem horário ao lado.
+  await expect(page.getByRole("region", { name: "Com horário" })).toContainText("Reunião de obra");
+  await expect(page.getByRole("region", { name: "Atrasadas" })).toContainText("Pagar a conta de luz");
+  await expect(page.getByRole("region", { name: "Sem horário" })).toContainText("Regar as plantas");
+  await page.screenshot({ path: test.info().outputPath("hoje-linha-do-dia.png") });
 
-  await pickLayout(page, "Lista", "Painel");
+  await pickLayout(page, "Linha do dia", "Painel");
   const columns = page.locator(".agenda-board .column");
   await expect(columns).toHaveCount(2);
   await expect(columns.nth(0).locator(".col-h")).toContainText("Atrasadas");
   await expect(columns.nth(0)).toContainText("Pagar a conta de luz");
   await expect(columns.nth(1)).toContainText("Reunião de obra");
-  await expect.poll(() => savedPreferences(page)).toMatchObject({ todayLayout: "board" });
+  await expect.poll(() => savedPreferences(page)).toMatchObject({ todayLayout: "board", todayTimeline: false });
   await page.screenshot({ path: test.info().outputPath("hoje-painel.png") });
 
   await pickLayout(page, "Painel", "Calendário");
@@ -73,6 +78,10 @@ test("Hoje troca entre Lista, Painel, Calendário e Tabela e guarda a escolha na
   await expect(page.locator(".agenda-board, .pcal, .ptable")).toHaveCount(0);
   await expect(page.getByText("Regar as plantas")).toBeVisible();
   await expect.poll(() => savedPreferences(page)).toMatchObject({ todayLayout: "list" });
+
+  await pickLayout(page, "Lista", "Linha do dia");
+  await expect(page.getByRole("region", { name: "Com horário" })).toContainText("Reunião de obra");
+  await expect.poll(() => savedPreferences(page)).toMatchObject({ todayLayout: "list", todayTimeline: true });
 });
 
 test("Em breve mostra um dia por coluna no Painel e a semana no Calendário", async ({ page }) => {
@@ -123,13 +132,13 @@ test.describe("agendas no celular", () => {
   });
 
   test("uma visão salva em Tabela vira Lista, sem a opção no menu nem mudar o que está salvo", async ({ page }) => {
-    await openAgenda(page, "/#/hoje", { todayLayout: "table" });
+    await openAgenda(page, "/#/hoje", { todayLayout: "table", todayTimeline: false });
     await expect(page.getByText("Regar as plantas")).toBeVisible();
     await expect(page.locator(".ptable")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Mostrar: Lista" }).click();
     const sheet = page.getByRole("dialog", { name: "Visualização" });
-    await expect(sheet.getByRole("radio")).toHaveText(["Lista", "Painel", "Calendário"]);
+    await expect(sheet.getByRole("radio")).toHaveText(["Linha do dia", "Lista", "Painel", "Calendário"]);
     await expect(sheet.getByRole("radio", { name: "Lista" })).toBeChecked();
     await sheet.getByRole("radio", { name: "Lista" }).click();
     await page.screenshot({ path: test.info().outputPath("celular-tabela-salva.png") });
@@ -147,7 +156,7 @@ test.describe("agendas no tablet", () => {
   test.use({ viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true });
 
   test("Hoje e Em breve mostram a Tabela", async ({ page }) => {
-    await openAgenda(page, "/#/hoje", { todayLayout: "table" });
+    await openAgenda(page, "/#/hoje", { todayLayout: "table", todayTimeline: false });
     await expect(page.getByRole("table", { name: "Tarefas" })).toContainText("Regar as plantas");
     await page.goto("/#/em-breve");
     await page.getByRole("button", { name: "Mostrar: Lista" }).click();
