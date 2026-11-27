@@ -1,10 +1,11 @@
 "use client";
 import { useT } from "./language";
 
-import { useId, useRef, useState, type ReactNode, type SVGProps } from "react";
+import { useId, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type SVGProps } from "react";
 import { projectStyle, tagColor } from "../client/colors";
+import type { ProjectStyle } from "@feito/core/types";
 import type { ProjectColor, ProjectIcon } from "@feito/core/validation/project-style";
-import { hashIconPath, IconCheck, IconChevronDown } from "./icons";
+import { hashIconPath, IconCheck, IconChevronDown, IconSearch } from "./icons";
 import { Popover } from "./ui";
 
 export const COLOR_OPTIONS: { value: ProjectColor; label: string }[] = [
@@ -97,6 +98,98 @@ export function Glyph({ icon, ...rest }: SVGProps<SVGSVGElement> & { icon: Proje
 export function ProjectGlyph({ id, className, style }: { id: string | null | undefined; className?: string; style?: React.CSSProperties }) {
   const { icon, color } = projectStyle(id);
   return <Glyph icon={icon} className={className} style={{ color, ...style }} />;
+}
+
+const PICKER_COLUMNS = 7;
+const fold = (text: string) => text.normalize("NFD").replace(/\p{Mark}/gu, "").toLowerCase();
+
+/** Setas percorrem a grade; Tab entra e sai dela por uma única opção. */
+function moveInGrid(event: KeyboardEvent<HTMLDivElement>) {
+  const steps: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -PICKER_COLUMNS, ArrowDown: PICKER_COLUMNS };
+  const step = steps[event.key];
+  if (!step) return;
+  event.preventDefault();
+  const options = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button")];
+  options[options.indexOf(event.target as HTMLButtonElement) + step]?.focus();
+}
+
+function PickerGrid<T extends string | null>({ label, options, selected, onSelect, children, className, autoFocus }: {
+  label: string; options: { value: T; label: string }[]; selected: T; onSelect: (value: T) => void;
+  children: (value: T) => ReactNode; className: string; autoFocus?: boolean;
+}) {
+  const t = useT();
+  const [focused, setFocused] = useState<T>();
+  const has = (value: T | undefined) => options.some((option) => option.value === value);
+  const tabStop = has(focused) ? focused : has(selected) ? selected : options[0]?.value;
+  return (
+    <div className={className} role="group" aria-label={label} onKeyDown={moveInGrid}>
+      {options.map((option) => (
+        <button key={option.value ?? "auto"} type="button" aria-pressed={option.value === selected} aria-label={t(option.label)}
+          data-tooltip={t(option.label)} className="ps-choice" tabIndex={option.value === tabStop ? 0 : -1}
+          data-autofocus={(autoFocus && option.value === tabStop) || undefined}
+          onFocus={() => setFocused(() => option.value)} onClick={() => onSelect(option.value)}>
+          {children(option.value)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function StylePickerBody({ projectId, color, icon, onChange }: {
+  projectId: string; color: ProjectColor | null; icon: ProjectIcon; onChange: (style: Partial<ProjectStyle>) => void;
+}) {
+  const t = useT();
+  const [query, setQuery] = useState("");
+  // No toque, focar a busca abriria o teclado por cima das opções.
+  const [touch] = useState(() => window.matchMedia("(pointer: coarse)").matches);
+  const term = fold(query.trim());
+  const icons = term ? ICON_OPTIONS.filter((option) => fold(`${t(option.label)} ${option.value}`).includes(term)) : ICON_OPTIONS;
+  const auto = tagColor(projectId);
+  const tint = color ? colorValue(color) : auto;
+  return (
+    <div className="ps-picker" style={{ "--ps-tint": tint } as CSSProperties} onContextMenu={(event) => event.stopPropagation()}>
+      <label className="ps-search">
+        <IconSearch />
+        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t("Buscar ícones")}
+          placeholder={t("Buscar ícones")} autoComplete="off" data-autofocus={!touch || undefined} />
+      </label>
+      <div className="ps-picker-title" aria-hidden="true">{t("Ícone")}</div>
+      {icons.length ? (
+        <PickerGrid className="ps-icons" label={t("Ícone")} options={icons} selected={icon} autoFocus={touch}
+          onSelect={(value) => onChange({ icon: value })}>
+          {(value) => <Glyph icon={value} />}
+        </PickerGrid>
+      ) : <p className="ps-empty" role="status">{t("Nenhum ícone encontrado")}</p>}
+      <div className="ps-picker-title" aria-hidden="true">{t("Cor")}</div>
+      <PickerGrid<ProjectColor | null> className="ps-colors" label={t("Cor")} selected={color} onSelect={(value) => onChange({ color: value })}
+        options={[{ value: null, label: "Automática" }, ...COLOR_OPTIONS]}>
+        {(value) => <span className={`ps-swatch${value ? "" : " auto"}`} style={value ? { background: colorValue(value) } : undefined} />}
+      </PickerGrid>
+    </div>
+  );
+}
+
+/** Ícone do projeto no título da página: abre a escolha de ícone e cor, e cada escolha é salva na hora. */
+export function ProjectStyleButton({ projectId, color, icon, onChange }: {
+  projectId: string; color: ProjectColor | null; icon: ProjectIcon; onChange: (style: Partial<ProjectStyle>) => void;
+}) {
+  const t = useT();
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const change = (style: Partial<ProjectStyle>) => {
+    if ((style.icon !== undefined && style.icon !== icon) || (style.color !== undefined && style.color !== color)) onChange(style);
+  };
+  return (
+    <>
+      <button ref={setAnchor} type="button" className="project-style-btn" aria-label={t("Mudar ícone e cor do projeto")}
+        aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Glyph icon={icon} style={{ color: color ? colorValue(color) : tagColor(projectId) }} />
+      </button>
+      <Popover anchor={anchor} open={open} onClose={() => setOpen(false)} label={t("Ícone e cor do projeto")} width={308}>
+        <StylePickerBody projectId={projectId} color={color} icon={icon} onChange={change} />
+      </Popover>
+    </>
+  );
 }
 
 /** Campos Cor e Ícone do formulário de projeto: cada um abre uma lista rolável (sem barra visível). */

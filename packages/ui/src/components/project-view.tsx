@@ -10,6 +10,7 @@ import { useRouter } from "../navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { api, ApiFailure, errorMessage } from "../client/api";
 import { tagColor } from "../client/colors";
+import { applySavedProject, restyleProject } from "../client/project-mutations";
 import { editKey, insertKey, useEditorOpen } from "../client/editor-store";
 import { sidewaysScroll } from "../client/sideways-scroll";
 import { getQueryData, invalidate, setQueryData, useQuery } from "../client/store";
@@ -19,7 +20,7 @@ import {
 } from "../client/tree";
 import { isTemporaryTask, moveTask } from "../client/task-mutations";
 import { expandTasks, toggleCollapsed, useCollapsedTasks } from "../client/collapsed-tasks";
-import type { NamedDetails, ProjectPage, Section, TaskItem } from "@feito/core/types";
+import type { NamedDetails, ProjectDetails, ProjectPage, ProjectStyle, Section, TaskItem } from "@feito/core/types";
 import { taskAncestors } from "@feito/core/domain/task-tree";
 import { refreshProjects, useApp } from "./app";
 import { PageHeader, PageTaskCount } from "./chrome";
@@ -28,7 +29,7 @@ import { Collapse, flipFrom, motionMs, refreshFlip } from "./motion";
 import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconInbox, IconMore, IconPlus, IconDownload, IconTrash, IconUpload } from "./icons";
 import { useExportDialog, useImportDialog } from "./import-export-dialogs";
 import { NamedDetailsForm, useProjectDetailsDialog } from "./named-details";
-import { colorValue, Glyph } from "./project-style";
+import { colorValue, Glyph, ProjectStyleButton } from "./project-style";
 import { useTaskActions } from "./task-actions";
 import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
 import { TaskRow, type ArrangeItem, type InsertSide, type SubtaskToggle } from "./task-row";
@@ -627,7 +628,9 @@ function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]
     return <>
       <div ref={titleRef}>{project.isInbox
         ? <h1 className="title nav-title"><IconInbox />{t("Entrada")}</h1>
-        : <h1 className="title">{project.name}</h1>}</div>
+        : <h1 className="title nav-title project-title-static">
+          <Glyph icon={project.icon} style={{ color: project.color ? colorValue(project.color) : tagColor(project.id) }} />{project.name}
+        </h1>}</div>
       {!project.isInbox && project.description && <p className="project-description">{project.description}</p>}
     </>;
   }
@@ -636,6 +639,20 @@ function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]
   const openEditor = (field: ProjectHeadingField) => {
     const value = displayValue(field);
     setEditing({ field, initial: value, value });
+  };
+  /** Título, descrição, ícone e cor são gravados em fila, cada um com a revisão deixada pelo anterior. */
+  const save = (patch: Partial<ProjectDetails>) => {
+    const key = `project:${project.id}`;
+    queue.current = queue.current.then(async (lastRevision) => {
+      const revision = Math.max(lastRevision, getQueryData<ProjectPage>(key)?.project.revision ?? project.revision);
+      const saved = await app.run(async () => {
+        const saved = await api.projects.edit(project.id, revision, patch);
+        applySavedProject(saved);
+        return saved;
+      }, { revalidate: refreshProjects });
+      return saved?.revision ?? revision;
+    });
+    return queue.current;
   };
   const commit = () => {
     if (!editing) return;
@@ -646,21 +663,11 @@ function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]
 
     const change = { value };
     setPending((current) => ({ ...current, [field]: change }));
-    const key = `project:${project.id}`;
-    // Usar a revisão mais recente se o outro campo acabou de ser salvo.
-    queue.current = queue.current.then(async (lastRevision) => {
-      const revision = Math.max(lastRevision, getQueryData<ProjectPage>(key)?.project.revision ?? project.revision);
-      const saved = await app.run(async () => {
-        const saved = await api.projects.edit(project.id, revision, { [field]: value });
-        setQueryData<ProjectPage>(key, (current) => current && current.project.revision <= saved.revision
-          ? { ...current, project: { ...current.project, ...saved } }
-          : current);
-        return saved;
-      }, { revalidate: refreshProjects });
+    void save({ [field]: value }).then(() => {
       setPending((current) => current[field] === change ? { ...current, [field]: undefined } : current);
-      return saved?.revision ?? revision;
     });
   };
+  const restyle = (style: Partial<ProjectStyle>) => void restyleProject(project.id, style, () => save(style));
   const editorProps = editing && {
     value: editing.value,
     autoFocus: true,
@@ -685,17 +692,20 @@ function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]
   const description = displayValue("description");
   return (
     <div className="project-heading-fields">
-      <div ref={titleRef}>
-        <h1 className={editing?.field === "name" ? "sr-only" : "title"}>
-          {editing?.field === "name" ? name : (
-            <button type="button" className="project-heading-field" ref={titleButton} onClick={() => openEditor("name")}
-              aria-description={t("Editar título do projeto")}>
-              {name}
-            </button>
-          )}
-        </h1>
-        {editing?.field === "name" && <input {...editorProps} ref={sidewaysScroll} className="project-heading-field project-heading-input title"
-          aria-label={t("Nome do projeto")} maxLength={120} />}
+      <div ref={titleRef} className="project-title-row">
+        <ProjectStyleButton projectId={project.id} color={project.color} icon={project.icon} onChange={restyle} />
+        <div className="project-title-text">
+          <h1 className={editing?.field === "name" ? "sr-only" : "title"}>
+            {editing?.field === "name" ? name : (
+              <button type="button" className="project-heading-field" ref={titleButton} onClick={() => openEditor("name")}
+                aria-description={t("Editar título do projeto")}>
+                {name}
+              </button>
+            )}
+          </h1>
+          {editing?.field === "name" && <input {...editorProps} ref={sidewaysScroll} className="project-heading-field project-heading-input title"
+            aria-label={t("Nome do projeto")} maxLength={120} />}
+        </div>
       </div>
       {editing?.field === "description" ? (
         <textarea {...editorProps} ref={descriptionInput} className="project-heading-field project-heading-input project-description"

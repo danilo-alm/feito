@@ -139,7 +139,10 @@ test.describe("telas do dia a dia", () => {
     const description = page.getByRole("button", { name: "Editar descrição do projeto" });
     await expect(description).toHaveText("Organizar a reforma.");
     const taskWidth = await row(page, "Medir a sala").evaluate((el) => getComputedStyle(el).width);
-    await expect(title).toHaveCSS("width", taskWidth);
+    // O ícone do projeto divide a linha com o título.
+    const icon = await page.getByRole("button", { name: "Mudar ícone e cor do projeto" }).evaluate((el) => el.getBoundingClientRect().width);
+    const titleWidth = `${parseFloat(taskWidth) - icon}px`;
+    await expect(title).toHaveCSS("width", titleWidth);
     await expect(description).toHaveCSS("width", taskWidth);
     if (!isMobile) {
       for (const field of [title, description]) {
@@ -151,7 +154,7 @@ test.describe("telas do dia a dia", () => {
     await title.click();
     const name = page.getByRole("textbox", { name: "Nome do projeto" });
     await expect(name).toBeFocused();
-    await expect(name).toHaveCSS("width", taskWidth);
+    await expect(name).toHaveCSS("width", titleWidth);
     await expect(name).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await name.fill("Reforma do apartamento");
     await name.press("Enter");
@@ -193,6 +196,49 @@ test.describe("telas do dia a dia", () => {
     await expect(renamed).toBeVisible();
     await expect(page.getByRole("button", { name: "Editar descrição do projeto" })).toHaveText("Comprar materiais.");
     await expect(board.getByRole("region", { name: "Coluna Compras" })).toContainText("Pesquisar preços.");
+  });
+
+  test("muda o ícone e a cor do projeto pelo título", async ({ page, api, isMobile }) => {
+    const { id } = await api<{ id: string }>("POST", "/projects", { name: "Projeto com ícone" });
+    const saved = async () => {
+      const { project } = await api<{ project: { icon: string; color: string | null } }>("GET", `/projects/${id}`);
+      return [project.icon, project.color];
+    };
+    await page.goto(`/projetos/${id}`);
+
+    const trigger = page.getByRole("button", { name: "Mudar ícone e cor do projeto" });
+    await trigger.click();
+    const picker = page.getByRole("dialog", { name: "Ícone e cor do projeto" });
+    const icons = picker.getByRole("group", { name: "Ícone" });
+    await expect(icons.getByRole("button", { name: "Hashtag" })).toHaveAttribute("aria-pressed", "true");
+    // No toque, o foco vai para o ícone atual, sem abrir o teclado.
+    await expect(isMobile ? icons.getByRole("button", { name: "Hashtag" }) : picker.getByRole("searchbox")).toBeFocused();
+
+    const search = picker.getByRole("searchbox", { name: "Buscar ícones" });
+    await search.fill("coracao");
+    await expect(icons.getByRole("button")).toHaveCount(1);
+    await icons.getByRole("button", { name: "Coração" }).click();
+    await search.fill("nada parecido");
+    await expect(picker.getByRole("status")).toHaveText("Nenhum ícone encontrado");
+    await search.clear();
+
+    const colors = picker.getByRole("group", { name: "Cor" });
+    await colors.getByRole("button", { name: "Azul", exact: true }).click();
+    await expect.poll(saved).toEqual(["heart", "azul"]);
+    await expect(colors.getByRole("button", { name: "Azul", exact: true })).toHaveAttribute("aria-pressed", "true");
+
+    // As setas andam pela grade, e Enter escolhe.
+    await page.keyboard.press("ArrowRight");
+    await expect(colors.getByRole("button", { name: "Azul marinho" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect.poll(saved).toEqual(["heart", "marinho"]);
+
+    await page.keyboard.press("Escape");
+    await expect(picker).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await page.reload();
+    await trigger.click();
+    await expect(icons.getByRole("button", { name: "Coração" })).toHaveAttribute("aria-pressed", "true");
   });
 
   test("renomeia seções no Painel e só exibe um título na Lista quando há nome", async ({ page, api }) => {
