@@ -353,7 +353,7 @@ button.t-origin:hover{background:var(--hover)}
 .modal{position:absolute;z-index:11;left:50%;transform:translateX(-50%)}
 .sheet{position:absolute;left:0;right:0;bottom:0;z-index:11;background:var(--raised);border-radius:18px 18px 0 0;box-shadow:var(--lift);padding:8px 16px 24px}
 .grabber{width:40px;height:5px;border-radius:3px;background:var(--border-strong);margin:2px auto 10px}
-.d-side{flex:1 1 300px;max-width:100%;background:var(--sunken);border-left:1px solid var(--border);padding:8px 24px 20px;display:flex;flex-direction:column}
+.d-side{flex:1 1 300px;max-width:100%;background:var(--raised);border-left:1px solid var(--border);padding:8px 24px 20px;display:flex;flex-direction:column}
 .d-sec{display:flex;flex-direction:column;gap:4px;padding:14px 0;border-bottom:1px solid var(--border)}
 .d-sec.last{border-bottom:0}
 .d-sec-h{display:flex;align-items:center;min-height:28px;font-size:13px;font-weight:600;color:var(--muted)}
@@ -369,6 +369,8 @@ button.t-origin:hover{background:var(--hover)}
 .d-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .d-chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:4px}
 @media (max-width: 899px){.d-side{border-left:0;border-top:1px solid var(--border);padding:4px 16px 24px}}
+/* Detalhe da tarefa: título e conteúdo no tom mais escuro; o painel lateral de campos fica no mais claro. */
+.dialog:has(>.task-detail-head){background:var(--sunken)}
 /* Detalhe da tarefa no computador: coluna principal com tarefa-pai, título, descrição e subtarefas recolhíveis. */
 .td-main{flex:999 1 420px;min-width:0;padding:20px 24px 24px;display:flex;flex-direction:column;gap:10px}
 .td-parent{align-self:flex-start;display:flex;align-items:center;gap:10px;max-width:100%;height:34px;padding:0 10px 0 12px;border:1px solid var(--border-strong);border-radius:10px;background:none;color:var(--text);font:inherit;font-size:14px}
