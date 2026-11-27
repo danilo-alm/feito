@@ -280,7 +280,7 @@ button.t-origin:hover{background:var(--hover)}
 /* Painel das agendas: colunas fixas (Atrasadas e os dias), só para ver e concluir. */
 .col-h.late{color:var(--late)}
 .agenda-empty{padding:4px 6px 8px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px 10px 10px;display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;position:relative}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px 10px 10px;display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;position:relative;transition:border-color var(--dur-base) var(--ease-out)}
 .card.sub{margin-inline-start:calc(var(--task-depth,1) * var(--task-indent-step,18px))}
 .card:hover,.card.hover-demo{border-color:var(--border-strong)}
 .card.hover-demo{box-shadow:var(--shadow)}
