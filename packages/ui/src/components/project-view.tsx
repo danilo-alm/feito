@@ -3,8 +3,8 @@ import { useT } from "./language";
 import { inSentence } from "../client/locale";
 
 import {
-  DndContext, DragOverlay, MouseSensor, TouchSensor, pointerWithin, rectIntersection, useDraggable, useDroppable, useSensor,
-  useSensors, type CollisionDetection, type DragMoveEvent, type DragStartEvent,
+  DndContext, DragOverlay, MeasuringStrategy, MouseSensor, TouchSensor, pointerWithin, rectIntersection, useDraggable,
+  useDroppable, useSensor, useSensors, type CollisionDetection, type DragMoveEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { useRouter } from "../navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
@@ -14,17 +14,17 @@ import { editKey, insertKey, useEditorOpen } from "../client/editor-store";
 import { sidewaysScroll } from "../client/sideways-scroll";
 import { getQueryData, invalidate, setQueryData, useQuery } from "../client/store";
 import {
-  keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, sectionName, taskMap, unnamedColumnTitle,
-  type DropOver, type KeyAction, type Plan, type Zone,
+  keyboardPlan, maxOverviewDepth, menuActions, originSlot, resolveSlot, sectionName, slotRows, taskBranch, taskMap,
+  unnamedColumnTitle, type KeyAction, type Plan, type Slot,
 } from "../client/tree";
 import { isTemporaryTask, moveTask } from "../client/task-mutations";
 import type { NamedDetails, ProjectPage, Section, TaskItem } from "@feito/core/types";
 import { taskAncestors } from "@feito/core/domain/task-tree";
 import { refreshProjects, useApp } from "./app";
 import { PageHeader, PageTaskCount } from "./chrome";
-import { listenPointer, pointerY, useTouchScrollGuard } from "./drag-pointer";
-import { Collapse, flipFrom, motionMs } from "./motion";
-import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconMore, IconPlus, IconDownload, IconSub, IconTrash, IconUpload } from "./icons";
+import { listenPointer, pointerX, pointerY, startX, useTouchScrollGuard } from "./drag-pointer";
+import { Collapse, flipFrom, motionMs, refreshFlip } from "./motion";
+import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconMore, IconPlus, IconDownload, IconTrash, IconUpload } from "./icons";
 import { useExportDialog, useImportDialog } from "./import-export-dialogs";
 import { NamedDetailsForm, useProjectDetailsDialog } from "./named-details";
 import { colorValue, Glyph } from "./project-style";
@@ -37,16 +37,34 @@ import { SORT_LABEL, ViewMenu } from "./view-menu";
 import { CalendarLayout } from "./project-calendar";
 import { TableLayout } from "./project-table";
 
-const GROUP = (sectionId: string | null) => `group:${sectionId ?? "none"}`;
+const groupKey = (sectionId: string | null) => sectionId ?? "none";
+const GROUP = (sectionId: string | null) => `group:${groupKey(sectionId)}`;
+const groupNode = (sectionId: string | null) => document.querySelector<HTMLElement>(`[data-drop-group="${groupKey(sectionId)}"]`);
+
+/** Deslocamento horizontal que muda um nível durante o arraste (o mesmo dos subprojetos na barra lateral). */
+const INDENT_STEP = 20;
 
 const collision: CollisionDetection = (args) => {
   const hits = pointerWithin(args);
-  const tasks = hits.filter((hit) => String(hit.id).startsWith("task:"));
-  if (tasks.length) return tasks;
   return hits.length ? hits : rectIntersection(args);
 };
 
-type DragState = { activeId: string; byMouse: boolean; over: DropOver | null; plan: Plan | null };
+type DragState = {
+  activeId: string;
+  /** Nível da tarefa quando o arraste começou. */
+  depth: number;
+  /** Distância do ponteiro até a borda esquerda da seção de origem, no início. */
+  offset: number;
+  /** Altura do espaço aberto onde a tarefa vai cair. */
+  gap: number;
+  slot: Slot | null;
+  plan: Plan | null;
+  /**
+   * Falso até o primeiro movimento: a biblioteca mede a linha de origem ao começar o arraste (é dali que a prévia parte),
+   * então ela só sai do fluxo, trocada pelo espaço aberto, depois dessa medida.
+   */
+  live: boolean;
+};
 
 export function ProjectView({ projectId, sharing }: { projectId: string; sharing?: ProjectSharing }) {
   const t = useT();
@@ -173,39 +191,55 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
 
   const onDragStart = (event: DragStartEvent) => {
     listenPointer(true);
-    setDrag({ activeId: String(event.active.id), byMouse: event.activatorEvent.type === "mousedown", over: null, plan: null });
+    const id = String(event.active.id);
+    const task = tasks.get(id);
+    const origin = originSlot(page, id, tasks);
+    if (!task || !origin) return;
+    const node = groupNode(task.sectionId)?.querySelector<HTMLElement>(`[data-task-id="${id}"]`);
+    const height = node ? node.getBoundingClientRect().height + (parseFloat(getComputedStyle(node).marginBottom) || 0) : 0;
+    const left = groupNode(task.sectionId)?.getBoundingClientRect().left ?? 0;
+    const result = resolveSlot(page, id, origin.sectionId, origin.index, origin.depth);
+    setDrag({
+      activeId: id, depth: origin.depth, offset: startX(event) - left, gap: height,
+      slot: result?.slot ?? null, plan: result?.plan ?? null, live: false,
+    });
   };
   const onDragMove = (event: DragMoveEvent) => {
     const overId = event.over ? String(event.over.id) : null;
-    let over: DropOver | null = null;
-    if (overId?.startsWith("task:")) {
-      // Mede o alvo no DOM agora: os retângulos da biblioteca podem estar defasados pela rolagem automática.
-      const live = document.querySelector(`[data-task-id="${overId.slice(5)}"]`)?.getBoundingClientRect();
-      const rect = live ?? event.over!.rect;
-      const ratio = (pointerY(event) - rect.top) / Math.max(rect.height, 1);
-      const zone: Zone = ratio < 0.3 ? "before" : ratio > 0.7 ? "after" : "center";
-      over = { kind: "task", id: overId.slice(5), zone };
-    } else if (overId?.startsWith("group:")) {
-      const raw = overId.slice(6);
-      over = { kind: "group", sectionId: raw === "none" ? null : raw };
+    if (!drag || !overId?.startsWith("group:")) return;
+    const raw = overId.slice(6);
+    const sectionId = raw === "none" ? null : raw;
+    const group = groupNode(sectionId);
+    if (!group) return;
+    // Mede as linhas no DOM agora: o espaço aberto e a rolagem automática mudam as posições a cada passo.
+    const y = pointerY(event);
+    let index = 0;
+    for (const row of slotRows(page, sectionId, drag.activeId, tasks)) {
+      const rect = group.querySelector(`[data-task-id="${row.id}"]`)?.getBoundingClientRect();
+      if (rect && rect.top + rect.height / 2 < y) index++;
     }
-    const plan = over ? resolveDrop(page, String(event.active.id), over, board ? "board" : "list") : null;
+    // Arrastar para a direita, a partir de onde começou, pede um nível a mais: subtarefa da linha de cima.
+    const shift = Math.round((pointerX(event) - group.getBoundingClientRect().left - drag.offset) / INDENT_STEP);
+    const result = resolveSlot(page, drag.activeId, sectionId, index, drag.depth + shift);
+    if (!result) return;
     setDrag((current) => {
       if (!current) return current;
-      if (JSON.stringify(current.over) === JSON.stringify(over)) return current;
-      return { ...current, over, plan };
+      if (current.live && JSON.stringify([current.slot, current.plan]) === JSON.stringify([result.slot, result.plan])) return current;
+      return { ...current, ...result, live: true };
     });
   };
-  const settleFromOverlay = () => {
+  const settle = () => {
+    listenPointer(false);
+    // Os vizinhos estão afastados para abrir espaço: a animação depois de soltar parte daí.
+    refreshFlip();
     if (drag) flipFrom(drag.activeId, document.querySelector<HTMLElement>(".drag-overlay"));
   };
   const onDragEnd = () => {
-    listenPointer(false);
-    settleFromOverlay();
+    settle();
     const state = drag;
     setDrag(null);
     if (!state) return;
-    if (!state.over) {
+    if (!state.slot) {
       toast(t("Arraste cancelado — a tarefa voltou ao lugar"));
       return;
     }
@@ -217,13 +251,22 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     void execute(state.activeId, state.plan);
   };
   const onDragCancel = () => {
-    listenPointer(false);
-    settleFromOverlay();
+    settle();
     setDrag(null);
     toast(t("Arraste cancelado — a tarefa voltou ao lugar"));
   };
 
   const indicator = drag?.plan?.indicator;
+  const moving = new Set(dragActive && drag?.live ? Array.from(taskBranch(dragActive, tasks), ({ task }) => task.id) : []);
+  const movingSection = dragActive?.sectionId;
+  // Seção destacada: para onde a tarefa vai quando sai da seção em que está.
+  const step = drag?.plan?.valid ? drag.plan.steps[0] : undefined;
+  const targetSection = step?.type === "position" && step.sectionId !== movingSection ? step.sectionId : undefined;
+  const dropGap = (sectionId: string | null, afterId: string | null) => drag?.live && (
+    <DropGap key={`gap:${afterId ?? groupKey(sectionId)}`} height={drag.gap} depth={drag.slot?.depth ?? 0}
+      open={!!drag.slot && drag.slot.sectionId === sectionId && drag.slot.afterId === afterId}
+      message={drag.plan && !drag.plan.valid ? drag.plan.message : undefined} />
+  );
   const renameSection = async (sectionId: string | null, name: string | null) => {
     await app.run(async () => {
       if (sectionId === null) {
@@ -310,9 +353,9 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
       variant={variant}
       depth={depth}
       disabled={!canDrag || archived || task.status !== "active"}
-      dragging={drag?.activeId === task.id}
-      indicator={indicator}
-      draggedTitle={dragActive?.title}
+      hidden={moving.has(task.id)}
+      source={drag?.activeId === task.id}
+      after={moving.has(task.id) ? null : dropGap(task.sectionId, task.id)}
       actions={actions}
       arrange={archived ? [] : menuActions(page, task.id, tasks)}
       onArrange={(action) => arrange(task.id, action)}
@@ -388,18 +431,18 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
         {calendar && <CalendarLayout page={page} actions={actions} archived={archived} mobile={mobile} />}
         {table && <TableLayout page={page} actions={actions} archived={archived} />}
         {!calendar && !table && <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragMove={onDragMove}
-          autoScroll={{ threshold: { x: 0.1, y: 0.1 }, acceleration: 8 }}
+          autoScroll={{ threshold: { x: 0.1, y: 0.1 }, acceleration: 8, layoutShiftCompensation: false }}
+          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
           onDragEnd={onDragEnd} onDragCancel={onDragCancel}
           accessibility={{ screenReaderInstructions: { draggable: t("Para mover sem arrastar, use Alt e as setas ou o menu de ações da tarefa.") } }}>
           {board
-            ? <BoardLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator}
-              mobile={mobile} sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />
-            : <ListLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator} dragging={!!drag}
-              sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />}
+            ? <BoardLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator} targetSection={targetSection}
+              dropGap={dropGap} mobile={mobile} sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />
+            : <ListLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator} targetSection={targetSection}
+              dropGap={dropGap} dragging={!!drag} sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />}
           <DragOverlay dropAnimation={null}>
             {dragActive && (
-              <div className="drag-overlay" data-nesting={drag?.byMouse && indicator?.type === "nest" ? true : undefined}
-                style={{ width: board ? 280 : undefined }}>
+              <div className="drag-overlay" style={{ width: board ? 280 : undefined }}>
                 <TaskRow task={dragActive} actions={actions} variant={board ? "card" : "row"} noMenu extraClass="is-dragging" style={{ paddingLeft: 10 }} />
               </div>
             )}
@@ -433,15 +476,18 @@ function BelowSlot({ task, depth }: { task: TaskItem; depth: number }) {
 }
 
 function DraggableTask({
-  task, variant, depth, disabled, dragging, indicator, draggedTitle, actions, arrange, onArrange, onKeyArrange, insert, grip,
+  task, variant, depth, disabled, hidden, source, after, actions, arrange, onArrange, onKeyArrange, insert, grip,
 }: {
   task: TaskItem;
   variant: "row" | "card";
   depth: number;
   disabled: boolean;
-  dragging: boolean;
-  indicator: Plan["indicator"] | undefined;
-  draggedTitle?: string;
+  /** Linha do ramo em arraste: sai do fluxo enquanto o espaço aberto mostra onde vai cair. */
+  hidden: boolean;
+  /** Linha que começou o arraste: esmaecida até sair do fluxo no primeiro movimento. */
+  source: boolean;
+  /** Espaço que se abre logo depois desta linha durante o arraste. */
+  after: ReactNode;
   actions: ReturnType<typeof useTaskActions>;
   arrange: ArrangeItem[];
   onArrange: (action: ArrangeItem["action"]) => void;
@@ -449,37 +495,21 @@ function DraggableTask({
   insert?: (side: InsertSide) => void;
   grip: boolean;
 }) {
-  const t = useT();
   // Em edição a linha vira formulário: arrastar a partir dos campos selecionaria texto e moveria a tarefa.
   const editing = useEditorOpen(editKey(task));
   const temporary = isTemporaryTask(task.id);
   const draggable = useDraggable({ id: task.id, disabled: disabled || editing || temporary });
-  const droppable = useDroppable({ id: `task:${task.id}`, disabled: task.status !== "active" || temporary });
-  const setRef = (node: HTMLDivElement | null) => {
-    draggable.setNodeRef(node);
-    droppable.setNodeRef(node);
-  };
-  const nest = indicator?.type === "nest" && indicator.id === task.id;
-  const bad = indicator?.type === "invalid" && indicator.id === task.id;
-  const line = indicator?.type === "line" && indicator.id === task.id ? indicator : null;
-  const preview = indicator?.type === "nest" && indicator.depth <= maxOverviewDepth && indicator.previewAfterId === task.id ? indicator : null;
-  const classes = [dragging ? "drag-src" : "", nest ? "nest-target" : "", bad ? "invalid" : ""].filter(Boolean).join(" ");
-  const tag = nest ? <span className="nest-tag"><IconSub />{t("Tornar subtarefa")}</span>
-    : bad ? <span className="bad-tag"><IconBan />{indicator.message}</span> : null;
-  const insStyle = { "--task-depth": line?.depth } as CSSProperties;
   return (
     <Fragment>
       <CreateSlot slot={insertKey("above", task.id)} defaults={insertDefaults(task, "above")} depth={depth} />
-      {line?.side === "before" && <div className="ins task-tree-inset" style={insStyle} aria-hidden="true" />}
       <TaskRow
-        ref={setRef}
+        ref={draggable.setNodeRef}
         task={task}
         actions={actions}
         variant={variant}
         depth={depth}
         showMoreSubtasks={depth === maxOverviewDepth && task.childIds.length > 0}
-        tag={variant === "row" ? tag : undefined}
-        extraClass={classes}
+        extraClass={hidden ? "drag-hidden" : source ? "drag-src" : ""}
         arrange={arrange}
         onArrange={onArrange}
         onKeyArrange={onKeyArrange}
@@ -495,14 +525,18 @@ function DraggableTask({
         aria-describedby={undefined}
         style={{ touchAction: disabled ? undefined : "manipulation" }}
       />
-      {variant === "card" && tag && <div style={{ margin: "-4px 0 8px" }}>{tag}</div>}
-      {preview && draggedTitle && (
-        <div className="nest-preview task-tree-inset" style={{ "--task-depth": preview.depth } as CSSProperties} aria-hidden="true">
-          <span className="ring p4" />{draggedTitle}
-        </div>
-      )}
-      {line?.side === "after" && <div className="ins task-tree-inset" style={insStyle} aria-hidden="true" />}
+      {after}
     </Fragment>
+  );
+}
+
+/** Espaço entre linhas que se abre, com animação, onde a tarefa arrastada vai cair; a barra mostra o nível. */
+function DropGap({ open, height, depth, message }: { open: boolean; height: number; depth: number; message?: string }) {
+  return (
+    <div className="drop-gap" data-open={open ? "" : undefined} style={{ "--drop-gap": `${height}px` } as CSSProperties} aria-hidden="true">
+      <div className={`ins task-tree-inset${message ? " bad" : ""}`} style={{ "--task-depth": depth } as CSSProperties} />
+      {open && message && <span className="bad-tag"><IconBan />{message}</span>}
+    </div>
   );
 }
 
@@ -511,7 +545,7 @@ function GroupDrop({ sectionId, className, children, label, as = "section", id }
 }) {
   const { setNodeRef } = useDroppable({ id: GROUP(sectionId) });
   const Tag = as;
-  return <Tag ref={setNodeRef} id={id} className={className} aria-label={label}>{children}</Tag>;
+  return <Tag ref={setNodeRef} id={id} className={className} aria-label={label} data-drop-group={groupKey(sectionId)}>{children}</Tag>;
 }
 
 type LayoutProps = {
@@ -519,6 +553,10 @@ type LayoutProps = {
   tasks: Map<string, TaskItem>;
   renderTask: (task: TaskItem, variant: "row" | "card", depth: number) => ReactNode;
   indicator: Plan["indicator"] | undefined;
+  /** Seção que recebe a tarefa arrastada de outra seção. */
+  targetSection: string | null | undefined;
+  /** Espaço do arraste logo depois de `afterId` (ou no topo da seção, com `null`). */
+  dropGap: (sectionId: string | null, afterId: string | null) => ReactNode;
   sectionMenu: (sectionId: string) => MenuItem[];
   renameSection: (sectionId: string | null, name: string | null) => Promise<void>;
   archived: boolean;
@@ -718,7 +756,7 @@ function SectionHeader({ sectionId, name, count, archived, renameSection, sectio
   );
 }
 
-function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu, renameSection, archived }: LayoutProps & { dragging: boolean }) {
+function ListLayout({ page, tasks, renderTask, targetSection, dropGap, dragging, sectionMenu, renameSection, archived }: LayoutProps & { dragging: boolean }) {
   const t = useT();
   const app = useApp();
   const [adding, setAdding] = useState<string | null | undefined>(undefined);
@@ -741,7 +779,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
       <div className="col">
         {page.groups.map((group) => {
           const { active, done } = rowsOf(page, tasks, group.sectionId);
-          const over = indicator?.type === "group" && indicator.sectionId === group.sectionId;
+          const over = targetSection === group.sectionId;
           const section = page.sections.find((item) => item.id === group.sectionId);
           const title = section?.name ?? project.defaultSectionName;
           if (group.sectionId === null && !title && !project.isInbox && !dragging && page.sections.length
@@ -756,6 +794,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
                   archived={archived} renameSection={renameSection} sectionMenu={sectionMenu} />
               ) : <div style={{ height: 10, borderBottom: "1px solid var(--border)" }} />}
               {section?.description && <p className="section-description">{section.description}</p>}
+              {dropGap(group.sectionId, null)}
               {active.flatMap(block)}
               {!archived && (
                 <AddTaskSlot slot={`add:${project.id}:${group.sectionId ?? "none"}`} defaults={{ projectId: project.id, sectionId: group.sectionId }}>
@@ -803,7 +842,7 @@ function ListLayout({ page, tasks, renderTask, indicator, dragging, sectionMenu,
   );
 }
 
-function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSection, archived, mobile }: LayoutProps & { mobile: boolean }) {
+function BoardLayout({ page, tasks, renderTask, indicator, targetSection, dropGap, sectionMenu, renameSection, archived, mobile }: LayoutProps & { mobile: boolean }) {
   const t = useT();
   const app = useApp();
   const [adding, setAdding] = useState(false);
@@ -845,7 +884,9 @@ function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSe
           const name = columnName(group.sectionId);
           const title = name ?? t(unnamedColumnTitle);
           const description = page.sections.find((section) => section.id === group.sectionId)?.description;
-          const target = indicator?.type === "group" && indicator.sectionId === group.sectionId;
+          const target = targetSection === group.sectionId;
+          // Na ordenação automática não há posição para mostrar: o aviso diz só a coluna.
+          const columnDrop = target && indicator?.type === "group";
           return (
             <Fragment key={group.sectionId ?? "none"}>
               <GroupDrop sectionId={group.sectionId} as="section" label={t("Coluna {0}", [title])} id={`col-${group.sectionId ?? "none"}`}
@@ -853,8 +894,9 @@ function BoardLayout({ page, tasks, renderTask, indicator, sectionMenu, renameSe
                 <SectionHeader board sectionId={group.sectionId} name={name} count={active.length}
                   archived={archived} renameSection={renameSection} sectionMenu={sectionMenu} />
                 {description && <p className="section-description">{description}</p>}
+                {dropGap(group.sectionId, null)}
                 {active.flatMap(block)}
-                {target && <div className="slot column-drop">{t("Soltar aqui muda para")}{" "}{title}</div>}
+                {columnDrop && <div className="slot column-drop">{t("Soltar aqui muda para")}{" "}{title}</div>}
                 {!archived && (
                   <AddTaskSlot slot={`add:${project.id}:${group.sectionId ?? "none"}`} defaults={{ projectId: project.id, sectionId: group.sectionId }}>
                     {(start) => (

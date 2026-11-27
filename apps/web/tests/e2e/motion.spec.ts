@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, mouseDrag, row, seedProject, test } from "./fixtures";
+import { expect, mouseDrag, projectState, row, seedProject, test } from "./fixtures";
 
 // Movimento ligado: valida o mecanismo de presença (docs/04-motion-and-interaction.md).
 test.use({ reducedMotion: "no-preference" });
@@ -52,25 +52,32 @@ test.describe("movimento", () => {
     await expect(page.getByRole("tooltip")).toHaveCount(0);
   });
 
-  test("ao soltar como subtarefa, a linha recupera a opacidade da prévia gradualmente", async ({ page, api, isMobile }) => {
-    test.skip(isMobile, "A prévia transparente é usada no arraste com mouse.");
-    const seed = await seedProject(api, `Transparência ${Date.now()}`);
+  test("ao arrastar, as tarefas abrem espaço com animação e a linha solta não volta ao ponto de partida", async ({ page, api, isMobile }) => {
+    test.skip(isMobile, "Arraste com mouse.");
+    const seed = await seedProject(api, `Espaço ${Date.now()}`);
     await page.goto(`/projetos/${seed.id}`);
     const task = row(page, "Listar móveis para doação");
-    const parent = row(page, "Definir orçamento da reforma");
+    const budget = row(page, "Definir orçamento da reforma");
     await task.scrollIntoViewIfNeeded();
     const from = (await task.boundingBox())!;
-    const to = (await parent.boundingBox())!;
-    await mouseDrag(page, { x: from.x + 200, y: from.y + from.height / 2 },
-      { x: to.x + 200, y: to.y + to.height / 2 }, { locator: parent, zone: "center" });
-    await expect(page.locator(".drag-overlay")).toHaveCSS("opacity", "0.2");
+    const to = (await budget.boundingBox())!;
+    await mouseDrag(page, { x: from.x + 200, y: from.y + from.height / 2 }, { x: from.x + 200, y: to.y + 4 });
+    const gap = page.locator(".drop-gap[data-open]");
+    await expect(gap).toHaveCSS("transition-duration", "0.18s");
+    await expect.poll(async () => Math.round((await gap.boundingBox())!.height)).toBe(Math.round(from.height));
+    const shifted = (await budget.boundingBox())!;
+    expect(shifted.y).toBeGreaterThanOrEqual(to.y + from.height - 1);
     await page.mouse.up();
 
-    await expect.poll(() => task.evaluate((element) => element.getAnimations()
-      .flatMap((animation) => (animation.effect as KeyframeEffect).getKeyframes().map(({ opacity }) => opacity))
-      .filter((opacity) => opacity !== undefined)),
-    { intervals: [16, 32, 50] }).toEqual(["0.2", "1"]);
-    await expect(task).toHaveCSS("opacity", "1");
+    // Depois de soltar, o vizinho parte de onde estava afastado, sem saltar de volta à posição de antes do arraste.
+    const starts = await budget.evaluate((element) => element.getAnimations()
+      .flatMap((animation) => (animation.effect as KeyframeEffect).getKeyframes().slice(0, 1).map(({ transform }) => transform)));
+    for (const transform of starts) {
+      const dy = Number(/translate\([^,]+,\s*(-?[\d.]+)px\)/.exec(String(transform))?.[1] ?? 0);
+      expect(Math.abs(dy)).toBeLessThan(from.height / 2);
+    }
+    await expect.poll(async () => (await projectState(api, seed.id)).order(seed.sections.Planejar))
+      .toEqual(["Listar móveis para doação", "Definir orçamento da reforma", "Escolher a cor da pintura do quarto"]);
   });
 
   test("o diálogo sai animado e só então desmonta; reabrir durante a saída reaproveita o nó", async ({ page, isMobile }) => {

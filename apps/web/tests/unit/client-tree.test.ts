@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { TaskDraft } from "@feito/ui/client/task-mutations";
 import { applyTaskChanges } from "@feito/ui/client/task-projections";
-import { keyboardPlan, maxOverviewDepth, menuActions, resolveDrop, taskBranch, taskMap } from "@feito/ui/client/tree";
+import {
+  groupPlan, keyboardPlan, maxOverviewDepth, menuActions, originSlot, resolveSlot, slotRows, taskBranch, taskMap,
+} from "@feito/ui/client/tree";
 import type { MoveTarget, ProjectPage, SortMode, TaskItem } from "@feito/core/types";
 
 function task(id: string, sectionId: string | null, fields: Partial<TaskItem> = {}): TaskItem {
@@ -52,64 +54,19 @@ function fixture(sortMode: SortMode = "manual"): ProjectPage {
   };
 }
 
-describe("resolveDrop", () => {
+describe("groupPlan", () => {
   it("uses the saved name of the default section when moving a task there", () => {
     const page = fixture();
     page.project.defaultSectionName = "Entrada";
-    const plan = resolveDrop(page, "e", { kind: "group", sectionId: null }, "board");
-    expect(plan).toMatchObject({
+    expect(groupPlan(page, "e", null)).toMatchObject({
       valid: true,
       steps: [{ type: "position", projectId: "p", sectionId: null, parentId: null }],
       message: "Moved to Entrada",
     });
   });
 
-  it("reorders between roots with an insertion line", () => {
-    const plan = resolveDrop(fixture(), "e", { kind: "task", id: "a", zone: "after" }, "list");
-    expect(plan).toMatchObject({
-      valid: true,
-      steps: [{ type: "position", projectId: "p", sectionId: "plan", parentId: null, afterId: "a" }],
-      indicator: { type: "line", id: "a", side: "after", depth: 0 },
-    });
-  });
-
-  it("draws the line after the last child when dropping after a parent", () => {
-    const plan = resolveDrop(fixture(), "a", { kind: "task", id: "c", zone: "after" }, "list");
-    expect(plan?.indicator).toEqual({ type: "line", id: "d", side: "after", depth: 0 });
-  });
-
-  it("ignores drops that keep the same order", () => {
-    expect(resolveDrop(fixture(), "c", { kind: "task", id: "a", zone: "after" }, "list")).toBeNull();
-    expect(resolveDrop(fixture(), "a", { kind: "task", id: "a", zone: "center" }, "list")).toBeNull();
-  });
-
-  it("creates a subtask on the center of a root and previews it after the block", () => {
-    const plan = resolveDrop(fixture(), "e", { kind: "task", id: "c", zone: "center" }, "list");
-    expect(plan).toMatchObject({
-      valid: true,
-      steps: [{ type: "position", sectionId: "plan", parentId: "c" }],
-      indicator: { type: "nest", id: "c", previewAfterId: "d" },
-    });
-  });
-
-  it("nests entire branches at deeper levels and rejects cycles and recurring tasks", () => {
-    expect(resolveDrop(fixture(), "e", { kind: "task", id: "d", zone: "center" }, "list"))
-      .toMatchObject({ valid: true, steps: [{ parentId: "d" }], indicator: { depth: 2 } });
-    expect(resolveDrop(fixture(), "c", { kind: "task", id: "a", zone: "center" }, "list"))
-      .toMatchObject({ valid: true, steps: [{ parentId: "a" }] });
-    const nested = applyStep(fixture(), "e", { type: "position", projectId: "p", sectionId: "plan", parentId: "d" });
-    expect(resolveDrop(nested, "c", { kind: "task", id: "e", zone: "center" }, "list"))
-      .toMatchObject({ valid: false, message: "A task cannot be placed under its subtasks" });
-    expect(resolveDrop(nested, "a", { kind: "task", id: "c", zone: "after" }, "list"))
-      .toMatchObject({ indicator: { type: "line", id: "e", depth: 0 } });
-    const page = fixture();
-    page.tasks.find((item) => item.id === "a")!.recurrence = { frequency: "daily" };
-    expect(resolveDrop(page, "e", { kind: "task", id: "a", zone: "center" }, "list"))
-      .toMatchObject({ valid: false, message: "Recurring tasks cannot have subtasks" });
-  });
-
-  it("moves a root to another column at the end", () => {
-    const plan = resolveDrop(fixture(), "a", { kind: "group", sectionId: "buy" }, "board");
+  it("moves a root to the end of another column", () => {
+    const plan = groupPlan(fixture(), "a", "buy");
     expect(plan).toMatchObject({
       valid: true,
       steps: [{ type: "position", sectionId: "buy", parentId: null }],
@@ -119,51 +76,101 @@ describe("resolveDrop", () => {
     expect((plan as { steps: object[] }).steps[0]).not.toHaveProperty("afterId");
   });
 
-  it("places a subtask among the roots of the same section in one step", () => {
-    const plan = resolveDrop(fixture(), "d", { kind: "task", id: "a", zone: "before" }, "list");
-    expect(plan).toMatchObject({
-      valid: true,
-      steps: [{ type: "position", sectionId: "plan", parentId: null, beforeId: "a" }],
-    });
-  });
-
-  it.each(["list", "board"] as const)("moves a subtask as a root into another section in %s", (layout) => {
-    const page = fixture();
-    const plan = resolveDrop(page, "d", { kind: "task", id: "f", zone: "before" }, layout);
-    expect(plan).toMatchObject({
-      valid: true,
-      steps: [{ type: "position", sectionId: "buy", parentId: null, beforeId: "f" }],
-      indicator: { type: "line", id: "f", side: "before", depth: 0 },
-    });
-    if (!plan?.valid) throw new Error("Expected a valid move");
-    const moved = applyStep(page, "d", plan.steps[0]);
-    expect(moved.groups.find((group) => group.sectionId === "buy")?.rootIds).toEqual(["d", "f", "g"]);
-    expect(moved.tasks.find((item) => item.id === "d")).toMatchObject({ sectionId: "buy", parentId: null });
-    expect(moved.tasks.find((item) => item.id === "c")).toMatchObject({ sectionId: "plan", childIds: [], subtasks: { total: 0 } });
-
-    for (const over of [{ kind: "group", sectionId: "buy" }, { kind: "task", id: "f", zone: "center" }] as const) {
-      expect(resolveDrop(page, "d", over, layout)).toMatchObject({
-        valid: true,
-        steps: [{ type: "position", sectionId: "buy", parentId: null }],
-        indicator: { type: "group", sectionId: "buy" },
-      });
-    }
-  });
-
-  it("disables positional reordering in automatic sort but keeps column changes and nesting", () => {
-    const page = fixture("date");
-    expect(resolveDrop(page, "e", { kind: "task", id: "a", zone: "before" }, "list")).toBeNull();
-    expect(resolveDrop(page, "a", { kind: "task", id: "f", zone: "before" }, "board"))
-      .toMatchObject({ valid: true, steps: [{ type: "position", sectionId: "buy", parentId: null }] });
-    expect(resolveDrop(page, "d", { kind: "task", id: "f", zone: "before" }, "board"))
-      .toMatchObject({ valid: true, steps: [{ type: "position", sectionId: "buy", parentId: null }] });
-    expect(resolveDrop(page, "e", { kind: "task", id: "a", zone: "center" }, "board")).toMatchObject({ valid: true });
-  });
-
   it("refuses to move completed tasks", () => {
     const page = fixture();
     page.tasks.find((item) => item.id === "a")!.status = "completed";
-    expect(resolveDrop(page, "a", { kind: "group", sectionId: "buy" }, "board")).toMatchObject({ valid: false });
+    expect(groupPlan(page, "a", "buy")).toMatchObject({ valid: false });
+    expect(resolveSlot(page, "a", "buy", 0, 0)?.plan).toMatchObject({ valid: false });
+  });
+});
+
+// Linhas visíveis de Planejar: a (0), c (0), d (1), e (0).
+describe("drop slots", () => {
+  it("lists the visible rows of a section without the dragged branch", () => {
+    expect(slotRows(fixture(), "plan", "e")).toEqual([{ id: "a", depth: 0 }, { id: "c", depth: 0 }, { id: "d", depth: 1 }]);
+    expect(slotRows(fixture(), "plan", "c")).toEqual([{ id: "a", depth: 0 }, { id: "e", depth: 0 }]);
+  });
+
+  it("opens the space at the origin when the drag starts, without changing anything", () => {
+    expect(originSlot(fixture(), "e")).toEqual({ sectionId: "plan", index: 3, depth: 0 });
+    expect(originSlot(fixture(), "d")).toEqual({ sectionId: "plan", index: 2, depth: 1 });
+    expect(originSlot(fixture(), "a")).toEqual({ sectionId: "plan", index: 0, depth: 0 });
+    expect(resolveSlot(fixture(), "e", "plan", 3, 0)).toEqual({ slot: { sectionId: "plan", afterId: "d", depth: 0 }, plan: null });
+    expect(resolveSlot(fixture(), "d", "plan", 2, 1)).toEqual({ slot: { sectionId: "plan", afterId: "c", depth: 1 }, plan: null });
+  });
+
+  it("reorders between roots when dropped without moving sideways", () => {
+    expect(resolveSlot(fixture(), "e", "plan", 1, 0)).toMatchObject({
+      slot: { sectionId: "plan", afterId: "a", depth: 0 },
+      plan: {
+        valid: true,
+        steps: [{ type: "position", projectId: "p", sectionId: "plan", parentId: null, afterId: "a" }],
+        message: "New position saved in Planejar",
+      },
+    });
+    // Abaixo de uma tarefa com subtarefas, no nível dela: depois do ramo inteiro.
+    expect(resolveSlot(fixture(), "e", "plan", 3, -2)?.plan).toBeNull();
+  });
+
+  it("nests under the row above when dragged to the right", () => {
+    expect(resolveSlot(fixture(), "e", "plan", 1, 1)).toMatchObject({
+      slot: { afterId: "a", depth: 1 },
+      plan: { valid: true, steps: [{ type: "position", sectionId: "plan", parentId: "a" }], message: "“E” is now a subtask of “A”" },
+    });
+    // O nível fica limitado a um abaixo da linha de cima: depois de d (nível 1), no máximo subtarefa de d.
+    expect(resolveSlot(fixture(), "e", "plan", 3, 5)).toMatchObject({
+      slot: { afterId: "d", depth: 2 }, plan: { valid: true, steps: [{ parentId: "d" }] },
+    });
+    // Entre c e sua primeira subtarefa, o nível mínimo é o de d: entra antes dela, sob c.
+    expect(resolveSlot(fixture(), "a", "plan", 1, 0)).toMatchObject({
+      slot: { afterId: "c", depth: 1 }, plan: { valid: true, steps: [{ parentId: "c", beforeId: "d" }] },
+    });
+  });
+
+  it("promotes a subtask dragged to the left and keeps subtasks out of other sections' trees", () => {
+    expect(resolveSlot(fixture(), "d", "plan", 0, 1)).toMatchObject({
+      slot: { afterId: null, depth: 0 },
+      plan: { valid: true, steps: [{ type: "position", sectionId: "plan", parentId: null, beforeId: "a" }] },
+    });
+    // Em outra seção, a subtarefa só entra como tarefa principal, mesmo arrastada para a direita.
+    for (const layout of ["list", "board"] as const) {
+      const page = fixture();
+      page.project.view.layout = layout;
+      const result = resolveSlot(page, "d", "buy", 1, 1);
+      expect(result).toMatchObject({
+        slot: { sectionId: "buy", afterId: "f", depth: 0 },
+        plan: { valid: true, steps: [{ type: "position", sectionId: "buy", parentId: null, afterId: "f" }], message: "Moved to Comprar" },
+      });
+      if (!result?.plan?.valid) throw new Error("Expected a valid move");
+      const moved = applyStep(page, "d", result.plan.steps[0]);
+      expect(moved.groups.find((group) => group.sectionId === "buy")?.rootIds).toEqual(["f", "d", "g"]);
+      expect(moved.tasks.find((item) => item.id === "c")).toMatchObject({ childIds: [], subtasks: { total: 0 } });
+    }
+  });
+
+  it("falls back to an allowed level for recurring tasks and refuses when none fits", () => {
+    const parent = fixture();
+    parent.tasks.find((item) => item.id === "a")!.recurrence = { frequency: "daily" };
+    expect(resolveSlot(parent, "e", "plan", 1, 1)).toMatchObject({
+      slot: { afterId: "a", depth: 0 }, plan: { valid: true, steps: [{ parentId: null, afterId: "a" }] },
+    });
+    const recurring = fixture();
+    recurring.tasks.find((item) => item.id === "e")!.recurrence = { frequency: "daily" };
+    expect(resolveSlot(recurring, "e", "plan", 1, 1)?.slot.depth).toBe(0);
+    expect(resolveSlot(recurring, "e", "plan", 2, 0)).toMatchObject({
+      slot: { afterId: "c", depth: 1 }, plan: { valid: false, message: "Recurring tasks cannot become subtasks" },
+    });
+  });
+
+  it("keeps the automatic order: only the column or the parent changes", () => {
+    const page = fixture("date");
+    expect(resolveSlot(page, "e", "plan", 1, 0)).toEqual({ slot: { sectionId: "plan", afterId: "d", depth: 0 }, plan: null });
+    expect(resolveSlot(page, "a", "buy", 0, 0)).toMatchObject({
+      slot: { sectionId: "plan", afterId: null, depth: 0 },
+      plan: { valid: true, steps: [{ type: "position", sectionId: "buy", parentId: null }], indicator: { type: "group", sectionId: "buy" } },
+    });
+    expect(resolveSlot(page, "d", "buy", 1, 1)?.plan).toMatchObject({ valid: true, steps: [{ sectionId: "buy", parentId: null }] });
+    expect(resolveSlot(page, "e", "plan", 1, 1)?.plan).toMatchObject({ valid: true, steps: [{ parentId: "a" }] });
   });
 });
 
@@ -243,10 +250,13 @@ describe("optimistic movement", () => {
     const tasks = taskMap(page);
     expect(Array.from(taskBranch(chain[0], tasks, maxOverviewDepth), ({ task }) => task.id))
       .toEqual(chain.slice(0, 6).map(({ id }) => id));
-    expect(resolveDrop(page, "a", { kind: "task", id: chain[0].id, zone: "after" }, "list"))
-      .toMatchObject({ indicator: { id: chain[5].id } });
-    expect(resolveDrop(page, "a", { kind: "task", id: chain[5].id, zone: "center" }, "list"))
-      .toMatchObject({ valid: true, indicator: { id: chain[5].id, depth: 6 } });
+    // Linhas sem a: c, d, e e o ramo até o nível 5; o espaço depois da última não passa do nível visível.
+    expect(slotRows(page, "plan", "a")).toHaveLength(9);
+    expect(resolveSlot(page, "a", "plan", 9, 0)?.plan).toMatchObject({ steps: [{ parentId: null, afterId: chain[0].id }] });
+    expect(resolveSlot(page, "a", "plan", 9, 9)).toMatchObject({
+      slot: { afterId: chain[5].id, depth: maxOverviewDepth },
+      plan: { valid: true, steps: [{ parentId: chain[4].id, afterId: chain[5].id }] },
+    });
     page = applyStep(page, chain[0].id, { type: "position", projectId: "p", sectionId: "buy", parentId: null });
     expect(taskMap(page).get(chain[8].id)?.sectionId).toBe("buy");
     const moved = applyStep(page, chain[0].id, { type: "position", projectId: "other", sectionId: null, parentId: null });

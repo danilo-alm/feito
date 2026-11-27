@@ -1,20 +1,16 @@
 import { translate as t } from "./locale";
-// Regras de organização de um projeto no cliente: soltura de arraste, comandos de teclado/menu
+// Regras de organização de um projeto no cliente: destino do arraste, comandos de teclado/menu
 // e aplicação otimista. Espelham as validações de POST /tasks/{id}/move (docs/02, seção 3.6).
-import type { Layout, MoveTarget, PositionTarget, ProjectPage, TaskItem } from "@feito/core/types";
+import type { MoveTarget, PositionTarget, ProjectPage, TaskItem } from "@feito/core/types";
 import { taskAncestors, walkTaskTree } from "@feito/core/domain/task-tree";
 
 export const maxOverviewDepth = 5;
 export const unnamedColumnTitle = "(Nenhuma seção)";
 
-export type Zone = "before" | "after" | "center";
-export type DropOver =
-  | { kind: "task"; id: string; zone: Zone }
-  | { kind: "group"; sectionId: string | null };
-
 export type Indicator =
+  | { type: "slot"; sectionId: string | null; afterId: string | null; depth: number }
   | { type: "line"; id: string; side: "before" | "after"; depth: number }
-  | { type: "nest"; id: string; previewAfterId: string; depth: number }
+  | { type: "nest"; id: string; depth: number }
   | { type: "group"; sectionId: string | null }
   | { type: "invalid"; id: string; message: string };
 
@@ -68,7 +64,7 @@ function nestPlan(page: ProjectPage, active: TaskItem, target: TaskItem, tasks: 
   return {
     valid: true,
     steps: [{ type: "position", projectId: page.project.id, sectionId: target.sectionId, parentId: target.id }],
-    indicator: { type: "nest", id: target.id, previewAfterId: blockEnd(target, tasks, depth), depth: depth + 1 },
+    indicator: { type: "nest", id: target.id, depth: depth + 1 },
     message: t("“{0}” agora é subtarefa de “{1}”", [active.title, target.title]),
   };
 }
@@ -83,91 +79,149 @@ function wouldChange(page: ProjectPage, active: TaskItem, target: PositionTarget
   return without.join() !== ids.join();
 }
 
-/**
- * Decide o que acontece ao soltar `activeId` sobre `over`.
- * Retorna `null` quando a soltura não muda nada.
- */
-export function resolveDrop(page: ProjectPage, activeId: string, over: DropOver, layout: Layout): Plan | null {
+/** Leva a tarefa para o fim das raízes de uma seção (de outra, ou da mesma, para uma subtarefa). */
+export function groupPlan(page: ProjectPage, activeId: string, sectionId: string | null): Plan | null {
   const tasks = taskMap(page);
   const active = tasks.get(activeId);
   if (!active) return null;
   if (active.status !== "active") {
     return invalid(t("Reabra a tarefa para mover"), { type: "invalid", id: active.id, message: t("Reabra para mover") });
   }
-  const manual = page.project.view.sortMode === "manual";
-  const projectId = page.project.id;
-
-  if (over.kind === "group") {
-    const { sectionId } = over;
-    const target: PositionTarget = { type: "position", projectId, sectionId, parentId: null };
-    if (!wouldChange(page, active, target, tasks)) return null;
-    if (!active.parentId && active.sectionId === sectionId && !manual) return null;
-    const name = sectionName(page, sectionId);
-    return {
-      valid: true, steps: [target], indicator: { type: "group", sectionId },
-      message: active.sectionId === sectionId ? t("Movida para o fim de {0}", [name]) : t("Movida para {0}", [name]),
-    };
-  }
-
-  const target = tasks.get(over.id);
-  if (!target || target.id === active.id) return null;
-  const ancestors = Array.from(taskAncestors(target, tasks));
-  if (ancestors.some((ancestor) => ancestor.id === active.id)) {
-    const message = t("Uma tarefa não pode ficar abaixo de suas subtarefas");
-    return invalid(message, { type: "invalid", id: target.id, message });
-  }
-  const changesSection = target.sectionId !== active.sectionId;
-  // O centro de uma tarefa de outra seção também aceita a subtarefa como raiz.
-  if (active.parentId && changesSection && over.zone === "center") {
-    return resolveDrop(page, activeId, { kind: "group", sectionId: target.sectionId }, layout);
-  }
-  if (over.zone === "center") return nestPlan(page, active, target, tasks);
-
-  if (!manual) {
-    // Sem âncora: só mudança de coluna no Painel continua disponível.
-    if (layout === "board" && changesSection) {
-      return resolveDrop(page, activeId, { kind: "group", sectionId: target.sectionId }, layout);
-    }
-    return null;
-  }
-
-  if (target.status !== "active") return null;
-  const side = over.zone === "before" ? "before" : "after";
-
-  if (target.parentId) {
-    if (active.parentId === target.parentId) {
-      const step: PositionTarget = {
-        type: "position", projectId, sectionId: target.sectionId, parentId: target.parentId,
-        ...(side === "before" ? { beforeId: target.id } : { afterId: target.id }),
-      };
-      if (!wouldChange(page, active, step, tasks)) return null;
-      return {
-        valid: true, steps: [step],
-        indicator: { type: "line", id: side === "after" ? blockEnd(target, tasks, ancestors.length) : target.id, side, depth: ancestors.length },
-        message: t("Nova posição salva"),
-      };
-    }
-    // Sobre o bloco de outra raiz: entra como raiz logo depois desse bloco.
-    const root = ancestors.at(-1);
-    return root ? rootPlan(page, active, root, "after", tasks) : null;
-  }
-  return rootPlan(page, active, target, side, tasks);
+  const target: PositionTarget = { type: "position", projectId: page.project.id, sectionId, parentId: null };
+  if (!wouldChange(page, active, target, tasks)) return null;
+  if (!active.parentId && active.sectionId === sectionId && page.project.view.sortMode !== "manual") return null;
+  const name = sectionName(page, sectionId);
+  return {
+    valid: true, steps: [target], indicator: { type: "group", sectionId },
+    message: active.sectionId === sectionId ? t("Movida para o fim de {0}", [name]) : t("Movida para {0}", [name]),
+  };
 }
 
-function rootPlan(page: ProjectPage, active: TaskItem, target: TaskItem, side: "before" | "after", tasks: Map<string, TaskItem>): Plan | null {
-  const step: PositionTarget = {
-    type: "position", projectId: page.project.id, sectionId: target.sectionId, parentId: null,
-    ...(side === "before" ? { beforeId: target.id } : { afterId: target.id }),
+/** Linha visível de uma seção durante o arraste, na ordem da tela. */
+export type SlotRow = { id: string; depth: number };
+/** Onde a tarefa arrastada cairia: logo depois de `afterId` (ou no topo da seção), no nível `depth`. */
+export type Slot = { sectionId: string | null; afterId: string | null; depth: number };
+
+/** Linhas visíveis das tarefas abertas da seção, como na Lista e no Painel, sem o ramo de `activeId`. */
+export function slotRows(page: ProjectPage, sectionId: string | null, activeId: string, tasks = taskMap(page)): SlotRow[] {
+  const rows: SlotRow[] = [];
+  const visit = (task: TaskItem, depth: number) => {
+    if (task.id === activeId) return;
+    rows.push({ id: task.id, depth });
+    if (depth >= maxOverviewDepth) return;
+    for (const id of task.childIds) {
+      const child = tasks.get(id);
+      if (child) visit(child, depth + 1);
+    }
   };
-  if (!wouldChange(page, active, step, tasks)) return null;
-  const lineId = side === "after" ? blockEnd(target, tasks, 0) : target.id;
-  const name = sectionName(page, target.sectionId);
+  for (const id of rootIds(page, sectionId)) {
+    const task = tasks.get(id);
+    if (task?.status === "active") visit(task, 0);
+  }
+  return rows;
+}
+
+/** Lugar de origem da tarefa arrastada: a seção, a posição entre as linhas que continuam visíveis e o nível. */
+export function originSlot(page: ProjectPage, activeId: string, tasks = taskMap(page)) {
+  const active = tasks.get(activeId);
+  if (!active) return null;
+  const parentId = active.parentId && tasks.has(active.parentId) ? active.parentId : null;
+  const rows = slotRows(page, active.sectionId, activeId, tasks);
+  // Antes do próximo irmão visível; sem ele, depois do último descendente visível do pai (ou no fim da seção).
+  const siblings = parentId ? tasks.get(parentId)!.childIds : rootIds(page, active.sectionId);
+  const next = siblings.slice(siblings.indexOf(active.id) + 1).find((id) => rows.some((row) => row.id === id));
+  let index = next ? rows.findIndex((row) => row.id === next) : rows.length;
+  if (!next && parentId) {
+    const parentIndex = rows.findIndex((row) => row.id === parentId);
+    const parentDepth = rows[parentIndex]?.depth ?? 0;
+    index = parentIndex + 1;
+    while (index < rows.length && rows[index].depth > parentDepth) index++;
+  }
+  const depth = Math.min(Array.from(taskAncestors(active, tasks)).length, maxOverviewDepth);
+  return { sectionId: active.sectionId, index, depth };
+}
+
+/**
+ * Decide o que acontece ao soltar `activeId` na posição `index` das linhas visíveis da seção (`slotRows`),
+ * no nível pedido pelo deslocamento horizontal (`wanted`). O nível fica entre o da linha de baixo e um abaixo
+ * do da linha de cima; quando o pedido não é permitido (tarefa recorrente, pai concluído), sobe até um nível válido.
+ * Retorna o lugar a mostrar e o plano (`null` quando a soltura não muda nada).
+ */
+export function resolveSlot(
+  page: ProjectPage, activeId: string, sectionId: string | null, index: number, wanted: number,
+): { slot: Slot; plan: Plan | null } | null {
+  const tasks = taskMap(page);
+  const active = tasks.get(activeId);
+  if (!active) return null;
+  const rows = slotRows(page, sectionId, activeId, tasks);
+  index = Math.max(0, Math.min(index, rows.length));
+  const prev = rows[index - 1];
+  const next = rows[index];
+  const max = Math.min(prev ? prev.depth + 1 : 0, maxOverviewDepth);
+  const min = Math.min(next?.depth ?? 0, max);
+  const parentAt = (depth: number) => {
+    if (!depth) return null;
+    for (let at = index - 1; at >= 0; at--) if (rows[at].depth === depth - 1) return tasks.get(rows[at].id) ?? null;
+    return null;
+  };
+  const refusal = (depth: number) => {
+    const parent = parentAt(depth);
+    if (!parent) return null;
+    if (parent.status !== "active") return t("Reabra a tarefa antes");
+    if (active.recurrence) return t("Tarefa recorrente não vira subtarefa");
+    if (parent.recurrence) return t("Tarefa recorrente não recebe subtarefas");
+    // Uma subtarefa só troca de seção como tarefa principal (MUST_PROMOTE_FIRST).
+    if (active.parentId && parent.sectionId !== active.sectionId) {
+      return t("Transforme a subtarefa em tarefa principal antes de movê-la para esse destino.");
+    }
+    return null;
+  };
+
+  let depth = Math.max(min, Math.min(max, wanted));
+  while (depth > min && refusal(depth)) depth--;
+  const slot: Slot = { sectionId, afterId: prev?.id ?? null, depth };
+  const fail = (message: string) => ({ slot, plan: invalid(message, { type: "invalid", id: active.id, message }) });
+  if (active.status !== "active") return fail(t("Reabra a tarefa para mover"));
+  const refused = refusal(depth);
+  if (refused) return fail(refused);
+  const parent = parentAt(depth);
+
+  if (page.project.view.sortMode !== "manual") {
+    // Sem âncora, a posição segue a ordenação: o espaço fica na origem e só a seção ou o pai mudam.
+    if (!parent) {
+      const origin = originSlot(page, activeId, tasks)!;
+      const there = slotRows(page, origin.sectionId, activeId, tasks);
+      return {
+        slot: { sectionId: origin.sectionId, afterId: there[origin.index - 1]?.id ?? null, depth: origin.depth },
+        plan: groupPlan(page, activeId, sectionId),
+      };
+    }
+    return { slot, plan: active.parentId === parent.id ? null : nestPlan(page, active, parent, tasks) };
+  }
+
+  const step: PositionTarget = {
+    type: "position", projectId: page.project.id, sectionId: parent?.sectionId ?? sectionId, parentId: parent?.id ?? null,
+  };
+  // Âncora: o irmão logo acima no mesmo nível; sem ele, o primeiro irmão logo abaixo.
+  for (let at = index - 1; at >= 0 && rows[at].depth >= depth; at--) {
+    if (rows[at].depth === depth) {
+      step.afterId = rows[at].id;
+      break;
+    }
+  }
+  if (!step.afterId && next?.depth === depth) step.beforeId = next.id;
+  if (!wouldChange(page, active, step, tasks)) return { slot, plan: null };
+  const name = sectionName(page, step.sectionId);
+  const nested = parent && active.parentId !== parent.id;
   return {
-    valid: true,
-    steps: [step],
-    indicator: { type: "line", id: lineId, side, depth: 0 },
-    message: active.sectionId !== target.sectionId ? t("Movida para {0}", [name])
-      : active.parentId ? t("Promovida a tarefa") : t("Nova posição salva em {0}", [name]),
+    slot,
+    plan: {
+      valid: true, steps: [step], indicator: { type: "slot", ...slot },
+      message: nested ? t("“{0}” agora é subtarefa de “{1}”", [active.title, parent.title])
+        : active.sectionId !== step.sectionId ? t("Movida para {0}", [name])
+          : active.parentId && !parent ? t("Promovida a tarefa")
+            : parent ? t("Nova posição salva") : t("Nova posição salva em {0}", [name]),
+    },
   };
 }
 
@@ -215,7 +269,7 @@ export function keyboardPlan(page: ProjectPage, taskId: string, action: KeyActio
   const order = page.groups.map((group) => group.sectionId);
   const next = order[order.indexOf(task.sectionId) + (action === "left" ? -1 : 1)];
   if (next === undefined) return null;
-  return resolveDrop(page, task.id, { kind: "group", sectionId: next }, "board");
+  return groupPlan(page, task.id, next);
 }
 
 /** Itens do menu “⋯” de uma tarefa num projeto. */

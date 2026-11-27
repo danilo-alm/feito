@@ -289,14 +289,17 @@ button.t-origin:hover{background:var(--hover)}
 .slot{border:1.5px dashed var(--border-strong);border-radius:10px;background:var(--sunken)}
 .ins{position:relative;height:2px;background:var(--brand);margin-block:-1px;border-radius:2px;z-index:2}
 .ins::before{content:"";position:absolute;left:-6px;top:-4px;width:10px;height:10px;border-radius:50%;border:2px solid var(--brand);background:var(--bg)}
-.nest-target{background:var(--brand-soft)!important;box-shadow:inset 0 0 0 2px var(--brand);border-radius:10px}
-.nest-preview{margin-block:4px;border:1.5px dashed var(--brand);border-radius:10px;background:var(--surface);padding:8px 10px;display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px}
-.column .nest-preview{margin-block:-2px 8px}
-.column .ins{margin-block:-5px 7px;margin-inline-end:2px}
-.nest-preview .ring{width:16px;height:16px}
-.nest-tag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:6px;background:var(--brand);color:var(--on-brand);font-size:12px;font-weight:600}
-.nest-tag svg{width:13px;height:13px}
-.invalid{box-shadow:inset 0 0 0 2px var(--late);border-radius:10px}
+/* Arraste de tarefas: o ramo arrastado sai do fluxo e os vizinhos se afastam para abrir o espaço onde ele vai cair.
+   A barra no meio do espaço mostra o nível; arrastar para a direita a recua, tornando a tarefa subtarefa da de cima. */
+.drag-hidden{display:none!important}
+.drop-gap{position:relative;height:0;transition:height var(--dur-base) var(--ease-out)}
+.drop-gap[data-open]{height:var(--drop-gap)}
+.drop-gap>.ins{position:absolute;inset-inline:0;top:50%;opacity:0;transition:opacity var(--dur-fast) var(--ease-out),margin-inline-start var(--dur-fast) var(--ease-out)}
+.drop-gap[data-open]>.ins{opacity:1}
+.column .drop-gap>.ins{top:calc(50% - 4px);inset-inline:2px}
+.drop-gap>.ins.bad{background:var(--late)}
+.drop-gap>.ins.bad::before{border-color:var(--late)}
+.drop-gap>.bad-tag{position:absolute;inset-inline-end:0;top:50%;transform:translateY(-50%);z-index:3}
 .bad-tag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:6px;background:var(--late);color:var(--bg);font-size:12px;font-weight:600}
 .bad-tag svg{width:13px;height:13px}
 .landed{animation:none;box-shadow:0 0 0 2px var(--brand-soft),inset 0 0 0 1px var(--brand);border-radius:10px}
@@ -499,7 +502,6 @@ html:has(>body>.dialog-wrap:not([data-state=exiting])){overflow:hidden}
 .toast.bad{background:var(--late);color:#fff}
 html.dark .toast.bad{color:#1B1A18}
 .drag-overlay{pointer-events:none;transition:opacity var(--dur-base) var(--ease-in-out)}
-.drag-overlay[data-nesting]{opacity:.2;transition-duration:var(--dur-slow);transition-timing-function:var(--ease-out)}
 body:has(.drag-overlay) {user-select:none;-webkit-user-select:none}
 .drag-overlay .task,.drag-overlay .card{margin:0}
 .column.over,.list-group.over{border-radius:12px}
@@ -844,8 +846,8 @@ html.dark .tooltip{background:var(--raised);color:var(--text)}
 .m-top-title[aria-hidden=true]{opacity:0}
 
 /* Indicadores de arraste e avisos inline: só entrada (seguem o ponteiro; a saída precisa ser imediata). */
-.ins,.nest-preview,.column-drop,.nest-tag,.bad-tag,.banner,.field-error,.empty{transition:opacity var(--dur-fast) var(--ease-out)}
-@starting-style{.ins,.nest-preview,.column-drop,.nest-tag,.bad-tag,.banner,.field-error,.empty{opacity:0}}
+.ins,.column-drop,.bad-tag,.banner,.field-error,.empty{transition:opacity var(--dur-fast) var(--ease-out)}
+@starting-style{.ins,.column-drop,.bad-tag,.banner,.field-error,.empty{opacity:0}}
 
 /* Troca de rota com layout persistente: o conteúdo novo entra em fade (AppShell, via Web Animations). */
 

@@ -26,51 +26,48 @@ test.describe("organizar um projeto", () => {
     });
   });
 
-  test("reordena, cria subtarefa e recusa destino inválido arrastando na Lista", async ({ page, api }) => {
+  test("reordena abrindo espaço e cria subtarefa arrastando para a direita na Lista", async ({ page, api }) => {
     const seed = await seedProject(api, `Lista ${Date.now()}`);
     await page.goto(`/projetos/${seed.id}`);
     await expect(row(page, "Listar móveis para doação")).toBeVisible();
 
-    // Reordenar: soltar na borda superior de “Definir orçamento”.
+    // Reordenar: na metade de cima de “Definir orçamento”, ela desce para abrir o espaço com a barra.
+    const budget = row(page, "Definir orçamento da reforma");
     const source = await row(page, "Listar móveis para doação").boundingBox();
-    const target = await row(page, "Definir orçamento da reforma").boundingBox();
-    await mouseDrag(page, { x: source!.x + 200, y: source!.y + source!.height / 2 }, { x: target!.x + 200, y: target!.y + 4 });
-    await expect(page.locator(".ins")).toBeVisible();
+    const target = (await budget.boundingBox())!;
+    await mouseDrag(page, { x: source!.x + 200, y: source!.y + source!.height / 2 }, { x: source!.x + 200, y: target.y + 4 });
+    const gap = page.locator(".drop-gap[data-open]");
+    await expect(gap).toHaveCount(1);
+    await expect(gap.locator(".ins")).toBeVisible();
+    await expect.poll(async () => (await budget.boundingBox())!.y).toBeGreaterThan(target.y + target.height / 2);
     await page.mouse.up();
     await expect(page.getByRole("status").getByText("Nova posição salva em Planejar")).toBeVisible();
     await expect.poll(async () => (await projectState(api, seed.id)).order(seed.sections.Planejar))
       .toEqual(["Listar móveis para doação", "Definir orçamento da reforma", "Escolher a cor da pintura do quarto"]);
+    await expect(page.locator(".drop-gap")).toHaveCount(0);
 
     // As notificações podem cobrir o ponto de partida perto do rodapé.
     const toasts = page.getByRole("status").locator(".toast");
     await expect(toasts).toHaveCount(0);
-    // Soltar sobre uma subtarefa cria um nível mais profundo e mostra a prévia recuada.
+    // Passar por cima de outra tarefa só reordena; a subtarefa vem do deslocamento para a direita.
     await row(page, "Kit de ferramentas").scrollIntoViewIfNeeded();
-    const kit = await row(page, "Kit de ferramentas").boundingBox();
-    const targetSubtask = row(page, "Pedir amostras na loja");
-    const parent = await targetSubtask.boundingBox();
-    await mouseDrag(page, { x: kit!.x + 200, y: kit!.y + kit!.height / 2 }, { x: parent!.x + 200, y: parent!.y + parent!.height / 2 },
-      { locator: targetSubtask, zone: "center" });
-    await expect(targetSubtask).toHaveClass(/nest-target/);
-    await expect(page.locator(".nest-preview")).toContainText("Kit de ferramentas");
+    const kit = (await row(page, "Kit de ferramentas").boundingBox())!;
+    const samples = row(page, "Pedir amostras na loja");
+    const sample = (await samples.boundingBox())!;
+    const start = { x: kit.x + 200, y: kit.y + kit.height / 2 };
+    await mouseDrag(page, start, { x: start.x, y: sample.y + sample.height / 2 });
+    await expect(samples).not.toHaveClass(/nest-target/);
+    await expect(gap).toHaveCount(1);
+    // Logo abaixo de “Pedir amostras”, dois níveis à direita: subtarefa dela.
+    const below = (await samples.boundingBox())!;
+    await page.mouse.move(start.x + 45, below.y + below.height + 4, { steps: 6 });
+    await expect(page.getByRole("region", { name: "Planejar" }).locator(".drop-gap[data-open] .ins"))
+      .toHaveAttribute("style", /--task-depth: ?2/);
     await page.mouse.up();
     await expect.poll(async () => (await projectState(api, seed.id)).byTitle["Kit de ferramentas"].parentId)
       .toBe(seed.tasks["Pedir amostras na loja"].id);
     await expect(row(page, "Kit de ferramentas")).toHaveClass(/sub/);
     await expect(toasts).toHaveCount(0);
-
-    // Inválido: soltar a tarefa em sua própria subtarefa criaria um ciclo.
-    const branch = row(page, "Escolher a cor da pintura do quarto");
-    await branch.scrollIntoViewIfNeeded();
-    const color = await branch.boundingBox();
-    const child = await row(page, "Pedir amostras na loja").boundingBox();
-    await mouseDrag(page, { x: color!.x + 200, y: color!.y + color!.height / 2 }, { x: child!.x + 200, y: child!.y + child!.height / 2 },
-      { locator: row(page, "Pedir amostras na loja"), zone: "center" });
-    await expect(row(page, "Pedir amostras na loja")).toHaveClass(/invalid/);
-    await expect(page.locator(".bad-tag")).toHaveText("Uma tarefa não pode ficar abaixo de suas subtarefas");
-    await page.mouse.up();
-    await expect(page.getByText(/Destino inválido/)).toBeVisible();
-    expect((await projectState(api, seed.id)).byTitle["Escolher a cor da pintura do quarto"].parentId).toBeNull();
 
     // Esc cancela e devolve a tarefa ao lugar.
     await expect(toasts).toHaveCount(0);

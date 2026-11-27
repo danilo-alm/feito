@@ -10,7 +10,7 @@ const trackPointer = (event: PointerEvent | TouchEvent) => {
   lastPointerX = "touches" in event ? event.touches[0]?.clientX ?? lastPointerX : event.clientX;
 };
 
-function startPoint(event: DragMoveEvent) {
+function startPoint(event: Pick<DragMoveEvent, "activatorEvent">) {
   const start = event.activatorEvent as MouseEvent & TouchEvent;
   return "touches" in start && start.touches?.length ? start.touches[0] : start as MouseEvent;
 }
@@ -18,6 +18,16 @@ function startPoint(event: DragMoveEvent) {
 export function pointerY(event: DragMoveEvent) {
   if (lastPointerY !== null) return lastPointerY;
   return startPoint(event).clientY + event.delta.y;
+}
+
+export function pointerX(event: DragMoveEvent) {
+  if (lastPointerX !== null) return lastPointerX;
+  return startPoint(event).clientX + event.delta.x;
+}
+
+/** Onde o ponteiro estava quando o arraste começou. */
+export function startX(event: Pick<DragMoveEvent, "activatorEvent">) {
+  return startPoint(event).clientX;
 }
 
 /** Horizontal distance from where the drag began (the page does not scroll sideways). */

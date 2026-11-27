@@ -94,6 +94,16 @@ export function flipFrom(key: string, preview: HTMLElement | null) {
   });
 }
 
+const FLIP_REFRESH = "feito:flip-refresh";
+
+/**
+ * Fotografa as posições atuais das listas. Chamado ao soltar um arraste, quando os vizinhos já se afastaram
+ * para abrir espaço: o próximo FLIP parte de onde eles estão na tela, não de antes do arraste.
+ */
+export function refreshFlip() {
+  window.dispatchEvent(new Event(FLIP_REFRESH));
+}
+
 /** Posição no layout, sem rolagem nem transform: comparável entre mudanças mesmo durante uma animação. */
 function layoutOffset(node: HTMLElement) {
   let x = 0;
@@ -121,7 +131,10 @@ function snapshot(root: HTMLElement) {
   const map = new Map<string, Snapshot>();
   for (const node of root.querySelectorAll<HTMLElement>(FLIP_SELECTOR)) {
     const key = flipKey(node);
-    if (key && !map.has(key)) map.set(key, { node, ...layoutOffset(node), rect: node.getBoundingClientRect() });
+    // Itens ocultos (como o ramo em arraste) não têm posição: ao reaparecer, entram como novos.
+    if (key && !map.has(key) && node.getClientRects().length) {
+      map.set(key, { node, ...layoutOffset(node), rect: node.getBoundingClientRect() });
+    }
   }
   return map;
 }
@@ -248,9 +261,11 @@ export function useFlip(ref: RefObject<HTMLElement | null>, { paused }: { paused
     observer.observe(root, { childList: true, subtree: true, characterData: true });
     const refresh = () => { previous = snapshot(root); };
     window.addEventListener("resize", refresh);
+    window.addEventListener(FLIP_REFRESH, refresh);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", refresh);
+      window.removeEventListener(FLIP_REFRESH, refresh);
     };
   }, [ref]);
 }
