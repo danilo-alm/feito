@@ -23,6 +23,14 @@ async function expectSidewaysScroll(page: Page, field: Locator) {
   await expect.poll(() => scrollLeft(field)).toBe(0);
 }
 
+/** Na folha do celular o título da tarefa quebra linhas e aparece inteiro, sem rolagem. */
+async function expectWrapped(field: Locator) {
+  await expect.poll(() => field.evaluate((element) => ({
+    wrapped: element.clientHeight >= 2 * parseFloat(getComputedStyle(element).lineHeight),
+    clipped: element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight,
+  }))).toEqual({ wrapped: true, clipped: false });
+}
+
 for (const narrow of [false, true]) {
   test(`campos de título rolam para o lado em janela ${narrow ? "estreita" : "ampla"}`, async ({ page }) => {
     await page.setViewportSize({ width: narrow ? 390 : 1180, height: 844 });
@@ -40,7 +48,9 @@ for (const narrow of [false, true]) {
     await page.goto(`/#/projetos/${project.id}?tarefa=${task.id}`);
 
     const detail = page.getByRole("dialog");
-    await expectSidewaysScroll(page, detail.getByRole("textbox", { name: "Título", exact: true }));
+    const detailTitle = detail.getByRole("textbox", { name: "Título", exact: true });
+    if (narrow) await expectWrapped(detailTitle);
+    else await expectSidewaysScroll(page, detailTitle);
     await detail.getByRole("button", { name: "Fechar (Esc)" }).click();
     await expect(detail).toHaveCount(0);
 
