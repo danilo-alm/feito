@@ -13,6 +13,7 @@ const migrations = [
   readSql("migrations/004-read-profile.sql"),
   readSql("migrations/005-manual-order.sql"),
   readSql("migrations/006-agenda-layouts.sql"),
+  readSql("migrations/007-parent-projects.sql"),
 ];
 const fixture = readFileSync(new URL("../../../../scripts/sqlite-proof/relational-fixture.sql", import.meta.url), "utf8");
 const queries = Object.fromEntries(
@@ -389,6 +390,50 @@ it("keeps the manual order, the agenda layouts and older data across saves, read
     expect(nav.projects.map((project) => project.name)).toEqual(["B", "A"]);
     expect(nav.labels.map((label) => label.name)).toEqual(["casa", "rua"]);
     expect(db.selectObjects("PRAGMA foreign_key_check")).toEqual([]);
+  } finally {
+    db.close();
+  }
+});
+
+it("keeps the parent project across saves, reads, project context and the upgrade from version 6", async () => {
+  const { createProfileStorage } = await import("../../src/browser/sqlite/profile-storage");
+  const { handleLocal, newWorkspace } = await import("@feito/core/product/local-executor");
+  const sqlite = await sqlite3InitModule();
+  const db = new sqlite.oo1.DB();
+  try {
+    migrateSqlite(db, sqlite.version.libVersionNumber, migrations.slice(0, 6));
+    const files = {
+      "save-profile.sql": readSql("queries/save-profile.sql"),
+      "read-profile.sql": readSql("queries/read-profile.sql"),
+      "import-profile.sql": readSql("queries/import-profile.sql"),
+    };
+    const run = async (workspace: ReturnType<typeof newWorkspace>, method: string, path: string, body?: unknown) =>
+      (await handleLocal(workspace, { method, path, body })).workspace;
+    let workspace = newWorkspace();
+    for (const name of ["A", "B"]) workspace = await run(workspace, "POST", "/projects", { name });
+    const before = createProfileStorage(db, files, "https://synthetic.invalid");
+    before.initialize();
+    expect(before.commit(0, { selection: { epoch: "local", discoverSession: false, space: { kind: "local" } },
+      localIfMissing: { workspace } })).toBe(true);
+
+    migrateSqlite(db, sqlite.version.libVersionNumber, migrations);
+    const store = createProfileStorage(db, files, "https://synthetic.invalid");
+    store.initialize();
+    const read = () => (store.read()?.data as { workspace: typeof workspace }).workspace;
+    expect(read().projects.every((project) => !("parentId" in project.data))).toBe(true);
+
+    const [a, b] = ["A", "B"].map((name) => workspace.projects.find((project) => project.data.name === name)!);
+    workspace = await run(read(), "POST", `/projects/${b.id}/move`, { parentId: a.id });
+    expect(store.commit(store.read()!.generation, { data: { workspace } })).toBe(true);
+    expect(read().projects.find((project) => project.id === b.id)?.data.parentId).toBe(a.id);
+    const spaceId = db.selectValue("SELECT space_id FROM projects WHERE id = ? AND layer = 'working'", [b.id]);
+    const context = JSON.parse(String(db.selectValue(queries.projectContext, [spaceId!, "working", b.id])));
+    expect(context.projects[0].data.parentId).toBe(a.id);
+
+    workspace = await run(read(), "POST", `/projects/${b.id}/move`, { parentId: null });
+    expect(store.commit(store.read()!.generation, { data: { workspace } })).toBe(true);
+    expect(read().projects.find((project) => project.id === b.id)?.data).not.toHaveProperty("parentId");
+    expect(db.selectValue("SELECT parent_id FROM projects WHERE id = ?", [b.id])).toBeNull();
   } finally {
     db.close();
   }

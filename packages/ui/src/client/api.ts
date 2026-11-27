@@ -2,7 +2,7 @@ import { translateMessage, translate as t } from "./locale";
 // Cliente HTTP da API /api/v1. Usado pela interface no navegador e pelos testes de integração.
 import type {
   CompleteResponse, CreateTask, EditTask, Frequency, ImportPreview, ImportResult, Label, LabelTasks, Layout,
-  Me, MoveResponse, MoveTarget, NamedDetails, Navigation, OrderAnchor, ProjectDetails, Preferences, ProjectPage, ProjectShare, ProjectSummary, ProjectView,
+  Me, MoveResponse, MoveTarget, NamedDetails, Navigation, OrderAnchor, ProjectDetails, ProjectMove, Preferences, ProjectPage, ProjectShare, ProjectSummary, ProjectView,
   PublicProjectPage, ReopenResponse,
   SearchInput, SearchResult, Section, Session, SortMode, SourceImportPreview, SourceImportResult, TaskDetail, TaskMutation,
   TodayView, UndoCompletionInput, UndoCompletionResponse, UpcomingView,
@@ -136,17 +136,17 @@ export const api = {
   projects: {
     list: (status: "active" | "archived" = "active") =>
       request<{ projects: ProjectSummary[] }>("GET", `/projects${query({ status })}`),
-    create: (details: ProjectDetails) => request<ProjectSummary>("POST", "/projects", details),
+    create: (details: ProjectDetails & { parentId?: string | null }) => request<ProjectSummary>("POST", "/projects", details),
     get: (id: string, includeCompleted?: boolean) =>
       request<ProjectPage>("GET", `/projects/${enc(id)}${query({ includeCompleted })}`),
-    edit: (id: string, revision: number, patch: Partial<ProjectDetails & Pick<ProjectSummary, "defaultSectionName">>) =>
+    edit: (id: string, revision: number, patch: Partial<ProjectDetails & Pick<ProjectSummary, "defaultSectionName" | "parentId">>) =>
       request<ProjectSummary>("PATCH", `/projects/${enc(id)}`, { revision, ...patch }),
     setView: (id: string, view: Partial<{ layout: Layout; sortMode: SortMode; showCompleted: boolean }>) =>
       request<ProjectView>("PATCH", `/projects/${enc(id)}/view`, view),
     archive: (id: string, revision: number) => request<ProjectSummary>("POST", `/projects/${enc(id)}/archive`, { revision }),
     unarchive: (id: string, revision: number) =>
       request<ProjectSummary>("POST", `/projects/${enc(id)}/unarchive`, { revision }),
-    move: (id: string, anchor: OrderAnchor) => request<{ projectIds: string[] }>("POST", `/projects/${enc(id)}/move`, anchor),
+    move: (id: string, move: ProjectMove) => request<{ projectIds: string[] }>("POST", `/projects/${enc(id)}/move`, move),
     remove: (id: string, revision: number) => request<void>("DELETE", `/projects/${enc(id)}${query({ revision })}`),
     share: (id: string) => request<ProjectShare>("GET", `/projects/${enc(id)}/share`),
     enableShare: (id: string) => request<ProjectShare>("PUT", `/projects/${enc(id)}/share`),

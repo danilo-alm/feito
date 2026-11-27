@@ -62,6 +62,8 @@ export type ProjectSummary = ProjectDetails & {
   id: string;
   revision: number;
   defaultSectionName: string | null;
+  /** Parent project shown in the sidebar, or null at the top level. */
+  parentId: string | null;
   isInbox: boolean;
   status: "active" | "archived";
   activeCount: number;
@@ -69,7 +71,7 @@ export type ProjectSummary = ProjectDetails & {
 
 export type ProjectPage = {
   referenceDate: string;
-  project: ProjectSummary & { view: ProjectView };
+  project: Omit<ProjectSummary, "parentId"> & { view: ProjectView };
   sections: Section[];
   groups: { sectionId: string | null; rootIds: string[] }[];
   tasks: TaskItem[];
@@ -136,6 +138,8 @@ export type PositionTarget = {
 };
 /** Manual order of projects and labels: before or after a sibling, or at the end without an anchor. */
 export type OrderAnchor = { beforeId?: string; afterId?: string };
+/** Project move: `parentId: null` moves to the top level, absent keeps the current parent. */
+export type ProjectMove = OrderAnchor & { parentId?: string | null };
 
 export type MoveTarget = PositionTarget | { type: "promote" };
 

@@ -3,18 +3,18 @@ import { useT } from "./language";
 
 import { Link } from "../navigation";
 import { usePathname, useRouter } from "../navigation";
-import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTitlebar } from "./titlebar";
 import { api, ApiFailure, errorMessage } from "../client/api";
 import { tagColor } from "../client/colors";
 import { invalidate } from "../client/store";
-import type { Label, Navigation, OrderAnchor, ProjectSummary } from "@feito/core/types";
-import { moveInOrder, type OrderKind } from "../client/manual-order";
+import type { Label, Navigation, OrderAnchor, ProjectMove, ProjectSummary } from "@feito/core/types";
+import { moveInOrder, moveInTree, treeStep, type OrderKind } from "../client/manual-order";
 import { isDragging, PROJECT_SHORTCUT_KEYS, refreshProjects, useApp } from "./app";
 import {
   IconArchive, IconArrowDown, IconArrowUp, IconBrowse, IconCheckCircle, IconChevronLeft, IconChevronRight, IconEdit, IconGear, IconInbox, IconMore, IconPlus,
-  IconSearch, IconTag, IconToday, IconTrash, IconUpcoming, IconUpload, IconDownload,
+  IconPromote, IconSearch, IconSub, IconTag, IconToday, IconTrash, IconUpcoming, IconUpload, IconDownload,
 } from "./icons";
 import { ProjectGlyph } from "./project-style";
 import { useExportDialog, useImportDialog } from "./import-export-dialogs";
@@ -36,15 +36,42 @@ export function PageTaskCount({ count, more = false }: { count: number; more?: b
 
 const refreshOrder = (key: string) => key === "nav" || key === "labels";
 
-/** Reordena projetos ou etiquetas com atualização otimista; a barra lateral e a aba Navegar usam a mesma ordem. */
+/**
+ * Reordena projetos ou etiquetas com atualização otimista; a barra lateral e a aba Navegar usam a mesma ordem.
+ * Projetos podem trocar de projeto principal no mesmo movimento.
+ */
 function useManualOrder() {
   const app = useApp();
-  return (kind: OrderKind) => (item: { id: string }, anchor: OrderAnchor, order: string[]) => {
+  return (kind: OrderKind) => (item: { id: string }, anchor: ProjectMove, order: string[]) => {
     const send = kind === "projects"
       ? () => api.projects.move(item.id, anchor).then((result) => result.projectIds)
       : () => api.labels.move(item.id, anchor).then((result) => result.labelIds);
-    void app.run(() => moveInOrder(kind, order, send), { revalidate: refreshOrder });
+    const parent = kind === "projects" && anchor.parentId !== undefined ? { id: item.id, parentId: anchor.parentId } : undefined;
+    void app.run(() => moveInOrder(kind, order, send, parent), { revalidate: refreshOrder });
   };
+}
+
+const projectParent = (project: ProjectSummary) => project.parentId;
+
+/** Itens do menu de ações de um projeto: subir, descer e mudar de nível sem arrastar. */
+function projectOrderMenu(
+  t: ReturnType<typeof useT>, projects: readonly ProjectSummary[], project: ProjectSummary,
+  onMove: (item: ProjectSummary, anchor: ProjectMove, order: string[]) => void,
+): MenuItem[] {
+  const step = (direction: "up" | "down" | "in" | "out") => {
+    const placement = treeStep(projects, project.id, direction);
+    return {
+      disabled: !placement,
+      onSelect: () => placement && onMove(project, placement, moveInTree(projects, project.id, placement).map((item) => item.id)),
+    };
+  };
+  const parent = projects.find((candidate) => candidate.id === project.parentId);
+  return [
+    { label: t("Mover para cima"), icon: <IconArrowUp />, ...step("up") },
+    { label: t("Mover para baixo"), icon: <IconArrowDown />, ...step("down") },
+    { label: t("Tornar subprojeto do anterior"), icon: <IconSub />, ...step("in") },
+    ...parent ? [{ label: t("Tirar de “{0}”", [parent.name]), icon: <IconPromote />, ...step("out") }] : [],
+  ];
 }
 
 /** Itens “Mover para cima/baixo” do menu de ações: alternativa ao arraste. */
@@ -84,6 +111,7 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
   const moveProject = manualOrder("projects");
   const moveLabel = manualOrder("labels");
   const instructions = t("Para reordenar sem arrastar, use Alt e as setas para cima e para baixo.");
+  const projectInstructions = t("Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.");
   useFlip(sidebar, { paused: isDragging });
 
   return (
@@ -105,11 +133,11 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
           </button>
         </div>
         {nav && (
-          <ReorderList items={nav.projects} onMove={moveProject} instructions={instructions}
+          <ReorderList items={nav.projects} onMove={moveProject} instructions={projectInstructions} tree={projectParent}
             renderItem={(project, reorder) => (
               <ProjectRow project={project} active={is(`/projetos/${project.id}`)} reorder={reorder}
                 shortcut={PROJECT_SHORTCUT_KEYS[nav.projects.indexOf(project)]}
-                onEdit={() => projectDetails.edit(project)} orderMenu={() => orderMenu(t, nav.projects, project, moveProject)} />
+                onEdit={() => projectDetails.edit(project)} orderMenu={() => projectOrderMenu(t, nav.projects, project, moveProject)} />
             )}
             renderOverlay={(project) => <ProjectRow project={project} active={false} onEdit={() => {}} orderMenu={() => []} />} />
         )}
@@ -136,6 +164,8 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
     </nav>{handle}</>
   );
 }
+
+const TREE_KEYS = "Alt+ArrowUp Alt+ArrowDown Alt+ArrowLeft Alt+ArrowRight";
 
 function ProjectShortcut({ keyNumber }: { keyNumber: string }) {
   return <kbd className="kbd project-shortcut" aria-hidden="true">^{keyNumber}</kbd>;
@@ -229,10 +259,11 @@ function ProjectRow({ project, active, shortcut, onEdit, reorder, orderMenu }: {
   ];
 
   return (
-    <div className={`nav proj-row${active ? " on" : ""}${reorder?.dragging ? " drag-src" : ""}`}
+    <div className={`nav proj-row tree-row${active ? " on" : ""}${reorder?.dragging ? " drag-src" : ""}`}
+      style={reorder?.depth ? { "--depth": reorder.depth } as CSSProperties : undefined}
       {...rowProps(reorder, contextMenu.onContextMenu)}>
       <Link href={`/projetos/${project.id}`} className="proj-link" aria-current={active ? "page" : undefined} draggable={false}
-        aria-keyshortcuts={[shortcut && `Control+${shortcut}`, reorder && "Alt+ArrowUp Alt+ArrowDown"].filter(Boolean).join(" ") || undefined}>
+        aria-keyshortcuts={[shortcut && `Control+${shortcut}`, reorder && TREE_KEYS].filter(Boolean).join(" ") || undefined}>
         <ProjectGlyph id={project.id} /><SidebarName>{project.name}</SidebarName>
       </Link>
       {app.showProjectShortcuts && shortcut ? <ProjectShortcut keyNumber={shortcut} />
@@ -270,14 +301,15 @@ export function MobileChrome() {
   );
 }
 
-function BrowseRow({ href, icon, label, count, shortcut, reorder }: {
-  href: string; icon: ReactNode; label: string; count?: number; shortcut?: string; reorder?: ReorderHandle;
+function BrowseRow({ href, icon, label, count, shortcut, reorder, tree = false }: {
+  href: string; icon: ReactNode; label: string; count?: number; shortcut?: string; reorder?: ReorderHandle; tree?: boolean;
 }) {
   const { showProjectShortcuts } = useApp();
   return (
-    <li ref={reorder?.ref} {...reorder?.props} className={reorder?.dragging ? "drag-src" : undefined}>
+    <li ref={reorder?.ref} {...reorder?.props} className={[tree && "tree-row", reorder?.dragging && "drag-src"].filter(Boolean).join(" ") || undefined}
+      style={reorder?.depth ? { "--depth": reorder.depth } as CSSProperties : undefined}>
       <Link href={href} className="b-row" draggable={reorder ? false : undefined}
-        aria-keyshortcuts={[shortcut && `Control+${shortcut}`, reorder && "Alt+ArrowUp Alt+ArrowDown"].filter(Boolean).join(" ") || undefined}>
+        aria-keyshortcuts={[shortcut && `Control+${shortcut}`, reorder && (tree ? TREE_KEYS : "Alt+ArrowUp Alt+ArrowDown")].filter(Boolean).join(" ") || undefined}>
         <span className="b-ico">{icon}</span>
         <span className="b-name">{label}</span>
         {showProjectShortcuts && shortcut ? <ProjectShortcut keyNumber={shortcut} />
@@ -309,9 +341,10 @@ export function BrowsePanel() {
       </div>
       <ul className="b-group" aria-labelledby="b-projetos">
         {nav && (
-          <ReorderList items={nav.projects} onMove={manualOrder("projects")} instructions={instructions}
+          <ReorderList items={nav.projects} onMove={manualOrder("projects")} tree={projectParent}
+            instructions={t("Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.")}
             renderItem={(project, reorder) => (
-              <BrowseRow href={`/projetos/${project.id}`} icon={<ProjectGlyph id={project.id} />} label={project.name}
+              <BrowseRow href={`/projetos/${project.id}`} icon={<ProjectGlyph id={project.id} />} label={project.name} tree
                 count={project.activeCount} shortcut={PROJECT_SHORTCUT_KEYS[nav.projects.indexOf(project)]} reorder={reorder} />
             )}
             renderOverlay={(project) => (

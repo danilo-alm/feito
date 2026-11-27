@@ -118,6 +118,35 @@ describe("manual order of projects and labels", () => {
   });
 });
 
+describe("parent projects", () => {
+  it("nests projects on create, edit and move, rejects cycles and isolates accounts", async () => {
+    const call = await accountFixture();
+    const other = await accountFixture();
+    const [a, b] = [await newProject(call, "A"), await newProject(call, "B")];
+    const child = await payload<Resource & { parentId: string | null }>(await call("POST", "/projects", { name: "A1", parentId: a.id }), 201);
+    expect(child.parentId).toBe(a.id);
+    const tree = async () => (await nav(call)).projects.map(({ name, parentId }) => [name, parentId]);
+    expect(await tree()).toEqual([["A", null], ["A1", a.id], ["B", null]]);
+
+    expect(await payload(await call("POST", `/projects/${b.id}/move`, { parentId: a.id, beforeId: child.id })))
+      .toEqual({ projectIds: [a.id, b.id, child.id] });
+    expect((await payload<{ projects: { id: string; parentId: string | null }[] }>(await call("GET", "/projects"))).projects
+      .map(({ id, parentId }) => [id, parentId])).toEqual([[a.id, null], [b.id, a.id], [child.id, a.id]]);
+
+    const current = (await nav(call)).projects.find(({ id }) => id === a.id)!;
+    await failure(await call("PATCH", `/projects/${a.id}`, { revision: current.revision, parentId: b.id }), 422, "INVALID_PARENT");
+    await failure(await call("POST", `/projects/${a.id}/move`, { parentId: a.id }), 422, "INVALID_PARENT");
+    await failure(await call("POST", "/projects", { name: "X", parentId: (await nav(call)).inbox.projectId }), 422, "INVALID_PARENT");
+    await failure(await other("POST", "/projects", { name: "X", parentId: a.id }), 422, "INVALID_PARENT");
+    await failure(await other("POST", `/projects/${b.id}/move`, { parentId: null }), 404, "NOT_FOUND");
+
+    const moved = (await nav(call)).projects.find(({ id }) => id === child.id)!;
+    expect(await payload(await call("PATCH", `/projects/${child.id}`, { revision: moved.revision, parentId: null })))
+      .toMatchObject({ parentId: null });
+    expect(await tree()).toEqual([["A", null], ["B", a.id], ["A1", null]]);
+  });
+});
+
 describe("sections and task movement", () => {
   it("moves a subtask and its descendants as a root, without detaching it on failure", async () => {
     const call = await accountFixture();

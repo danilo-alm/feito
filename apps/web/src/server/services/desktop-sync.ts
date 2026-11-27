@@ -8,7 +8,7 @@ import { ApiError } from "@/server/errors";
 import { preferencesPatch } from "@feito/core/validation/preferences";
 import {
   completeTaskInput, createProjectInput, createSectionInput, createTaskInput, deleteQuery, editNameInput,
-  editNamedDetailsInput, editProjectInput, editTaskInput, entityId, instant, nameInput, orderMoveInput, projectViewPatch,
+  editNamedDetailsInput, editProjectInput, editTaskInput, entityId, instant, nameInput, orderMoveInput, projectMoveInput, projectViewPatch,
   revisionInput, sectionMoveInput, setRecurrenceInput, taskDeleteQuery, taskMoveInput, undoTaskCompletionInput,
 } from "@feito/core/validation/product";
 import { createLabel, deleteLabel, moveLabel, renameLabel } from "./labels";
@@ -161,7 +161,7 @@ function dispatch(access: ProductAccess, operation: DesktopOperation, input: Inp
           return createSection(bind(undefined, [first ?? operation.id]), id, details, { beforeSectionId, afterSectionId });
         }
         case "POST move":
-          return moveProject(bind(), id, validate(input.body, orderMoveInput));
+          return moveProject(bind(), id, validate(input.body, projectMoveInput));
         default:
           return unsupported();
       }

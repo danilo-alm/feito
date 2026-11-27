@@ -1,5 +1,5 @@
 import {
-  childrenByParent, childrenOf, compareLabels, isActive, isOverdue, orderedRoots, orderedSections,
+  childrenByParent, childrenOf, compareLabels, projectParentId, isActive, isOverdue, orderedRoots, orderedSections,
   type Label, type Product, type Project, type Section, type Task,
 } from "../domain/product";
 import { walkTaskTree } from "../domain/task-tree";
@@ -26,12 +26,13 @@ export function projectCounts(product: Product, projectId: string) {
   return { activeCount, completedCount };
 }
 
-function projectSummaryWithCount(project: Project, activeCount: number) {
+function projectSummaryWithCount(projects: ReadonlyMap<string, Project>, project: Project, activeCount: number) {
   return {
     id: project.id,
     revision: project.revision,
     name: project.data.name,
     defaultSectionName: project.data.defaultSectionName ?? null,
+    parentId: projectParentId(projects, project),
     description: project.data.description,
     color: project.data.color,
     icon: project.data.icon,
@@ -42,11 +43,13 @@ function projectSummaryWithCount(project: Project, activeCount: number) {
 }
 
 export function projectSummary(product: Product, project: Project) {
-  return projectSummaryWithCount(project, project.data.archived ? 0 : projectCounts(product, project.id).activeCount);
+  return projectSummaryWithCount(product.projects, project, project.data.archived ? 0 : projectCounts(product, project.id).activeCount);
 }
 
-export function projectSummaries(projects: Project[], counts: ReadonlyMap<string, number>) {
-  return projects.map((project) => projectSummaryWithCount(project, counts.get(project.id) ?? 0));
+export function projectSummaries(
+  all: ReadonlyMap<string, Project>, projects: Project[], counts: ReadonlyMap<string, number>,
+) {
+  return projects.map((project) => projectSummaryWithCount(all, project, counts.get(project.id) ?? 0));
 }
 
 export function sectionDto(product: Product, section: Section, taskCount?: number) {
@@ -151,9 +154,11 @@ export function projectPage(product: Product, project: Project, includeCompleted
     }
     return { sectionId, rootIds: sorted.map((root) => root.id) };
   });
+  // Project reads load only this project, so the hierarchy comes from navigation.
+  const { parentId: _parentId, ...summary } = projectSummary(product, project);
   return {
     referenceDate: product.referenceDate,
-    project: { ...projectSummary(product, project), view },
+    project: { ...summary, view },
     sections: sections.map((section) => sectionDto(product, section, sectionCounts.get(section.id) ?? 0)),
     groups,
     tasks: items,

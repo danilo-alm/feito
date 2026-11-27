@@ -131,6 +131,7 @@ type ProjectSummary = {
   description: string;
   color: ProjectColor | null;        // null: cor automática pela posição na lista
   icon: ProjectIcon;                 // padrão "hash"
+  parentId: string | null;           // projeto principal; null no topo da lista
   isInbox: boolean;
   status: "active" | "archived";
   activeCount: number;               // tarefas e subtarefas ativas
@@ -169,27 +170,27 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
 | `GET /api/v1/me` | 1 | Vazio. | `200 { user, mustChangePassword, preferences, inboxProjectId, referenceDate }`. Provisiona de forma idempotente tenant, DEK, preferências e Caixa de entrada no primeiro acesso. |
-| `GET /api/v1/navigation` | 2 | Vazio. | `200 { inbox: { projectId, activeCount }, todayCount, projects: ProjectSummary[], archivedCount, labels: Label[], referenceDate }`. Alimenta a barra lateral e a navegação do celular. `todayCount` soma atrasadas e de hoje. Projetos ativos e etiquetas na ordem manual; os que nunca foram movidos seguem no fim, projetos por criação e etiquetas por nome. |
+| `GET /api/v1/navigation` | 2 | Vazio. | `200 { inbox: { projectId, activeCount }, todayCount, projects: ProjectSummary[], archivedCount, labels: Label[], referenceDate }`. Alimenta a barra lateral e a navegação do celular. `todayCount` soma atrasadas e de hoje. Projetos ativos e etiquetas na ordem manual; os que nunca foram movidos seguem no fim, projetos por criação e etiquetas por nome. Projetos vêm em árvore: cada projeto principal seguido dos subprojetos, na ordem manual entre irmãos. Um projeto cujo principal está arquivado, ausente ou num ciclo aparece no topo, com `parentId: null`. |
 | `PATCH /api/v1/preferences` | 1 | `{ timezone?, theme?, locale?, todayLayout?, upcomingLayout? }` | `200 Preferences`. `timezone` precisa ser um identificador IANA válido. Trocar o fuso muda o cálculo de Hoje sem alterar datas e horas gravadas. `locale` seleciona o idioma da interface; quando ausente em dados antigos, vale `pt-BR`. É sincronizado e exportado com as preferências. `todayLayout` e `upcomingLayout` (`list`, `board`, `calendar` ou `table`) guardam o layout das agendas; a sincronização desktop resolve cada campo pela edição mais recente. |
 
 ### 3.3 Projetos
 
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
-| `GET /api/v1/projects?status=active\|archived` | 2 | Padrão `active`. | `200 { projects: ProjectSummary[] }`. |
-| `POST /api/v1/projects` | 2 | `{ name, description?, color?, icon? }`. `color` é uma das cores de `src/validation/project-style.ts` ou `null` (automática, padrão); `icon` é um dos ícones de lá, padrão `hash`. | `201 ProjectSummary`. View inicial: `list`, `manual`, `showCompleted: false`. |
+| `GET /api/v1/projects?status=active\|archived` | 2 | Padrão `active`. | `200 { projects: ProjectSummary[] }`, na mesma ordem em árvore da navegação. |
+| `POST /api/v1/projects` | 2 | `{ name, description?, color?, icon?, parentId? }`. `color` é uma das cores de `src/validation/project-style.ts` ou `null` (automática, padrão); `icon` é um dos ícones de lá, padrão `hash`. `parentId` é outro projeto ativo, que passa a ser o projeto principal; o novo projeto vai para o fim dos subprojetos dele. | `201 ProjectSummary`. View inicial: `list`, `manual`, `showCompleted: false`. Principal ausente, arquivado ou a Caixa de entrada: `422 INVALID_PARENT`. |
 | `GET /api/v1/projects/{id}` | 2 | `?includeCompleted=true\|false`. Padrão: o `showCompleted` salvo. | `200 ProjectPage` (abaixo). Funciona também para a Caixa de entrada e para projetos arquivados, em modo leitura. |
-| `PATCH /api/v1/projects/{id}` | 2 | `{ revision, name?, defaultSectionName?, description?, color?, icon? }`, com pelo menos um campo editável. Envie `defaultSectionName: null` para limpar o nome da primeira seção. | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
+| `PATCH /api/v1/projects/{id}` | 2 | `{ revision, name?, defaultSectionName?, description?, color?, icon?, parentId? }`, com pelo menos um campo editável. Envie `defaultSectionName: null` para limpar o nome da primeira seção e `parentId: null` para levar o projeto ao topo. Ao trocar de principal, o projeto vai para o fim dos novos irmãos, com os subprojetos. | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. O próprio projeto, um subprojeto dele, um projeto arquivado ou ausente como principal: `422 INVALID_PARENT`. |
 | `PATCH /api/v1/projects/{id}/view` | 2 | `{ layout?, sortMode?, showCompleted? }` | `200 ProjectView`. Sem `revision`: vale a última escrita. Caixa de entrada com `board`: `422 VALIDATION_FAILED`. |
-| `POST /api/v1/projects/{id}/move` | 2 | `{ beforeId? \| afterId? }`, com o id de outro projeto ativo. Sem âncora, vai para o fim. | `200 { projectIds }` com a nova ordem dos projetos ativos. Sem `revision`: vale a última escrita. Caixa de entrada: `422 INBOX_PROTECTED`; arquivado: `409 PROJECT_ARCHIVED`; âncora fora da lista: `422 INVALID_ANCHOR`. |
+| `POST /api/v1/projects/{id}/move` | 2 | `{ beforeId? \| afterId?, parentId? }`. A âncora é outro projeto com o mesmo principal; sem âncora, vai para o fim dos irmãos. `parentId` troca o projeto principal (`null` leva ao topo); ausente, mantém o atual. Os subprojetos acompanham o projeto. | `200 { projectIds }` com a nova ordem em árvore dos projetos ativos. Sem `revision`: vale a última escrita. Caixa de entrada: `422 INBOX_PROTECTED`; arquivado: `409 PROJECT_ARCHIVED`; âncora fora dos irmãos: `422 INVALID_ANCHOR`; principal inválido, como em `PATCH`: `422 INVALID_PARENT`. |
 | `POST /api/v1/projects/{id}/archive` | 2 | `{ revision }` | `200 ProjectSummary`. Caixa de entrada: `422 INBOX_PROTECTED`. |
 | `POST /api/v1/projects/{id}/unarchive` | 2 | `{ revision }` | `200 ProjectSummary`. Tarefas voltam com os mesmos estados, datas e posições. |
-| `DELETE /api/v1/projects/{id}?revision=N` | 2 | Vazio. | `204`. Só sem tarefas ativas ou concluídas; seções vazias vão junto. Senão `409 PROJECT_NOT_EMPTY` com `{ activeCount, completedCount }`. |
+| `DELETE /api/v1/projects/{id}?revision=N` | 2 | Vazio. | `204`. Só sem tarefas ativas ou concluídas; seções vazias vão junto, e os subprojetos sobem para o topo. Senão `409 PROJECT_NOT_EMPTY` com `{ activeCount, completedCount }`. |
 
 ```ts
 type ProjectPage = {
   referenceDate: string;
-  project: ProjectSummary & { view: ProjectView };
+  project: Omit<ProjectSummary, "parentId"> & { view: ProjectView }; // a hierarquia vem da navegação
   sections: Section[];                 // ordem manual das seções
   groups: {
     sectionId: string | null;          // null = seção inicial, sempre primeiro

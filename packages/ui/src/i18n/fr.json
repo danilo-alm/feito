@@ -972,5 +972,11 @@
   "Tarefas": "Tâches",
   "Fechar painel {0}": "Fermer le panneau {0}",
   "Arraste para um horário para reagendar.": "Faites glisser vers une heure pour replanifier.",
-  "Nenhuma tarefa atrasada.": "Aucune tâche en retard."
+  "Nenhuma tarefa atrasada.": "Aucune tâche en retard.",
+  "Projeto principal": "Projet parent",
+  "Tornar subprojeto do anterior": "Faire un sous-projet du précédent",
+  "Tirar de “{0}”": "Sortir de « {0} »",
+  "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.": "Pour réordonner sans glisser, utilisez Alt et les flèches. Alt et les flèches gauche et droite changent le projet parent.",
+  "Escolha outro projeto principal.": "Choisissez un autre projet parent.",
+  "O projeto principal precisa ser outro projeto comum do documento.": "Le projet parent doit être un autre projet ordinaire du document."
 }

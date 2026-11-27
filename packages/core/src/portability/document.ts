@@ -18,6 +18,7 @@ export const portableDocument = z.strictObject({
     defaultSectionName,
     color: projectColor.nullable().default(null), icon: projectIcon.default("hash"), archived: z.boolean(), view: projectView, createdAt: instant,
     position: position.optional(),
+    parentId: ref.optional(),
   })),
   sections: z.array(z.strictObject({ id: ref, projectId: ref, name, description: description.default(""), position })),
   tasks: z.array(z.strictObject({

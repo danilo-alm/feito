@@ -972,5 +972,11 @@
   "Tarefas": "Attività",
   "Fechar painel {0}": "Chiudi pannello {0}",
   "Arraste para um horário para reagendar.": "Trascina su un orario per riprogrammare.",
-  "Nenhuma tarefa atrasada.": "Nessuna attività in ritardo."
+  "Nenhuma tarefa atrasada.": "Nessuna attività in ritardo.",
+  "Projeto principal": "Progetto principale",
+  "Tornar subprojeto do anterior": "Rendi sottoprogetto del precedente",
+  "Tirar de “{0}”": "Togli da “{0}”",
+  "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.": "Per riordinare senza trascinare, usa Alt e le frecce. Alt e le frecce sinistra e destra cambiano il progetto principale.",
+  "Escolha outro projeto principal.": "Scegli un altro progetto principale.",
+  "O projeto principal precisa ser outro projeto comum do documento.": "Il progetto principale deve essere un altro progetto normale del documento."
 }

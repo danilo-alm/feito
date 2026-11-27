@@ -63,6 +63,13 @@ function validateReferences(document: PortableDocument) {
     }
     if (inbox.defaultSectionName) report("projects", "A Entrada não pode ter seção.");
   }
+  for (const [index, project] of document.projects.entries()) {
+    if (project.parentId === undefined) continue;
+    const parent = projects.get(project.parentId);
+    if (!parent || parent.isInbox || parent.id === project.id) {
+      report(`projects.${index}.parentId`, "O projeto principal precisa ser outro projeto comum do documento.");
+    }
+  }
   for (const [index, section] of document.sections.entries()) {
     const path = `sections.${index}`;
     const project = projects.get(section.projectId);

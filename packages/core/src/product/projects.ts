@@ -1,18 +1,54 @@
-import { compareProjects, groupTasks, orderedSections, type Product, type Section } from "../domain/product";
+import {
+  compareProjects, groupTasks, isProjectInSubtree, orderedSections, projectParentId, projectTreeOrder,
+  type Product, type Project, type Section,
+} from "../domain/product";
 import { ApiError } from "./errors";
 import { defaultsForView, type ProjectPayload, type ProjectView, type SectionPayload } from "../validation/product";
 import { inboxProject, labelSummaries, projectCounts, projectPage, projectSummaries, projectSummary, sectionDto } from "./product-dto";
 import {
   nextRevision, placeInOrder, protectInbox, requireRevision, validation, visibleRecord, writableProject,
 } from "./product-rules";
-import type { OrderAnchor } from "../types";
+import type { ProjectMove } from "../types";
 import type { ProductPort } from "./port";
 
 export function createProjectsService<Access>({ allocateId, mutateProduct, readProjectView, readProductSummary }: Pick<ProductPort<Access>, "allocateId" | "mutateProduct" | "readProjectView" | "readProductSummary">) {
+  /** Active or archived projects in tree order: each parent followed by its children. */
   function orderedProjects(product: Pick<Product, "projects">, archived: boolean) {
+    return projectTreeOrder(product.projects, [...product.projects.values()]
+      .filter((project) => !project.isInbox && project.data.archived === archived));
+  }
+
+  function siblingProjects(product: Pick<Product, "projects">, parentId: string | null) {
     return [...product.projects.values()]
-      .filter((project) => !project.isInbox && project.data.archived === archived)
+      .filter((project) => !project.isInbox && !project.data.archived && projectParentId(product.projects, project) === parentId)
       .sort(compareProjects);
+  }
+
+  /** Validates a new parent for `project` (or for a project being created when `project` is undefined). */
+  function validParent(product: Product, parentId: string | null, project?: Project) {
+    if (parentId === null) return null;
+    const parent = product.projects.get(parentId);
+    if (!parent || parent.isInbox || parent.data.archived || (project && isProjectInSubtree(product.projects, project, parentId))) {
+      throw new ApiError(422, "INVALID_PARENT", "Escolha outro projeto principal.");
+    }
+    return parent.id;
+  }
+
+  /** Stores `parentId` on the project, without placing it among its new siblings. */
+  function storeParent(product: Product, original: Product, project: Project, parentId: string | null) {
+    if ((project.data.parentId ?? null) === parentId) return project;
+    const { parentId: _previous, ...data } = project.data;
+    const updated = nextRevision(original.projects, { ...project, data: parentId ? { ...data, parentId } : data });
+    product.projects.set(updated.id, updated);
+    return updated;
+  }
+
+  /** Moves the project under `parentId`, at the end of its new siblings when the parent changes. */
+  function changeParent(product: Product, original: Product, project: Project, parentId: string | null) {
+    if (projectParentId(product.projects, project) === parentId) return storeParent(product, original, project, parentId);
+    const moved = storeParent(product, original, project, parentId);
+    placeInOrder(siblingProjects(product, parentId), moved, {}, original.projects, (record) => product.projects.set(record.id, record));
+    return product.projects.get(moved.id)!;
   }
 
   function getNavigation(access: Access) {
@@ -21,7 +57,7 @@ export function createProjectsService<Access>({ allocateId, mutateProduct, readP
       return {
         inbox: { projectId: inbox.id, activeCount: summary.projectCounts.get(inbox.id) ?? 0 },
         todayCount: summary.todayCount,
-        projects: projectSummaries(orderedProjects(summary, false), summary.projectCounts),
+        projects: projectSummaries(summary.projects, orderedProjects(summary, false), summary.projectCounts),
         archivedCount: orderedProjects(summary, true).length,
         labels: labelSummaries(summary.labels.values(), summary.labelCounts),
         referenceDate: calendar!.referenceDate,
@@ -31,7 +67,7 @@ export function createProjectsService<Access>({ allocateId, mutateProduct, readP
 
   function listProjects(access: Access, status: "active" | "archived") {
     return readProductSummary(access, `projects:${status}`, (summary) => ({
-      projects: projectSummaries(orderedProjects(summary, status === "archived"), summary.projectCounts),
+      projects: projectSummaries(summary.projects, orderedProjects(summary, status === "archived"), summary.projectCounts),
     }));
   }
 
@@ -42,28 +78,34 @@ export function createProjectsService<Access>({ allocateId, mutateProduct, readP
 
   type NamedDetails = Pick<SectionPayload, "name" | "description">;
   type ProjectDetails = Pick<ProjectPayload, "name" | "description" | "color" | "icon">;
+  type ParentChoice = { parentId?: string | null };
 
-  function createProject(access: Access, details: ProjectDetails) {
+  function createProject(access: Access, { parentId = null, ...details }: ProjectDetails & ParentChoice) {
     const id = allocateId(access, 0);
-    return mutateProduct(access, (product) => {
+    return mutateProduct(access, (product, original) => {
       if (product.projects.has(id)) throw new ApiError(409, "DESKTOP_ID_UNAVAILABLE", "O identificador já foi usado.");
+      const parent = validParent(product, parentId);
       const createdAt = product.now.toString();
       const project = { id, revision: 1, isInbox: false, data: { ...details, createdAt, archived: false, view: defaultsForView } };
       product.projects.set(id, project);
-      return projectSummary(product, project);
+      // A child goes to the end of its parent's children; a top-level project keeps the creation order.
+      return projectSummary(product, parent ? changeParent(product, original, project, parent) : project);
     });
   }
 
   function editProject(
-    access: Access, id: string, revision: number, patch: Partial<ProjectDetails & Pick<ProjectPayload, "defaultSectionName">>,
+    access: Access, id: string, revision: number,
+    { parentId, ...patch }: Partial<ProjectDetails & Pick<ProjectPayload, "defaultSectionName">> & ParentChoice,
   ) {
     return mutateProduct(access, (product, original) => {
       const current = visibleRecord(product.projects, id);
       protectInbox(current);
       writableProject(current);
       requireRevision(current, revision, () => projectSummary(product, current));
-      const project = nextRevision(original.projects, { ...current, data: { ...current.data, ...patch } });
+      const parent = parentId === undefined ? undefined : validParent(product, parentId, current);
+      let project = nextRevision(original.projects, { ...current, data: { ...current.data, ...patch } });
       product.projects.set(id, project);
+      if (parent !== undefined) project = changeParent(product, original, project, parent);
       return projectSummary(product, project);
     });
   }
@@ -91,18 +133,20 @@ export function createProjectsService<Access>({ allocateId, mutateProduct, readP
     });
   }
 
-  function moveProject(access: Access, id: string, anchor: OrderAnchor) {
+  function moveProject(access: Access, id: string, { parentId, ...anchor }: ProjectMove) {
     return mutateProduct(access, (product, original) => {
-      const project = writableProject(visibleRecord(product.projects, id));
+      let project = writableProject(visibleRecord(product.projects, id));
       protectInbox(project);
-      const projectIds = placeInOrder(orderedProjects(product, false), project, anchor, original.projects,
+      const parent = parentId === undefined ? projectParentId(product.projects, project) : validParent(product, parentId, project);
+      project = storeParent(product, original, project, parent);
+      placeInOrder(siblingProjects(product, parent), project, anchor, original.projects,
         (record) => product.projects.set(record.id, record));
-      return { projectIds };
+      return { projectIds: orderedProjects(product, false).map((record) => record.id) };
     });
   }
 
   function deleteProject(access: Access, id: string, revision: number) {
-    return mutateProduct(access, (product) => {
+    return mutateProduct(access, (product, original) => {
       const project = visibleRecord(product.projects, id);
       protectInbox(project);
       requireRevision(project, revision, () => projectSummary(product, project));
@@ -112,6 +156,12 @@ export function createProjectsService<Access>({ allocateId, mutateProduct, readP
       }
       for (const section of orderedSections(product, id)) product.sections.delete(section.id);
       product.projects.delete(id);
+      // Children move up to the top level instead of pointing at a missing parent.
+      for (const child of [...product.projects.values()]) {
+        if (child.data.parentId !== id) continue;
+        const { parentId: _parentId, ...data } = child.data;
+        product.projects.set(child.id, nextRevision(original.projects, { ...child, data }));
+      }
     });
   }
 

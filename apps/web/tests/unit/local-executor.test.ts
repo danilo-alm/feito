@@ -130,6 +130,76 @@ describe("executor local: projetos e seções", () => {
   });
 });
 
+describe("executor local: projetos principais", () => {
+  type Summary = Entity & { name: string; parentId: string | null };
+  const navProjects = async () => ((await call("GET", "/navigation")).body as { projects: Summary[] }).projects;
+  const tree = async () => (await navProjects()).map((project) => [project.name, project.parentId]);
+  const revision = (id: string) => workspace.projects.find((project) => project.id === id)!.revision;
+  let minute = 0;
+  const project = async (name: string, parentId?: string) => (await call("POST", "/projects", { name, parentId },
+    { authoredAt: `2026-03-10T12:${String(++minute).padStart(2, "0")}:00Z` })).body as Summary;
+
+  it("cria subprojetos, mostra cada pai seguido dos filhos e move entre níveis", async () => {
+    const [a, b] = [await project("A"), await project("B")];
+    const a1 = await project("A1", a.id);
+    expect(a1).toMatchObject({ parentId: a.id });
+    expect(await tree()).toEqual([["A", null], ["A1", a.id], ["B", null]]);
+
+    // Arrastar B um pouco para a direita, logo abaixo de A1: vira filho de A, depois de A1.
+    expect((await call("POST", `/projects/${b.id}/move`, { parentId: a.id, afterId: a1.id })).body)
+      .toEqual({ projectIds: [a.id, a1.id, b.id] });
+    expect(await tree()).toEqual([["A", null], ["A1", a.id], ["B", a.id]]);
+    // Sem parentId, o movimento mantém o pai.
+    await call("POST", `/projects/${b.id}/move`, { beforeId: a1.id });
+    expect(await tree()).toEqual([["A", null], ["B", a.id], ["A1", a.id]]);
+    // Netos: A1 dentro de B, e B volta ao topo levando A1.
+    await call("POST", `/projects/${a1.id}/move`, { parentId: b.id });
+    await call("POST", `/projects/${b.id}/move`, { parentId: null, beforeId: a.id });
+    expect(await tree()).toEqual([["B", null], ["A1", b.id], ["A", null]]);
+
+    expect(code(await call("POST", `/projects/${b.id}/move`, { parentId: a1.id }))).toBe("INVALID_PARENT");
+    expect(code(await call("POST", `/projects/${b.id}/move`, { parentId: b.id }))).toBe("INVALID_PARENT");
+    expect(code(await call("POST", `/projects/${a.id}/move`, { parentId: b.id, beforeId: a.id }))).toBe("INVALID_ANCHOR");
+    expect(code(await call("POST", `/projects/${a.id}/move`, { parentId: missing }))).toBe("INVALID_PARENT");
+    const inbox = workspace.projects.find((project) => project.isInbox)!;
+    expect(code(await call("POST", "/projects", { name: "X", parentId: inbox.id }))).toBe("INVALID_PARENT");
+    expect(await tree()).toEqual([["B", null], ["A1", b.id], ["A", null]]);
+  });
+
+  it("troca o projeto principal na edição e solta os filhos ao arquivar ou excluir o pai", async () => {
+    const [a, b] = [await project("A"), await project("B")];
+    const c = await project("C");
+    const edited = await call("PATCH", `/projects/${c.id}`, { revision: revision(c.id), parentId: a.id });
+    expect(edited.body).toMatchObject({ parentId: a.id });
+    expect(code(await call("PATCH", `/projects/${a.id}`, { revision: revision(a.id), parentId: c.id }))).toBe("INVALID_PARENT");
+    expect(await tree()).toEqual([["A", null], ["C", a.id], ["B", null]]);
+    // A página do projeto não expõe a hierarquia, que vem da navegação.
+    expect((await call("GET", `/projects/${c.id}`)).body).not.toHaveProperty("project.parentId");
+
+    await call("POST", `/projects/${a.id}/archive`, { revision: revision(a.id) });
+    expect(await tree()).toEqual([["C", null], ["B", null]]);
+    expect(code(await call("PATCH", `/projects/${b.id}`, { revision: revision(b.id), parentId: a.id }))).toBe("INVALID_PARENT");
+    await call("POST", `/projects/${a.id}/unarchive`, { revision: revision(a.id) });
+    expect(await tree()).toEqual([["A", null], ["C", a.id], ["B", null]]);
+
+    await call("PATCH", `/projects/${c.id}`, { revision: revision(c.id), parentId: null });
+    await call("PATCH", `/projects/${b.id}`, { revision: revision(b.id), parentId: c.id });
+    expect((await call("DELETE", `/projects/${c.id}?revision=${revision(c.id)}`)).status).toBe(204);
+    expect(workspace.projects.find((project) => project.id === b.id)!.data).not.toHaveProperty("parentId");
+    expect(await tree()).toEqual([["A", null], ["B", null]]);
+  });
+
+  it("deixa no topo os projetos de um ciclo vindo de dados mesclados", async () => {
+    const [a, b] = [await project("A"), await project("B")];
+    workspace = {
+      ...workspace,
+      projects: workspace.projects.map((project) => project.id === a.id ? { ...project, data: { ...project.data, parentId: b.id } }
+        : project.id === b.id ? { ...project, data: { ...project.data, parentId: a.id } } : project),
+    };
+    expect(await tree()).toEqual([["A", null], ["B", null]]);
+  });
+});
+
 describe("executor local: etiquetas", () => {
   it("reordena projetos ativos e mantém os novos no fim", async () => {
     const at = (minute: number) => ({ authoredAt: `2026-03-10T12:0${minute}:00Z` });

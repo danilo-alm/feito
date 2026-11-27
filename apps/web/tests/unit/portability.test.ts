@@ -52,6 +52,32 @@ describe("portable document", () => {
     expect(parse(inboxWith("board")).errors.map(({ path }) => path)).toContain("projects");
   });
 
+  it("keeps parent projects through export and restore and rejects parents outside the document", async () => {
+    const { handleLocal, newWorkspace } = await import("@feito/core/product/local-executor");
+    const { exportLocalWorkspace, restoreLocalWorkspace } = await import("@feito/core/portability/local");
+    let workspace = newWorkspace();
+    const create = async (body: unknown) => {
+      const result = await handleLocal(workspace, { method: "POST", path: "/projects", body });
+      workspace = result.workspace;
+      return result.body as { id: string };
+    };
+    const parent = await create({ name: "Casa" });
+    await create({ name: "Cozinha", parentId: parent.id });
+    const file = exportLocalWorkspace(workspace).document;
+    const exported = file.projects.find((project) => project.name === "Cozinha")!;
+    expect(exported.parentId).toBe(file.projects.find((project) => project.name === "Casa")!.id);
+    expect(parse(file).errors).toEqual([]);
+
+    const restored = restoreLocalWorkspace(newWorkspace(), file);
+    const ids = new Map(restored.projects.map((project) => [project.data.name, project.id]));
+    expect(restored.projects.find((project) => project.id === ids.get("Cozinha"))!.data.parentId).toBe(ids.get("Casa"));
+
+    for (const parentId of ["missing", file.projects.find((project) => project.isInbox)!.id, exported.id]) {
+      const broken = { ...file, projects: file.projects.map((project) => project === exported ? { ...project, parentId } : project) };
+      expect(parse(broken).errors.map(({ path }) => path)).toContain(`projects.${file.projects.indexOf(exported)}.parentId`);
+    }
+  });
+
   it("defaults missing project and section descriptions in older v1 files", () => {
     const file = emptyDocument();
     const { description: _description, ...inbox } = file.projects[0];

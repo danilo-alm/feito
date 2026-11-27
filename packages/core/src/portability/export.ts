@@ -46,7 +46,11 @@ export function exportDocument(product: Product, settings: Preferences, occurren
     schemaVersion,
     exportedAt: product.now.toString(),
     preferences: settings,
-    projects: projects.map((project) => ({ id: projectIds.get(project.id)!, isInbox: project.isInbox, ...project.data })),
+    projects: projects.map(({ id, isInbox, data: { parentId, ...data } }) => ({
+      id: projectIds.get(id)!, isInbox, ...data,
+      // A parent missing from the export (never expected) leaves the project at the top level.
+      ...parentId && projectIds.has(parentId) ? { parentId: projectIds.get(parentId)! } : {},
+    })),
     sections: sections.map((section) => ({
       id: sectionIds.get(section.id)!, projectId: projectIds.get(section.projectId)!, ...section.data,
     })),

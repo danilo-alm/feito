@@ -4,9 +4,11 @@ import { mockDesktop, newPortugueseWorkspace, test } from "./fixtures";
 
 async function openApp(page: Page, path = "/#/hoje") {
   let workspace = newPortugueseWorkspace();
-  for (const [route, name] of [["/projects", "Casa"], ["/projects", "Trabalho"], ["/projects", "Viagem"],
-    ["/labels", "agora"], ["/labels", "depois"]]) {
-    const result = await handleLocal(workspace, { method: "POST", path: route, body: { name } });
+  for (const [index, [route, name]] of ([["/projects", "Casa"], ["/projects", "Trabalho"], ["/projects", "Viagem"],
+    ["/labels", "agora"], ["/labels", "depois"]] as const).entries()) {
+    // Instantes distintos: projetos criados no mesmo milissegundo empatariam e cairiam na ordem dos ids.
+    const authoredAt = `2026-03-10T12:0${index}:00Z`;
+    const result = await handleLocal(workspace, { method: "POST", path: route, body: { name }, authoredAt });
     expect(result.status).toBe(201);
     workspace = result.workspace;
   }
@@ -69,6 +71,61 @@ test("reordena projetos e etiquetas da barra lateral com o mouse, o teclado e o 
 
   await page.keyboard.press("Control+1");
   await expect(page.getByRole("heading", { name: "Viagem", level: 1 })).toBeVisible();
+});
+
+/** Projeto principal de cada projeto salvo pela ponte nativa simulada, por nome. */
+async function savedParents(page: Page) {
+  return page.evaluate(async () => {
+    const internals = (window as unknown as { __TAURI_INTERNALS__: { invoke: (command: string) => Promise<{
+      value: { local: { projects: { id: string; isInbox: boolean; data: { name: string; parentId?: string } }[] } };
+    }> } }).__TAURI_INTERNALS__;
+    const { value } = await internals.invoke("read_workspace");
+    const projects = value.local.projects.filter((project) => !project.isInbox);
+    return Object.fromEntries(projects.filter((project) => project.data.parentId).map((project) =>
+      [project.data.name, projects.find((parent) => parent.id === project.data.parentId)?.data.name]));
+  });
+}
+
+test("aninha projetos arrastando um pouco para a direita e muda o nível pelo teclado, pelo menu e pela edição", async ({ page }) => {
+  await openApp(page);
+  const row = (name: string) => sidebarProjects(page).filter({ hasText: name });
+  await expect(sidebarProjects(page)).toHaveText(["Casa", "Trabalho", "Viagem"]);
+
+  // Arrastar Viagem um pouco para a direita no mesmo lugar: a linha de destino recua e Viagem vira filho de Trabalho.
+  const from = (await row("Viagem").boundingBox())!;
+  await page.mouse.move(from.x + 30, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 60, from.y + from.height / 2 + 2, { steps: 12 });
+  await expect(page.locator("nav.side .proj-row.drag-src")).toHaveAttribute("style", /--depth: 1/);
+  await page.mouse.up();
+  await expect(page.locator(".drag-overlay")).toHaveCount(0);
+  await expect(row("Viagem")).toHaveAttribute("style", /--depth: 1/);
+  await expect.poll(() => savedParents(page)).toEqual({ Viagem: "Trabalho" });
+
+  const viagem = row("Viagem").getByRole("link");
+  await viagem.focus();
+  await page.keyboard.press("Alt+ArrowLeft");
+  await expect(row("Viagem")).not.toHaveAttribute("style", /--depth/);
+  await expect(viagem).toBeFocused();
+  await page.keyboard.press("Alt+ArrowRight");
+  await expect(row("Viagem")).toHaveAttribute("style", /--depth: 1/);
+  await expect.poll(() => savedParents(page)).toEqual({ Viagem: "Trabalho" });
+
+  await row("Viagem").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Tirar de “Trabalho”" }).click();
+  await expect(row("Viagem")).not.toHaveAttribute("style", /--depth/);
+  await expect.poll(() => savedParents(page)).toEqual({});
+
+  await row("Trabalho").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Editar projeto" }).click();
+  const dialog = page.getByRole("dialog", { name: "Editar projeto" });
+  await dialog.getByRole("button", { name: /Projeto principal/ }).click();
+  await expect(page.getByRole("option")).toHaveText(["Nenhum", "Casa", "Viagem"]);
+  await page.getByRole("option", { name: "Casa" }).click();
+  await dialog.getByRole("button", { name: "Salvar" }).click();
+  await expect(sidebarProjects(page)).toHaveText(["Casa", "Trabalho", "Viagem"]);
+  await expect(row("Trabalho")).toHaveAttribute("style", /--depth: 1/);
+  await expect.poll(() => savedParents(page)).toEqual({ Trabalho: "Casa" });
 });
 
 test.describe("aba Navegar no celular", () => {

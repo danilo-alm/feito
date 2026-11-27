@@ -22,7 +22,7 @@ SELECT json_object(
             'name', project.name, 'defaultSectionName', project.default_section_name,
             'description', project.description, 'color', project.color, 'icon', project.icon,
             'archived', json(IIF(project.archived, 'true', 'false')), 'view', json(project.view), 'createdAt', project.created_at
-        ), json_object('position', project.position))
+        ), json_object('position', project.position, 'parentId', project.parent_id))
     )),
     'sections', json((
         SELECT json_group_array(json_object(

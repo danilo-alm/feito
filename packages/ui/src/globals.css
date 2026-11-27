@@ -79,6 +79,21 @@ h1,h2,h3,p{margin:0}
 .nav .count{margin-left:auto;min-width:var(--nav-end-size);text-align:center;font-size:12px;color:var(--muted);font-weight:500}
 .nav-label{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;color:var(--muted);padding:18px 10px 6px}
 .proj-row{position:relative}
+/* Subprojetos: cada nível recua a linha; na linha em arraste, o recuo mostra o nível em que o projeto vai cair. */
+.proj-row[style*="--depth"]{padding-inline-start:calc(var(--nav-end-inset) + var(--depth) * var(--tree-indent))}
+.side,.browse{--tree-indent:18px}
+/* Na árvore, o lugar de destino encolhe para uma linha de inserção que começa no recuo do nível de destino:
+   ela anda para a direita quando o projeto vai virar subprojeto do que fica acima. */
+.tree-row.drag-src{opacity:1;--drop-left:calc(var(--depth,0) * var(--tree-indent))}
+.proj-row.tree-row.drag-src{min-height:12px;background:none}
+.proj-row.tree-row.drag-src>*,.b-group li.tree-row.drag-src>.b-row{display:none}
+.b-group li.tree-row{position:relative}
+.b-group li.tree-row.drag-src{height:12px}
+.tree-row.drag-src::before,.tree-row.drag-src::after{content:"";position:absolute;z-index:1000;top:50%;pointer-events:none;transition:left var(--dur-fast) var(--ease-out)}
+.tree-row.drag-src::before{left:calc(var(--drop-left) + 12px);right:8px;height:2px;margin-top:-1px;border-radius:2px;background:var(--brand)}
+.tree-row.drag-src::after{left:calc(var(--drop-left) + 4px);width:8px;height:8px;margin-top:-4px;border-radius:50%;box-sizing:border-box;border:2px solid var(--brand)}
+.b-group li.tree-row.drag-src::before{left:calc(var(--drop-left) + 24px)}
+.b-group li.tree-row.drag-src::after{left:calc(var(--drop-left) + 16px)}
 .proj-row .proj-link{display:flex;align-items:center;gap:10px;flex:1;min-width:0;color:inherit;text-decoration:none}
 .proj-row:not(:has(.count,.project-shortcut)) .proj-link{padding-inline-end:34px}
 /* O link cobre todo o destaque; o botão de ações permanece acima dele. */
@@ -596,6 +611,8 @@ body:has(.drag-overlay) {user-select:none;-webkit-user-select:none}
 .browse{display:flex;flex-direction:column;gap:8px;max-width:640px;margin:0 auto;padding-top:4px}
 .b-group{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
 .b-group li+li .b-row::before{content:"";position:absolute;top:0;left:52px;right:0;border-top:1px solid var(--border)}
+.b-group li[style*="--depth"] .b-row{padding-left:calc(16px + var(--depth) * var(--tree-indent))}
+.b-group li[style*="--depth"] .b-row::before{left:calc(52px + var(--depth) * var(--tree-indent))}
 .b-row{position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:52px;padding:0 14px 0 16px;border:0;background:none;color:var(--text);font:inherit;font-size:16px;text-align:left;cursor:pointer}
 .b-row:hover,.b-row:active{background:var(--hover)}
 .b-row:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:16px}
@@ -646,6 +663,8 @@ body:has(.drag-overlay) {user-select:none;-webkit-user-select:none}
 .ps-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;padding:8px;max-height:min(260px,var(--pop-max,260px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
 .ps-list::-webkit-scrollbar,.ps-grid::-webkit-scrollbar{display:none}
 .ps-option.on{background:var(--hover);font-weight:600}
+.ps-option[style*="--depth"]{padding-inline-start:calc(10px + var(--depth) * 16px)}
+.ps-option .ps-value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ps-check{width:16px;display:grid;place-items:center}
 .ps-check svg{color:var(--text)}
 .ps-glyph{display:grid;place-items:center;aspect-ratio:1;border:0;border-radius:8px;background:none;padding:0}

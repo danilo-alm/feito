@@ -972,5 +972,11 @@
   "Tarefas": "Aufgaben",
   "Fechar painel {0}": "Bereich {0} schließen",
   "Arraste para um horário para reagendar.": "Auf eine Uhrzeit ziehen, um neu zu planen.",
-  "Nenhuma tarefa atrasada.": "Keine überfälligen Aufgaben."
+  "Nenhuma tarefa atrasada.": "Keine überfälligen Aufgaben.",
+  "Projeto principal": "Übergeordnetes Projekt",
+  "Tornar subprojeto do anterior": "Zum Unterprojekt des vorherigen machen",
+  "Tirar de “{0}”": "Aus „{0}“ herausnehmen",
+  "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.": "Zum Umsortieren ohne Ziehen Alt und die Pfeiltasten verwenden. Alt mit den Pfeiltasten nach links und rechts ändert das übergeordnete Projekt.",
+  "Escolha outro projeto principal.": "Wähle ein anderes übergeordnetes Projekt.",
+  "O projeto principal precisa ser outro projeto comum do documento.": "Das übergeordnete Projekt muss ein anderes normales Projekt im Dokument sein."
 }

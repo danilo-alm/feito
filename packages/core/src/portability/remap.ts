@@ -21,8 +21,9 @@ export function remapForImport(
   ], allocateId, true);
 
   return {
-    projects: document.projects.map(({ id, isInbox, ...data }): Project => ({
-      id: projectIds.get(id)!, isInbox, revision: isInbox ? inboxRevision + 1 : 1, data,
+    projects: document.projects.map(({ id, isInbox, parentId, ...data }): Project => ({
+      id: projectIds.get(id)!, isInbox, revision: isInbox ? inboxRevision + 1 : 1,
+      data: parentId === undefined ? data : { ...data, parentId: projectIds.get(parentId)! },
     })),
     sections: document.sections.map(({ id, projectId, ...data }): Section => ({
       id: sectionIds.get(id)!, projectId: projectIds.get(projectId)!, revision: 1, data,

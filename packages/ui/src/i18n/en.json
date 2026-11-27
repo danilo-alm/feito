@@ -972,5 +972,11 @@
   "Tarefas": "Tasks",
   "Fechar painel {0}": "Close {0} panel",
   "Arraste para um horário para reagendar.": "Drag to a time to reschedule.",
-  "Nenhuma tarefa atrasada.": "No overdue tasks."
+  "Nenhuma tarefa atrasada.": "No overdue tasks.",
+  "Projeto principal": "Parent project",
+  "Tornar subprojeto do anterior": "Make subproject of previous",
+  "Tirar de “{0}”": "Move out of “{0}”",
+  "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.": "To reorder without dragging, use Alt with the arrow keys. Alt with the left and right arrows changes the parent project.",
+  "Escolha outro projeto principal.": "Choose another parent project.",
+  "O projeto principal precisa ser outro projeto comum do documento.": "The parent project must be another regular project in the document."
 }

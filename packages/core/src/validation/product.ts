@@ -72,6 +72,7 @@ export const projectPayload = z.strictObject({
   view: projectView,
   createdAt: instant.default("1970-01-01T00:00:00Z"),
   position: position.optional(),
+  parentId: entityId.optional(),
 });
 export const sectionPayload = z.strictObject({ name, description: description.default(""), position });
 export const labelPayload = z.strictObject({ name, position: position.optional() });
@@ -95,11 +96,13 @@ export const editNamedDetailsInput = z.strictObject({ revision, name: name.optio
 export const createProjectInput = createNamedDetailsInput.extend({
   color: projectColor.nullable().default(null),
   icon: projectIcon.default("hash"),
+  parentId: entityId.nullable().default(null),
 });
 export const editProjectInput = z.strictObject({
   revision, name: name.optional(), description: description.optional(),
   defaultSectionName,
   color: projectColor.nullable().optional(), icon: projectIcon.optional(),
+  parentId: entityId.nullable().optional(),
 }).refine((input) => Object.keys(input).length > 1);
 export const revisionInput = z.strictObject({ revision });
 export const projectViewPatch = projectView.partial();
@@ -121,6 +124,10 @@ export const sectionMoveInput = z.strictObject({ revision, ...sectionAnchor })
 // Projects and labels: place the record before or after a sibling, or at the end without an anchor.
 export const orderMoveInput = z.strictObject({ beforeId: entityId.optional(), afterId: entityId.optional() })
   .refine((input) => !(input.beforeId && input.afterId), { path: ["beforeId"] });
+// Projects can also change parent: `parentId: null` moves to the top level, absent keeps the parent.
+export const projectMoveInput = z.strictObject({
+  beforeId: entityId.optional(), afterId: entityId.optional(), parentId: entityId.nullable().optional(),
+}).refine((input) => !(input.beforeId && input.afterId), { path: ["beforeId"] });
 
 const taskFields = {
   title: title.optional(),

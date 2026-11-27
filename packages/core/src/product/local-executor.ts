@@ -8,7 +8,7 @@ import { preferencesPatch } from "../validation/preferences";
 import {
   completeTaskInput, createProjectInput, createSectionInput, createTaskInput, deleteQuery, editNameInput,
   editNamedDetailsInput, editProjectInput, editTaskInput, entityId, labelTasksQuery, nameInput, projectListQuery,
-  orderMoveInput, projectPageQuery, projectViewPatch, revisionInput, searchInput, sectionMoveInput, setRecurrenceInput,
+  orderMoveInput, projectMoveInput, projectPageQuery, projectViewPatch, revisionInput, searchInput, sectionMoveInput, setRecurrenceInput,
   taskDeleteQuery, taskMoveInput, todayQuery, undoTaskCompletionInput, upcomingQuery,
 } from "../validation/product";
 import { createAgendaService } from "./agenda";
@@ -179,7 +179,7 @@ async function projectRoute({ access, method, url, body }: RouteRequest, idText?
   if (action === "view" && method === "PATCH") {
     return json(await updateProjectView(access, id, parse(projectViewPatch, body)));
   }
-  if (action === "move" && method === "POST") return json(await moveProject(access, id, parse(orderMoveInput, body)));
+  if (action === "move" && method === "POST") return json(await moveProject(access, id, parse(projectMoveInput, body)));
   if (action === "share" && method === "GET") return json({ enabled: false, token: null });
   if (!action) {
     if (method === "GET") return json(await getProject(access, id, parse(projectPageQuery, query).includeCompleted));
