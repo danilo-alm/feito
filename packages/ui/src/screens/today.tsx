@@ -8,7 +8,7 @@ import { useQuery } from "../client/store";
 import type { TodayView } from "@feito/core/types";
 import { PageHeader, PageTaskCount } from "../components/chrome";
 import { FlatGroup } from "../components/flat-list";
-import { IconCheck, IconPlus } from "../components/icons";
+import { IconCheck, IconPlus, IconToday } from "../components/icons";
 import { useTaskActions } from "../components/task-actions";
 import { AddTaskSlot } from "../components/task-editor";
 import { ReadFallback, useIsMobile, useIsPhone } from "../components/ui";
@@ -42,7 +42,7 @@ export default function TodayPage() {
       <div className={wide ? "project-content" : "content"}>
         <div className={wide ? "project-head" : "col"} style={wide ? { padding: "4px 32px 0" } : undefined}>
           <div className="page-h">
-            <h1 className="title">{t("Hoje")}</h1>
+            <h1 className="title nav-title"><IconToday />{t("Hoje")}</h1>
             {data && <PageTaskCount count={total} />}
           </div>
           {!data && <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} />}

@@ -124,6 +124,8 @@ h1,h2,h3,p{margin:0}
 .col{max-width:780px;margin:0 auto}
 .page-h{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin:8px 0 6px}
 .title{font-size:26px;font-weight:700;letter-spacing:-.015em;line-height:1.2}
+.nav-title{display:flex;align-items:center;gap:10px}
+.nav-title svg{width:26px;height:26px;color:var(--brand-text)}
 .sub{font-size:13px;color:var(--muted)}
 .page-count{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
 .page-count svg{width:14px;height:14px}

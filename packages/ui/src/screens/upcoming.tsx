@@ -10,7 +10,7 @@ import { useApp } from "../components/app";
 import { PageHeader, PageTaskCount } from "../components/chrome";
 import { FlatGroup } from "../components/flat-list";
 import { CreateSlot, useStartCreate } from "../components/task-editor";
-import { IconChevronLeft, IconChevronRight, IconPlus } from "../components/icons";
+import { IconChevronLeft, IconChevronRight, IconPlus, IconUpcoming } from "../components/icons";
 import { useTaskActions } from "../components/task-actions";
 import { ReadFallback, useIsMobile, useIsPhone } from "../components/ui";
 import { AgendaLayout, AgendaViewMenu, isWideAgenda, useAgendaLayout } from "../components/agenda-view";
@@ -46,7 +46,7 @@ export default function UpcomingPage() {
       <PageHeader crumb={t("Próximos sete dias")} title={t("Em breve")} tools={<>{nav}{viewMenu}</>} />
       <div className={wide ? "project-content" : "content"}>
         <div className={wide ? "project-head" : "col"} style={wide ? { padding: "4px 32px 0" } : undefined}>
-          <div className="page-h"><h1 className="title">{t("Em breve")}</h1>{data && <PageTaskCount count={data.days.reduce((sum, day) => sum + day.tasks.length, 0)} />}</div>
+          <div className="page-h"><h1 className="title nav-title"><IconUpcoming />{t("Em breve")}</h1>{data && <PageTaskCount count={data.days.reduce((sum, day) => sum + day.tasks.length, 0)} />}</div>
           {!wide && <div className="week" role="list" aria-label={t("Dias da semana")}>
             {Array.from({ length: 7 }, (_, index) => addDays(first, index)).map((date) => {
               const { weekday, day } = dayParts(date);

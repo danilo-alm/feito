@@ -25,7 +25,7 @@ import { refreshProjects, useApp } from "./app";
 import { PageHeader, PageTaskCount } from "./chrome";
 import { LONG_PRESS_TOLERANCE, listenPointer, pointerX, pointerY, startX, swallowReleaseClick, useTouchScrollGuard } from "./drag-pointer";
 import { Collapse, flipFrom, motionMs, refreshFlip } from "./motion";
-import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconMore, IconPlus, IconDownload, IconTrash, IconUpload } from "./icons";
+import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconInbox, IconMore, IconPlus, IconDownload, IconTrash, IconUpload } from "./icons";
 import { useExportDialog, useImportDialog } from "./import-export-dialogs";
 import { NamedDetailsForm, useProjectDetailsDialog } from "./named-details";
 import { colorValue, Glyph } from "./project-style";
@@ -625,7 +625,9 @@ function ProjectHeading({ project, titleRef }: { project: ProjectPage["project"]
 
   if (project.isInbox || project.status === "archived") {
     return <>
-      <div ref={titleRef}><h1 className="title">{project.isInbox ? t("Entrada") : project.name}</h1></div>
+      <div ref={titleRef}>{project.isInbox
+        ? <h1 className="title nav-title"><IconInbox />{t("Entrada")}</h1>
+        : <h1 className="title">{project.name}</h1>}</div>
       {!project.isInbox && project.description && <p className="project-description">{project.description}</p>}
     </>;
   }
