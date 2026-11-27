@@ -1,6 +1,6 @@
 {
   "name": "@feito/web",
-  "version": "0.4.0-beta",
+  "version": "0.5.0-beta",
   "private": true,
   "scripts": {
     "dev": "node scripts/build-sqlite.mjs --dev && next dev --experimental-https --hostname 127.0.0.1",
