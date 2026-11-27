@@ -18,28 +18,38 @@ type AgendaKey = "todayLayout" | "upcomingLayout";
 /** Grupo fixo de uma agenda: “Atrasadas” ou um dia. O usuário não edita os grupos, só vê as tarefas neles. */
 export type AgendaGroup = { key: string; title: string; tasks: TaskItem[]; date?: string; late?: boolean };
 
-/** Layout de Hoje ou Em breve, guardado nas preferências da conta e aplicado na hora. */
+/** Layout de uma agenda; Hoje também tem a Linha do dia. */
+export type AgendaView = Layout | "timeline";
+
+/** Layout de Hoje ou Em breve, guardado nas preferências da conta e aplicado na hora. Hoje abre na Linha do dia. */
 export function useAgendaLayout(key: AgendaKey) {
   const app = useApp();
-  const layout: Layout = app.me.preferences[key] ?? "list";
-  const setLayout = (next: Layout) => {
+  const preferences = app.me.preferences;
+  const timeline = key === "todayLayout" && preferences.todayTimeline !== false;
+  const layout: AgendaView = timeline ? "timeline" : preferences[key] ?? "list";
+  const setLayout = (next: AgendaView) => {
     if (next === layout) return;
-    const patch: Partial<Preferences> = { [key]: next };
-    const apply = (value: Layout) =>
-      setQueryData<Me>("me", (me) => me && { ...me, preferences: { ...me.preferences, [key]: value } });
-    apply(next);
+    const patch: Partial<Preferences> = next === "timeline" ? { todayTimeline: true }
+      : key === "todayLayout" ? { todayLayout: next, todayTimeline: false } : { [key]: next };
+    const previous: Partial<Preferences> = { [key]: preferences[key], todayTimeline: preferences.todayTimeline };
+    const apply = (values: Partial<Preferences>) =>
+      setQueryData<Me>("me", (me) => me && { ...me, preferences: { ...me.preferences, ...values } });
+    apply(patch);
     void app.run(() => api.preferences(patch)).then((saved) => {
       if (saved) setQueryData<Me>("me", (me) => me && { ...me, preferences: saved });
-      else apply(layout);
+      else apply(previous);
     });
   };
   return [layout, setLayout] as const;
 }
 
 /** Botão Mostrar das agendas: só o layout, com os dias como grupos. */
-export function AgendaViewMenu({ layout, onChange }: { layout: Layout; onChange: (layout: Layout) => void }) {
-  const view: ProjectView = { layout, sortMode: "date", showCompleted: false };
-  return <ViewMenu view={view} scope="agenda" onChange={(patch) => patch.layout && onChange(patch.layout)} />;
+export function AgendaViewMenu({ layout, onChange, withTimeline = false }: {
+  layout: AgendaView; onChange: (layout: AgendaView) => void; withTimeline?: boolean;
+}) {
+  const view: ProjectView = { layout: layout === "timeline" ? "list" : layout, sortMode: "date", showCompleted: false };
+  return <ViewMenu view={view} scope="agenda" onChange={(patch) => patch.layout && onChange(patch.layout)}
+    timeline={withTimeline ? { on: layout === "timeline", onPick: () => onChange("timeline") } : undefined} />;
 }
 
 /** Quadro somente leitura: uma coluna por grupo da agenda. */
@@ -70,7 +80,7 @@ function AgendaBoard({ groups, actions }: { groups: AgendaGroup[]; actions: Acti
 }
 
 /** Layouts que ocupam a largura toda; a Lista é a própria tela, e no celular a Tabela vira Lista, como nos projetos. */
-export function isWideAgenda(layout: Layout, phone: boolean) {
+export function isWideAgenda(layout: AgendaView, phone: boolean): layout is Layout {
   return layout === "board" || layout === "calendar" || (layout === "table" && !phone);
 }
 

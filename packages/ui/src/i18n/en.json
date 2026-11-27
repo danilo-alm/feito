@@ -1019,5 +1019,10 @@
   "Botões, item ativo e foco nos temas do Feito. Os temas de editor usam a cor deles.": "Buttons, the active item and focus in the Feito themes. Editor themes use their own color.",
   "Feito Claro": "Feito Light",
   "Feito Escuro": "Feito Dark",
-  "Feito Preto": "Feito Black"
+  "Feito Preto": "Feito Black",
+  "Linha do dia": "Day timeline",
+  "Com horário": "Scheduled",
+  "Agora, {0}": "Now, {0}",
+  "Nada sem horário hoje.": "Nothing without a time today.",
+  "Nenhuma tarefa com horário hoje.": "No scheduled tasks today."
 }

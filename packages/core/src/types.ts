@@ -112,6 +112,8 @@ export type Preferences = {
   timezone: string; theme: Theme; locale?: Locale; todayLayout?: Layout; upcomingLayout?: Layout;
   // Ausentes: Feito Claro, Feito Escuro e destaque verde.
   lightTheme?: LightTheme; darkTheme?: DarkTheme; accent?: Accent;
+  // Hoje abre na Linha do dia, a menos que seja false (escolheu-se outro layout, guardado em todayLayout).
+  todayTimeline?: boolean;
 };
 export type User = { id: string; email: string };
 

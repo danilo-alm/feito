@@ -1019,5 +1019,10 @@
   "Botões, item ativo e foco nos temas do Feito. Os temas de editor usam a cor deles.": "Pulsanti, elemento attivo e focus nei temi Feito. I temi degli editor usano il loro colore.",
   "Feito Claro": "Feito Chiaro",
   "Feito Escuro": "Feito Scuro",
-  "Feito Preto": "Feito Nero"
+  "Feito Preto": "Feito Nero",
+  "Linha do dia": "Linea del giorno",
+  "Com horário": "Con orario",
+  "Agora, {0}": "Adesso, {0}",
+  "Nada sem horário hoje.": "Niente senza orario oggi.",
+  "Nenhuma tarefa com horário hoje.": "Nessuna attività con orario oggi."
 }

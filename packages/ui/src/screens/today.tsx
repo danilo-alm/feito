@@ -13,6 +13,7 @@ import { useTaskActions } from "../components/task-actions";
 import { AddTaskSlot } from "../components/task-editor";
 import { ReadFallback, useIsMobile, useIsPhone } from "../components/ui";
 import { AgendaLayout, AgendaViewMenu, isWideAgenda, useAgendaLayout, type AgendaGroup } from "../components/agenda-view";
+import { DayTimeline } from "../components/day-timeline";
 
 export default function TodayPage() {
   const t = useT();
@@ -25,7 +26,7 @@ export default function TodayPage() {
   const [layout, setLayout] = useAgendaLayout("todayLayout");
   const phone = useIsPhone();
   const wide = isWideAgenda(layout, phone);
-  const viewMenu = <AgendaViewMenu layout={layout} onChange={setLayout} />;
+  const viewMenu = <AgendaViewMenu layout={layout} onChange={setLayout} withTimeline />;
   const toggle = (
     <button type="button" className={`btn ghost${showDone ? " on" : ""}`} aria-pressed={showDone}
       style={{ color: showDone ? "var(--accent-text)" : "var(--text-2)" }} onClick={() => setShowDone((value) => !value)}>
@@ -40,13 +41,26 @@ export default function TodayPage() {
           {viewMenu}
         </>} />
       <div className={wide ? "project-content" : "content"}>
-        <div className={wide ? "project-head" : "col"} style={wide ? { padding: "4px 32px 0" } : undefined}>
+        <div className={wide ? "project-head" : layout === "timeline" ? "col col-wide" : "col"} style={wide ? { padding: "4px 32px 0" } : undefined}>
           <div className="page-h">
             <h1 className="title nav-title"><IconToday />{t("Hoje")}</h1>
             {data && <PageTaskCount count={total} />}
           </div>
           {!data && <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} />}
-          {data && !wide && (
+          {data && layout === "timeline" && (
+            <DayTimeline reference={data.referenceDate} actions={actions} mobile={mobile} overdue={data.overdue}
+              timed={[...data.today, ...showDone ? data.completedToday ?? [] : []].filter((task) => task.dueTime)}
+              untimed={[...data.today, ...showDone ? data.completedToday ?? [] : []].filter((task) => !task.dueTime)}
+              addTask={(
+                <AddTaskSlot slot="add:today" defaults={{ dueDate: data.referenceDate }}>
+                  {(start) => (
+                    <button type="button" className="add-task" data-flip="add:today" onClick={start}>
+                      <span className="plus"><IconPlus /></span>{t("Adicionar tarefa para hoje")}</button>
+                  )}
+                </AddTaskSlot>
+              )} />
+          )}
+          {data && !wide && layout !== "timeline" && (
             <>
               {data.overdue.length > 0 && <FlatGroup title={t("Atrasadas")} late count={data.overdue.length} tasks={data.overdue} actions={actions} />}
               <FlatGroup title={t("Hoje · {0}", [shortDate(data.referenceDate)])} count={data.today.length} tasks={data.today} actions={actions} timeOnly

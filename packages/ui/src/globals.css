@@ -1216,6 +1216,44 @@ html.dark .tooltip{background:var(--surface-raised);color:var(--text)}
 /* Movimento reduzido: sem animação. A desmontagem não depende de transitionend (motion.tsx usa timeout de 0). */
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
+
+/* ---------- Linha do dia (Hoje) ---------- */
+.col.col-wide{max-width:1080px;container-type:inline-size}
+.tl-wrap{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:28px;align-items:start;margin-top:4px}
+.tl-h{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:0 4px;font-size:14px;font-weight:700}
+.tl-h .count{min-width:20px;height:20px;padding:0 6px;box-sizing:border-box;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);display:inline-grid;place-items:center;font-size:11.5px;font-weight:600}
+.tl-grid{--tl-gutter:54px;position:relative}
+.tl-hour{position:absolute;left:0;right:0;display:flex;align-items:center;gap:10px;height:0}
+.tl-hour span{width:44px;flex:none;text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--text-3)}
+.tl-hour i{flex:1;height:1px;background:var(--line)}
+.tl-now{position:absolute;left:0;right:0;z-index:2;display:flex;align-items:center;gap:4px;height:0;pointer-events:none}
+.tl-now span{width:44px;flex:none;text-align:right;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent-text)}
+.tl-now b{width:8px;height:8px;border-radius:50%;background:var(--accent);margin-left:2px}
+.tl-now i{flex:1;height:2px;background:var(--accent)}
+.tl-block{container-type:inline-size;z-index:1;display:flex;align-items:center;gap:8px;min-height:40px;box-sizing:border-box;padding:0 10px 0 4px;border-radius:10px;
+  background:color-mix(in srgb,var(--proj) 13%,var(--surface));border:1px solid color-mix(in srgb,var(--proj) 32%,transparent);min-width:0}
+.tl-block .chk{margin:0}
+.tl-time{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--proj);flex:none}
+.tl-title{flex:1;min-width:0;border:0;background:none;padding:0;color:var(--text);font:inherit;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.tl-block.done-t .tl-title{color:var(--text-2);text-decoration:line-through}
+.tl-block:has(.chk.p1:not(.done)) .tl-title{font-weight:600}
+.tl-prio{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:700;color:var(--pc);flex:none}
+.tl-prio svg{width:13px;height:13px}
+.tl-prio svg.fill{fill:currentColor;stroke:currentColor}
+.tl-repeat{display:inline-flex;color:var(--text-2);flex:none}
+.tl-repeat svg,.tl-project svg{width:14px;height:14px}
+.tl-project{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2);white-space:nowrap;flex:none;max-width:40%;overflow:hidden}
+.tl-project>span{overflow:hidden;text-overflow:ellipsis}
+.tl-side{display:flex;flex-direction:column;gap:0}
+.tl-empty{padding:8px 4px 12px}
+/* Pouca largura: as colunas se empilham e o bloco estreito mostra só o ícone do projeto. */
+@container (max-width:760px){.tl-wrap{grid-template-columns:minmax(0,1fr)}}
+@container (max-width:340px){.tl-project>span{display:none}}
+.tl-mobile .tl-list{display:flex;flex-direction:column;gap:6px;margin:0 0 16px}
+.tl-mobile .tl-block{min-height:52px}
+.tl-now-row{display:flex;align-items:center;gap:6px;margin:2px 0}
+.tl-now-row span{font-size:11.5px;font-weight:700;color:var(--accent-text)}
+.tl-now-row i{flex:1;height:2px;background:var(--accent)}
 /* ---------- Seletor de fuso horário ---------- */
 .tz-trigger{min-width:220px;max-width:100%;cursor:pointer}
 .tz-trigger-text{display:flex;align-items:baseline;gap:8px;min-width:0;overflow:hidden}

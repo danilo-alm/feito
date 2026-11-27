@@ -1,8 +1,11 @@
 -- Appearance: the light and dark themes used by the theme mode, and the accent of the Feito themes.
+-- Also the day timeline as Today's default layout.
 -- All three are optional; when absent, the Feito themes and the green accent apply.
 ALTER TABLE preferences ADD COLUMN light_theme TEXT CHECK (light_theme IS NULL OR light_theme IN ('feito-light', 'catppuccin-latte', 'solarized-light'));
 ALTER TABLE preferences ADD COLUMN dark_theme TEXT CHECK (dark_theme IS NULL OR dark_theme IN ('feito-dark', 'feito-black', 'catppuccin-mocha', 'catppuccin-macchiato', 'monokai-pro-spectrum', 'dracula', 'nord', 'tokyo-night', 'gruvbox-dark', 'one-dark', 'rose-pine', 'solarized-dark'));
 ALTER TABLE preferences ADD COLUMN accent TEXT CHECK (accent IS NULL OR accent IN ('green', 'violet'));
+-- Today opens in the day timeline unless this is false (another layout was chosen).
+ALTER TABLE preferences ADD COLUMN today_timeline INTEGER CHECK (today_timeline IS NULL OR today_timeline IN (0, 1));
 
 DROP TRIGGER import_workspace_layer_insert;
 DROP TRIGGER save_workspace_layer_insert;
@@ -23,7 +26,7 @@ BEGIN
         OR (json_type(NEW.document, '$.comments') IS NOT NULL AND json_type(NEW.document, '$.comments') IS NOT 'array')
         THEN RAISE(ABORT, 'Invalid workspace document') END;
 
-    INSERT INTO preferences (space_id, layer, timezone, theme, locale, today_layout, upcoming_layout, light_theme, dark_theme, accent)
+    INSERT INTO preferences (space_id, layer, timezone, theme, locale, today_layout, upcoming_layout, light_theme, dark_theme, accent, today_timeline)
     VALUES (NEW.space_id, NEW.layer,
         json_extract(NEW.document, '$.preferences.timezone'),
         json_extract(NEW.document, '$.preferences.theme'),
@@ -32,7 +35,8 @@ BEGIN
         json_extract(NEW.document, '$.preferences.upcomingLayout'),
         json_extract(NEW.document, '$.preferences.lightTheme'),
         json_extract(NEW.document, '$.preferences.darkTheme'),
-        json_extract(NEW.document, '$.preferences.accent'));
+        json_extract(NEW.document, '$.preferences.accent'),
+        json_extract(NEW.document, '$.preferences.todayTimeline'));
 
     INSERT INTO projects (space_id, layer, id, revision, is_inbox, name,
         default_section_name, description, color, icon, archived, view, created_at, position, parent_id)
@@ -96,7 +100,7 @@ BEGIN
         OR (json_type(NEW.document, '$.comments') IS NOT NULL AND json_type(NEW.document, '$.comments') IS NOT 'array')
         THEN RAISE(ABORT, 'Invalid workspace document') END;
 
-    INSERT INTO preferences (space_id, layer, timezone, theme, locale, today_layout, upcoming_layout, light_theme, dark_theme, accent)
+    INSERT INTO preferences (space_id, layer, timezone, theme, locale, today_layout, upcoming_layout, light_theme, dark_theme, accent, today_timeline)
     VALUES (NEW.space_id, NEW.layer,
         json_extract(NEW.document, '$.preferences.timezone'),
         json_extract(NEW.document, '$.preferences.theme'),
@@ -105,7 +109,8 @@ BEGIN
         json_extract(NEW.document, '$.preferences.upcomingLayout'),
         json_extract(NEW.document, '$.preferences.lightTheme'),
         json_extract(NEW.document, '$.preferences.darkTheme'),
-        json_extract(NEW.document, '$.preferences.accent'))
+        json_extract(NEW.document, '$.preferences.accent'),
+        json_extract(NEW.document, '$.preferences.todayTimeline'))
     ON CONFLICT (space_id, layer) DO UPDATE SET
         timezone = excluded.timezone,
         theme = excluded.theme,
@@ -114,7 +119,8 @@ BEGIN
         upcoming_layout = excluded.upcoming_layout,
         light_theme = excluded.light_theme,
         dark_theme = excluded.dark_theme,
-        accent = excluded.accent
+        accent = excluded.accent,
+        today_timeline = excluded.today_timeline
     WHERE preferences.timezone IS NOT excluded.timezone
         OR preferences.theme IS NOT excluded.theme
         OR preferences.locale IS NOT excluded.locale
@@ -122,7 +128,8 @@ BEGIN
         OR preferences.upcoming_layout IS NOT excluded.upcoming_layout
         OR preferences.light_theme IS NOT excluded.light_theme
         OR preferences.dark_theme IS NOT excluded.dark_theme
-        OR preferences.accent IS NOT excluded.accent;
+        OR preferences.accent IS NOT excluded.accent
+        OR preferences.today_timeline IS NOT excluded.today_timeline;
 
     DELETE FROM projects WHERE space_id = NEW.space_id AND layer = NEW.layer AND is_inbox = 1
         AND id NOT IN (SELECT value ->> '$.id' FROM json_each(NEW.document, '$.projects'));
@@ -309,7 +316,8 @@ CREATE VIEW workspace_layers AS
 SELECT p.space_id, p.layer, json_object(
     'preferences', json_patch(json_object('timezone', p.timezone, 'theme', p.theme), json_object(
         'locale', p.locale, 'todayLayout', p.today_layout, 'upcomingLayout', p.upcoming_layout,
-        'lightTheme', p.light_theme, 'darkTheme', p.dark_theme, 'accent', p.accent)),
+        'lightTheme', p.light_theme, 'darkTheme', p.dark_theme, 'accent', p.accent,
+        'todayTimeline', CASE p.today_timeline WHEN 1 THEN json('true') WHEN 0 THEN json('false') END)),
     'projects', json((
         SELECT json_group_array(json_object(
             'id', id, 'revision', revision, 'isInbox', json(iif(is_inbox, 'true', 'false')),

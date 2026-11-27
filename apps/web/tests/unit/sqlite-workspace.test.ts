@@ -377,11 +377,11 @@ it("keeps the manual order, the agenda layouts and older data across saves, read
     const rua = workspace.labels.find((label) => label.data.name === "rua")!;
     workspace = await run(read(), "POST", `/projects/${b.id}/move`, { beforeId: a.id });
     workspace = await run(workspace, "POST", `/labels/${rua.id}/move`, {});
-    workspace = await run(workspace, "PATCH", "/preferences", { todayLayout: "board", darkTheme: "nord", accent: "violet" });
+    workspace = await run(workspace, "PATCH", "/preferences", { todayLayout: "board", darkTheme: "nord", accent: "violet", todayTimeline: false });
     expect(store.commit(store.read()!.generation, { data: { workspace } })).toBe(true);
 
     const saved = read();
-    expect(saved.preferences).toMatchObject({ todayLayout: "board", darkTheme: "nord", accent: "violet" });
+    expect(saved.preferences).toMatchObject({ todayLayout: "board", darkTheme: "nord", accent: "violet", todayTimeline: false });
     expect(saved.preferences).not.toHaveProperty("lightTheme");
     expect(saved.preferences).not.toHaveProperty("upcomingLayout");
     expect(saved.projects.find((project) => project.id === b.id)?.data.position).toBe(0);

@@ -19,6 +19,7 @@ export const preferences = z.strictObject({
   timezone, theme: z.enum(["light", "dark", "system"]), locale: z.enum(locales).optional(),
   todayLayout: agendaLayout, upcomingLayout: agendaLayout,
   lightTheme: z.enum(LIGHT_THEMES).optional(), darkTheme: z.enum(DARK_THEMES).optional(), accent: z.enum(["green", "violet"]).optional(),
+  todayTimeline: z.boolean().optional(),
 });
 export const preferencesPatch = preferences.partial();
 export type Preferences = z.infer<typeof preferences>;

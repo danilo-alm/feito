@@ -50,6 +50,7 @@ describe("executor local: rotas gerais", () => {
       .toMatchObject({ lightTheme: "solarized-light", darkTheme: "catppuccin-mocha", accent: "violet" });
     expect(code(await call("PATCH", "/preferences", { darkTheme: "feito-light" }))).toBe("VALIDATION_FAILED");
     expect(code(await call("PATCH", "/preferences", { accent: "red" }))).toBe("VALIDATION_FAILED");
+    expect((await call("PATCH", "/preferences", { todayTimeline: false })).body).toMatchObject({ todayTimeline: false });
   });
 
   it("rejeita caminhos, métodos e segmentos desconhecidos", async () => {
