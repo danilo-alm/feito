@@ -96,13 +96,23 @@ test("atualiza só quando a pessoa pede, com uma única aba, e preserva os dados
     // Fechar todas as abas não troca a versão.
     const reopened = await context.newPage();
     await reopened.goto("/entrada");
-    const notice = reopened.locator(".update-notice");
-    await expect(notice).toContainText("Nova versão disponível", { timeout: 25_000 });
+    const notice = reopened.getByRole("button", { name: "Nova versão disponível", exact: true });
+    await expect(notice).toBeVisible({ timeout: 25_000 });
+    // O espaço sem conta não tem indicador de sincronização: simula o de uma conta para conferir a posição.
+    const [button, indicator] = await notice.evaluate((element) => {
+      const dot = document.body.appendChild(Object.assign(document.createElement("a"), { className: "sync-status" }));
+      const boxes = [element, dot].map((node) => node.getBoundingClientRect().toJSON() as DOMRect);
+      dot.remove();
+      return boxes;
+    });
+    expect(button.width).toBe(32);
+    expect(button.bottom).toBeLessThanOrEqual(indicator.top);
+    expect(button.left + button.width / 2).toBe(indicator.left + indicator.width / 2);
     await expect.poll(() => cached(reopened)).toEqual([accepted, `${accepted}-e2e`]);
 
     const other = await context.newPage();
     await other.goto("/hoje");
-    await notice.getByRole("button", { name: "Atualizar" }).click();
+    await notice.click();
     const dialog = reopened.getByRole("dialog", { name: "Atualizar o Feito" });
     await expect(dialog).toContainText("Feche outras abas do Feito antes de prosseguir.");
     const confirm = dialog.getByRole("button", { name: "Atualizar", exact: true });

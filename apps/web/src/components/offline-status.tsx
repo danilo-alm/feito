@@ -2,7 +2,7 @@
 import { useT } from "@feito/ui/components/language";
 
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { IconDownload } from "@feito/ui/components/icons";
+import { IconArrowUp, IconDownload } from "@feito/ui/components/icons";
 import { SettingsGroup, SettingsRow } from "@feito/ui/components/settings";
 import { Dialog } from "@feito/ui/components/ui";
 
@@ -194,10 +194,10 @@ export function UpdateNotice() {
   const available = useUpdateAvailable();
   const [dialog, openDialog] = useUpdateDialog();
   return <>
-    {available && <div className="update-notice" role="status">
-      <span>{t("Nova versão disponível")}</span>
-      <button type="button" className="btn primary" onClick={openDialog}>{t("Atualizar")}</button>
-    </div>}
+    {available && <button type="button" className="update-notice" aria-label={t("Nova versão disponível")} aria-haspopup="dialog" onClick={openDialog}>
+      <IconArrowUp />
+      <span className="sync-status-label" aria-hidden="true">{t("Nova versão disponível")}</span>
+    </button>}
     {dialog}
   </>;
 }

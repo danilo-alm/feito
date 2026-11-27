@@ -1035,30 +1035,47 @@ svg.ic-repeat{color:var(--brand-text)}
   }
 }
 
-/* Aviso de versão nova no navegador, acima do indicador de sincronização. */
+/* Versão nova no navegador: um botão no canto, ou logo acima do indicador de sincronização. */
 .update-notice {
+  --update-inset: 4px;
+  --update-lift: 0px;
   position: fixed;
-  z-index: 7;
-  inset-inline-end: 12px;
-  inset-block-end: 40px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: calc(100% - 24px);
-  padding: 6px 6px 6px 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--lift);
-  font-size: 13.5px;
+  z-index: 3;
+  inset-inline-end: var(--update-inset);
+  inset-block-end: calc(var(--update-inset) + var(--update-lift));
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.update-notice:hover {
+  background: var(--brand-hover);
+}
+
+.update-notice svg {
+  width: 16px;
+  height: 16px;
+}
+
+body:has(.sync-status) .update-notice {
+  --update-lift: 32px;
+}
+
+.update-notice:is(:hover, :focus-visible) .sync-status-label {
+  opacity: 1;
 }
 
 @media (max-width: 899px) {
-  /* À esquerda do botão de adicionar e acima do indicador de sincronização. */
   .update-notice {
-    inset-inline: 12px 84px;
-    inset-block-end: calc(var(--mobile-tabbar-height) + 40px);
-    justify-content: space-between;
+    inset-inline-start: var(--update-inset);
+    inset-inline-end: auto;
+    inset-block-end: calc(var(--mobile-tabbar-height) + var(--update-inset) + var(--update-lift));
   }
 }
 
