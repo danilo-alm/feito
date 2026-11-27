@@ -136,7 +136,7 @@ export async function restoreDocument(
   if (state.destination.kind === "filled") throw occupied();
 
   const writes = 1 + document.projects.length + document.sections.length + document.labels.length
-    + document.tasks.length + document.occurrences.length + (document.comments?.length ?? 0);
+    + document.tasks.length + document.occurrences.length + document.comments.length;
   if (state.destination.kind === "unprovisioned") {
     // The initial workspace and the restoration share one commit.
     const initial = await bootstrapWorkspace(db, keys, tenantId, writes, (tx, tenant, key, inboxId) =>

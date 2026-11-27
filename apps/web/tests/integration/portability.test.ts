@@ -165,28 +165,6 @@ describe("portable export and restoration", () => {
       .toEqual({ status: "completed", ...receipt });
   });
 
-  it("restores older backups that included an internal occurrence ID and omits it on re-export", async () => {
-    vi.spyOn(Temporal.Now, "instant").mockReturnValue(Temporal.Instant.from("2027-01-31T14:00:00Z"));
-    const [source, target] = await Promise.all([accountFixture(), accountFixture()]);
-    const recurring = await newTask(source, "Série antiga", {
-      dueDate: "2027-01-31", recurrence: { frequency: "daily" },
-    });
-    const completed = await payload<{ task: Task }>(await source("POST", `/tasks/${recurring.id}/complete`, {
-      revision: recurring.revision, occurrenceId: recurring.occurrenceId,
-    }));
-    const original = await download(source);
-    const { occurrences, ...document } = JSON.parse(original) as PortableDocument;
-    expect(occurrences).toHaveLength(1);
-    const legacy = JSON.stringify({
-      ...document, occurrences: [{ ...occurrences[0], nextOccurrenceId: completed.task.occurrenceId }],
-    });
-
-    const preview = await inspect(target, legacy);
-    expect(preview).toMatchObject({ errors: [], counts: { tasks: 1, occurrences: 1 } });
-    await payload(await confirm(target, legacy, preview));
-    expect(documentWithoutInstant(await download(target))).toEqual(documentWithoutInstant(original));
-  });
-
   it("rejects invalid files, mismatched bytes and operation IDs, expiry, and cross-account tokens", async () => {
     const [source, target] = await Promise.all([accountFixture(), accountFixture()]);
     const other = await accountFixture();

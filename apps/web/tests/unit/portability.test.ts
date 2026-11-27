@@ -9,28 +9,28 @@ import { defaultsForView } from "@feito/core/validation/product";
 function emptyDocument() {
   return {
     type: documentType,
-    schemaVersion: 1,
+    schemaVersion: 2,
     exportedAt: "2026-11-17T12:00:00Z",
     preferences: defaultPreferences,
     projects: [{ id: "inbox", isInbox: true, name: "Caixa de entrada", description: "", color: null, icon: "hash", archived: false,
       view: defaultsForView, createdAt: "1970-01-01T00:00:00Z" }],
-    sections: [], tasks: [], labels: [], taskLabels: [], occurrences: [],
+    sections: [], tasks: [], labels: [], taskLabels: [], occurrences: [], comments: [],
   } satisfies PortableDocument;
 }
 
 const parse = (value: unknown) => parseDocument(Buffer.from(JSON.stringify(value)));
 
 describe("portable document", () => {
-  it("accepts v1 and reports an unknown version by path", () => {
+  it("accepts only the current version and reports any other by path", () => {
     const file = emptyDocument();
-    expect(parse(file)).toEqual({ schemaVersion: 1, document: file, errors: [] });
-    expect(parse({ ...file, schemaVersion: 3 })).toMatchObject({
-      schemaVersion: 3, document: null, errors: [{ path: "schemaVersion" }],
-    });
-    // Version 2 adds comments; version 1 files have none.
-    expect(parse({ ...file, schemaVersion: 2, comments: [] })).toMatchObject({ schemaVersion: 2, errors: [] });
-    expect(parse({ ...file, schemaVersion: 2 }).errors.map(({ path }) => path)).toEqual(["comments"]);
-    expect(parse({ ...file, comments: [] }).errors.map(({ path }) => path)).toEqual(["comments"]);
+    expect(parse(file)).toEqual({ schemaVersion: 2, document: file, errors: [] });
+    for (const schemaVersion of [1, 3]) {
+      expect(parse({ ...file, schemaVersion })).toMatchObject({
+        schemaVersion, document: null, errors: [{ path: "schemaVersion" }],
+      });
+    }
+    const { comments: _comments, ...withoutComments } = file;
+    expect(parse(withoutComments).errors.map(({ path }) => path)).toEqual(["comments"]);
     expect(parse({ ...file, tenantId: randomUUID() }).document).toBeNull();
   });
 
@@ -38,7 +38,7 @@ describe("portable document", () => {
     const doc = emptyDocument();
     const invalid = {
       ...doc,
-      sections: [{ id: "inbox", projectId: "inbox", name: "Seção", position: 0 }],
+      sections: [{ id: "inbox", projectId: "inbox", name: "Seção", description: "", position: 0 }],
       labels: [{ id: "label1", name: "Café" }, { id: "label2", name: "CAFE\u0301" }],
       taskLabels: [{ taskId: "missing", labelId: "label1" }],
     };
@@ -111,23 +111,10 @@ describe("portable document", () => {
         { taskId: restored.tasks[0].id, revision: 1, body: "Segundo, editado" },
       ]);
 
-    const broken = { ...file, comments: [{ ...file.comments![0], taskId: "missing" }, { ...file.comments![1], body: " " }] };
+    const broken = { ...file, comments: [{ ...file.comments[0], taskId: "missing" }, { ...file.comments[1], body: " " }] };
     expect(parse(broken).errors.map(({ path }) => path)).toEqual(["comments.1.body"]);
-    expect(parse({ ...file, comments: [{ ...file.comments![0], taskId: "missing" }] }).errors.map(({ path }) => path))
+    expect(parse({ ...file, comments: [{ ...file.comments[0], taskId: "missing" }] }).errors.map(({ path }) => path))
       .toEqual(["comments.0.taskId"]);
-  });
-
-  it("defaults missing project and section descriptions in older v1 files", () => {
-    const file = emptyDocument();
-    const { description: _description, ...inbox } = file.projects[0];
-    expect(parse({
-      ...file,
-      projects: [inbox, { ...inbox, id: "project", isInbox: false, name: "Casa" }],
-      sections: [{ id: "section", projectId: "project", name: "Compras", position: 0 }],
-    }).document).toMatchObject({
-      projects: [{ description: "" }, { description: "" }],
-      sections: [{ description: "" }],
-    });
   });
 
   it("limits nesting and reported errors before validating relationships", () => {

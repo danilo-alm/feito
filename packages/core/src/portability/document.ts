@@ -1,29 +1,26 @@
 import { z } from "zod";
 import { preferences } from "../validation/preferences";
 import {
-  civilDate, commentBody, defaultSectionName, description, entityId, instant, localTime, name, position, priority, projectColor, projectIcon, projectView, recurrenceRule, title,
+  civilDate, commentBody, defaultSectionName, description, instant, localTime, name, position, priority, projectColor, projectIcon, projectView, recurrenceRule, title,
 } from "../validation/product";
 
 export const documentType = "feito-data";
-/** Version written by exports. Version 2 added comments. */
 export const schemaVersion = 2;
-/** Versions accepted by imports. Version 1 files have no comments. */
-export const readableSchemaVersions: readonly number[] = [1, 2];
 const ref = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 
 export const portableDocument = z.strictObject({
   type: z.literal(documentType),
-  schemaVersion: z.union([z.literal(1), z.literal(2)]),
+  schemaVersion: z.literal(schemaVersion),
   exportedAt: instant,
   preferences,
   projects: z.array(z.strictObject({
-    id: ref, isInbox: z.boolean(), name, description: description.default(""),
+    id: ref, isInbox: z.boolean(), name, description,
     defaultSectionName,
-    color: projectColor.nullable().default(null), icon: projectIcon.default("hash"), archived: z.boolean(), view: projectView, createdAt: instant,
+    color: projectColor.nullable(), icon: projectIcon, archived: z.boolean(), view: projectView, createdAt: instant,
     position: position.optional(),
     parentId: ref.optional(),
   })),
-  sections: z.array(z.strictObject({ id: ref, projectId: ref, name, description: description.default(""), position })),
+  sections: z.array(z.strictObject({ id: ref, projectId: ref, name, description, position })),
   tasks: z.array(z.strictObject({
     id: ref, projectId: ref, sectionId: ref.nullable(), parentId: ref.nullable(),
     occurrenceId: ref.nullable(), title, description, priority, position, createdAt: instant,
@@ -35,13 +32,10 @@ export const portableDocument = z.strictObject({
   occurrences: z.array(z.strictObject({
     occurrenceId: ref, taskId: ref, nominalDate: civilDate, dueDate: civilDate,
     dueTime: localTime.nullable(), completedAt: instant,
-    // Older exports accidentally included the internal pointer used for undo.
-    nextOccurrenceId: entityId.optional(),
-  }).transform(({ nextOccurrenceId: _nextOccurrenceId, ...occurrence }) => occurrence)),
-  // Required in version 2 and absent in version 1.
+  })),
   comments: z.array(z.strictObject({
     taskId: ref, body: commentBody, createdAt: instant, editedAt: instant.nullable(),
-  })).optional(),
+  })),
 });
 
 export type PortableDocument = z.infer<typeof portableDocument>;

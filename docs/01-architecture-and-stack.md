@@ -182,16 +182,14 @@ Usar IDs opacos para as referências e escopo `tenant_id` em cada chave de domí
 
 | Formato | Adequação |
 | --- | --- |
-| JSON UTF-8 versionado | **Canônico para o MVP.** Um arquivo legível e validável com campos tipados, referências e coleções. Representa dados hierárquicos e valores opcionais sem convenções por célula. Requer schema público e compatibilidade de leitura ao evoluir. [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259). |
+| JSON UTF-8 versionado | **Canônico para o MVP.** Um arquivo legível e validável com campos tipados, referências e coleções. Representa dados hierárquicos e valores opcionais sem convenções por célula. Requer schema público e versão explícita no arquivo. [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259). |
 | CSV | Útil para planilhas e migrações pontuais de outras ferramentas. Um CSV por projeto precisaria de convenções adicionais para IDs, vínculos, arquivos e versões e pode perder informações na conversão. |
 | ZIP com manifesto e dados estruturados | Adequado se o produto passar a ter anexos ou arquivos grandes. Agrega limites de descompressão, validação de caminhos e manejo de arquivos. Adoção futura conforme volume e necessidades do produto. |
 | Arquivo protegido por senha | Opção futura para compartilhar ou armazenar backups portáteis com confidencialidade. Exigiria formato documentado e interoperável, derivação de chave e processo para perda de senha. A exportação comum prioriza inspeção e restauração simples. |
 
-**Contrato da versão 1.** Incluir tipo de documento estável, `schemaVersion` inteiro, instante de exportação, preferências, projetos com indicação de Caixa de entrada, seções, tarefas, etiquetas, vínculos e ocorrências concluídas. Em tarefas, exportar estados, ordem, timestamps, agenda efetiva, âncora e regra, data nominal e ID de ocorrência corrente quando aplicáveis. Usar IDs de referência locais ao documento, sem vínculo com a identidade original, credenciais, chaves, sessões ou registros operacionais. Ao acrescentar uma entidade persistente do produto, ampliar a versão do formato e oferecer leitura das versões anteriores com transformação de dados explícita. Importar versões desconhecidas retorna uma mensagem clara, antes da gravação.
+**Contrato do formato.** Incluir tipo de documento estável, `schemaVersion` inteiro, instante de exportação, preferências, projetos com indicação de Caixa de entrada, seções, tarefas, etiquetas, vínculos e ocorrências concluídas. Em tarefas, exportar estados, ordem, timestamps, agenda efetiva, âncora e regra, data nominal e ID de ocorrência corrente quando aplicáveis. Usar IDs de referência locais ao documento, sem vínculo com a identidade original, credenciais, chaves, sessões ou registros operacionais. Ao acrescentar uma entidade persistente do produto, ampliar a versão do formato. Durante o beta, a importação lê somente a versão atual. Importar qualquer outra versão retorna uma mensagem clara, antes da gravação.
 
 O formato publicado usa `type: "feito-data"`, `schemaVersion: 2` e referências locais de até 64 caracteres ASCII alfanuméricos, hífen ou sublinhado. IDs são únicos dentro do documento. Os instantes em UTC, datas civis, horários opcionais e enumerações seguem o [guia da API](02-backend-endpoints.md#2-objetos-de-resposta).
-
-A versão 2 acrescentou `comments`, obrigatório nela. A importação continua aceitando a versão 1, que não tem comentários.
 
 | Campo | Registros |
 | --- | --- |
@@ -203,7 +201,7 @@ A versão 2 acrescentou `comments`, obrigatório nela. A importação continua a
 | `labels` | `id` e `name`. |
 | `taskLabels` | `taskId` e `labelId`. |
 | `occurrences` | `occurrenceId`, `taskId`, `nominalDate`, `dueDate`, `dueTime` e `completedAt`. |
-| `comments` | Versão 2. `taskId`, `body`, `createdAt` e `editedAt` (`null` sem edição), por tarefa e do mais antigo ao mais novo. Até 1.000 por tarefa. |
+| `comments` | `taskId`, `body`, `createdAt` e `editedAt` (`null` sem edição), por tarefa e do mais antigo ao mais novo. Até 1.000 por tarefa. |
 
 As posições são inteiros não negativos e únicos por grupo de irmãos ou, para seções, por projeto. O documento contém exatamente uma Caixa de entrada ativa, com nome fixo, layout Lista e sem seções. O arquivo preserva instantes de produto e preferências. As revisões de concorrência são inicializadas na conta de destino.
 
@@ -216,7 +214,7 @@ As posições são inteiros não negativos e únicos por grupo de irmãos ou, pa
 3. Adotar restauração em conta vazia no MVP. Considerar vazia a conta que contém apenas a Caixa de entrada padrão, as preferências iniciais e nenhum outro dado de produto. A tela verifica essa condição e oferece instruções de restauração em outra conta ou instalação elegível quando já houver dados. Sob bloqueio do tenant, revalidar destino e idempotência. Mapear IDs do documento para IDs novos do tenant autenticado e reutilizar a Caixa de entrada provisionada. Inserir registros e relações com a DEK do destino e registrar o recibo na mesma transação. Fluxo interrompido antes do commit, erro de integridade ou chave indisponível mantém o estado inicial.
 4. Responder com resumo do que foi restaurado. Reenvio da mesma confirmação já registrada retorna sucesso com o mesmo resumo, inclusive se a resposta original se perdeu. Se o token tiver expirado, permitir consultar a operação com sessão válida antes de refazer uma prévia. Importação em conta preenchida e fusão de cópias ficam para evolução posterior.
 
-**Verificação de portabilidade.** Exportar a conta A, importar na B com outra DEK e exportar B. Comparar os documentos ignorando apenas IDs técnicos remapeados e o instante de exportação. Validar o estado dos arquivados, ordem, tarefas sem data, preferências, conclusão dos filhos e o próximo avanço da recorrente com data efetiva deslocada. Manter amostras de versões antigas para testar leitura após evolução do schema.
+**Verificação de portabilidade.** Exportar a conta A, importar na B com outra DEK e exportar B. Comparar os documentos ignorando apenas IDs técnicos remapeados e o instante de exportação. Validar o estado dos arquivados, ordem, tarefas sem data, preferências, conclusão dos filhos e o próximo avanço da recorrente com data efetiva deslocada.
 
 ## 8. Organização do código e operação inicial
 

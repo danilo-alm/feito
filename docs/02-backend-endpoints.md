@@ -475,7 +475,7 @@ type SearchRequest = {
 
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
-| `GET /api/v1/export` | 4 | Vazio. | `200 application/json` com `Content-Disposition: attachment; filename="feito-dados-YYYY-MM-DD.json"`. Documento versionado com todos os dados de produto da conta, incluindo arquivados, concluídas, ocorrências e comentários, conforme o [contrato do formato](01-architecture-and-stack.md#7-exportação-e-importação). A exportação usa a versão 2; a importação também aceita a versão 1, sem comentários. |
+| `GET /api/v1/export` | 4 | Vazio. | `200 application/json` com `Content-Disposition: attachment; filename="feito-dados-YYYY-MM-DD.json"`. Documento versionado com todos os dados de produto da conta, incluindo arquivados, concluídas, ocorrências e comentários, conforme o [contrato do formato](01-architecture-and-stack.md#7-exportação-e-importação). A exportação usa a versão 2, a única que a importação aceita. |
 | `POST /api/v1/import/preview` | 4 | Corpo bruto `application/json` com o arquivo. Cabeçalho `X-Operation-Id` opcional (UUID). | `200 ImportPreview`. Se houver token, a resposta inclui `X-Operation-Id`. Arquivo grande demais: `413`. |
 | `POST /api/v1/import/confirm` | 4 | Corpo bruto com o mesmo arquivo e cabeçalhos `X-Preview-Token` e `X-Operation-Id` (UUID gerado pela interface). | `200 { operationId, summary }`. Repetir a mesma operação já registrada devolve o mesmo resumo. |
 | `GET /api/v1/import/operations/{operationId}` | 4 | Vazio. | `200 { operationId, status: "completed", summary }` ou `404`. Serve para recuperar o resultado se a resposta da confirmação se perder. |

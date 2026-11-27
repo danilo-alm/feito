@@ -44,7 +44,7 @@ export function remapForImport(
     occurrences: document.occurrences.map(({ taskId, occurrenceId, ...data }): CompletedOccurrence => ({
       taskId: taskIds.get(taskId)!, occurrenceId: occurrenceIds.get(occurrenceId)!, data,
     })),
-    comments: (document.comments ?? []).map(({ taskId, ...data }): TaskComment => ({
+    comments: document.comments.map(({ taskId, ...data }): TaskComment => ({
       id: allocateId(), taskId: taskIds.get(taskId)!, revision: 1, data,
     })),
   };
