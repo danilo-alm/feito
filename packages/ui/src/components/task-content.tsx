@@ -35,7 +35,7 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
   const t = useT();
   const app = useApp();
   const temporary = isTemporaryTask(task.id);
-  const desktop = useMediaQuery("(min-width: 900px) and (any-pointer: fine)") && !preview && !temporary;
+  const desktop = useMediaQuery("(min-width: 600px) and (any-pointer: fine)") && !preview && !temporary;
   const [openField, setOpenField] = useState<OpenField | null>(null);
   const close = useCallback(() => setOpenField((current) => current === openField ? null : current), [openField]);
   const active = task.status === "active";

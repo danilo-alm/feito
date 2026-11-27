@@ -180,7 +180,7 @@ export function Titlebar({ platform, children }: { platform: TitlebarPlatform; c
         event.preventDefault();
         if (back) history.back();
         else history.forward();
-      } else if (sidebar && workspace && matchMedia("(min-width: 900px)").matches) {
+      } else if (sidebar && workspace && matchMedia("(min-width: 600px)").matches) {
         event.preventDefault();
         toggleSidebar();
       }

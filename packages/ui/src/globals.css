@@ -167,7 +167,7 @@ html[data-accent="violet"][data-theme="feito-black"]{--accent:#B4A6FF;--accent-h
 }
 :root{
   /* Medidas fixas do app. */
-  --mobile-header-height:56px;--mobile-tabbar-height:76px;--sidebar-width:272px;--toolbar-height:52px;--touch-min:44px;
+  --mobile-header-height:56px;--pill-bottom:calc(12px + env(safe-area-inset-bottom,0px));--mobile-tabbar-height:calc(54px + var(--pill-bottom));--sidebar-width:272px;--toolbar-height:52px;--touch-min:44px;
   /* Movimento: únicas durações e curvas do app (docs/04-motion-and-interaction.md).
      motion.tsx lê as durações dos componentes com presença para desmontá-los no tempo certo. */
   --dur-fast:120ms;--dur-base:180ms;--dur-slow:260ms;--dur-compact-title:500ms;
@@ -322,7 +322,7 @@ h1,h2,h3,p{margin:0}
 .card>.sub-toggle{margin:-4px -4px -4px -6px}
 /* Celular com toque: o menu da tarefa abre com toque prolongado; o botão ⋯ some da tela, mas continua para leitores de tela.
    A linha não seleciona texto nem mostra a prévia do sistema no toque prolongado. */
-@media (max-width:899px) and (pointer:coarse){
+@media (max-width: 599px) and (pointer: coarse), (pointer: coarse) and (max-height: 499px){
   :is(.task,.card) .t-acts .t-menu{position:absolute;width:1px;height:1px;min-height:0;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);border:0}
   :is(.task,.card)[data-task-id]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 }
@@ -376,7 +376,7 @@ button.t-origin:hover{background:var(--hover)}
 .t-acts .icon-btn{width:30px;height:30px}
 /* Com a origem na linha do título, as ações ocultas não reservam espaço: o projeto fica na borda direita
    e desliza para a esquerda quando as ações aparecem (hover, foco ou menu aberto). */
-@media (min-width: 900px){
+@media (min-width: 600px) and (min-height: 500px), (min-width: 600px) and (pointer: fine){
   .task:has(.t-origin) .t-acts{max-width:0;margin-inline-start:-10px;overflow:hidden;
     transition:opacity var(--dur-slow) var(--ease-in-out),max-width var(--dur-slow) var(--ease-in-out),margin-inline-start var(--dur-slow) var(--ease-in-out)}
   .task:has(.t-origin):hover .t-acts,.task:has(.t-origin):focus-within .t-acts,.task:has(.t-origin) .t-acts:has([aria-expanded=true]){
@@ -506,7 +506,7 @@ button.t-origin:hover{background:var(--hover)}
 .d-val[class*=tone-],.d-val[class*=tone-] svg{color:var(--tc)}
 .d-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .d-chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:4px}
-@media (max-width: 899px){.d-side{border-left:0;border-top:1px solid var(--line);padding:4px 16px 24px}}
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){.d-side{border-left:0;border-top:1px solid var(--line);padding:4px 16px 24px}}
 /* Detalhe da tarefa: título e conteúdo no tom mais escuro; o painel lateral de campos fica no mais claro. */
 .dialog:has(>.task-detail-head){background:var(--surface-sunken)}
 /* Detalhe da tarefa no computador: coluna principal com tarefa-pai, título, descrição e subtarefas recolhíveis. */
@@ -601,7 +601,7 @@ button.t-origin:hover{background:var(--hover)}
 .md-list>.task{border-bottom:1px solid var(--line)}
 .md-list .add-task{height:52px;font-size:16px;color:var(--text)}
 .md-subs>.hint{padding:0 4px}
-@media (max-width: 899px){
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   .dialog-wrap .dialog.sheet-x{background:var(--bg);max-height:min(68dvh,calc(100dvh - 44px));min-height:0;transition:transform var(--dur-slow) var(--ease-out),max-height var(--dur-base) var(--ease-out),min-height var(--dur-base) var(--ease-out)}
   .dialog-wrap .dialog.sheet-x.full{max-height:calc(100dvh - 8px - env(safe-area-inset-top));min-height:calc(100dvh - 8px - env(safe-area-inset-top))}
   .dialog-wrap .dialog.sheet-x.dragging{transition:none}
@@ -630,12 +630,19 @@ button.t-origin:hover{background:var(--hover)}
 .phone .chk{width:44px;height:44px;margin:-12px -10px -12px -12px}
 .phone .t-title{font-size:15px;line-height:21px}
 .phone .sec-h{padding:20px 0 8px;font-size:15px}
-.tabbar{position:absolute;left:0;right:0;bottom:0;height:var(--mobile-tabbar-height);padding:6px 8px 22px;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));z-index:5}
-.tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:500;color:var(--text-2);border-radius:10px}
-.tab svg{width:22px;height:22px}
-.tab.on{color:var(--accent-text);font-weight:700}
-.fab{position:absolute;right:16px;bottom:94px;width:56px;height:56px;border-radius:18px;border:0;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;box-shadow:var(--shadow);z-index:6}
-.fab svg{width:26px;height:26px;stroke-width:2.2}
+/* Celular: abas numa pílula flutuante, acima da área de gestos, com o botão de adicionar ao lado. */
+.tabbar{--pill:54px;position:absolute;left:16px;bottom:var(--pill-bottom,12px);width:min(320px,calc(100% - 32px - var(--pill) - 10px));height:var(--pill);box-sizing:border-box;padding:4px;border-radius:calc(var(--pill) / 2);
+  background:color-mix(in srgb,var(--surface-raised) 92%,transparent);border:1px solid var(--overlay-line);box-shadow:var(--pop-shadow);
+  -webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;z-index:5;
+  transition:opacity var(--dur-base) var(--ease-out),transform var(--dur-base) var(--ease-out)}
+.tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;font-size:10.5px;font-weight:500;color:var(--text-2);border-radius:22px;min-width:0}
+.tab svg{width:20px;height:20px}
+.tab.on{color:var(--accent-text);font-weight:700;background:var(--accent-soft)}
+.fab{position:absolute;right:16px;bottom:var(--pill-bottom,12px);width:54px;height:54px;border-radius:50%;border:0;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;box-shadow:var(--pop-shadow);z-index:6;
+  transition:opacity var(--dur-base) var(--ease-out),transform var(--dur-base) var(--ease-out)}
+.fab svg{width:24px;height:24px;stroke-width:2.4}
+/* Celular deitado: pouca altura, então a pílula mostra só os ícones (o nome fica para leitores de tela via aria). */
+@media (pointer:coarse) and (max-height:499px){.tabbar{--pill:48px}.tab{font-size:0}.fab{width:48px;height:48px}}
 
 /* quadros de fluxo e documentação */
 .doc{padding:56px;display:flex;flex-direction:column;gap:32px;background:var(--bg);min-height:100%}
@@ -723,7 +730,7 @@ input,textarea,select{font:inherit;color:inherit}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .app{height:100dvh}
 /* Menu recolhido (navegador e app desktop): some por inteiro; sobra o botão de mostrá-lo. */
-@media (min-width:900px){
+@media (min-width: 600px) and (min-height: 500px), (min-width: 600px) and (pointer: fine){
   .app>.side{transition:flex-basis var(--dur-slow) var(--ease-out),padding var(--dur-slow) var(--ease-out),visibility 0s}
   html.sidebar-resizing .app>.side{transition:none}
   .app>.side>*{min-width:calc(var(--sidebar-width) - 25px)}
@@ -1012,7 +1019,7 @@ p.project-description{max-width:680px}
 .project-title-static{overflow-wrap:anywhere}
 textarea.project-heading-input{resize:none;overflow:hidden}
 .col-tabs{display:none}
-@media (max-width: 899px){
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   .app>.side{display:none}
   .sidebar-resize{display:none}
   .main{height:auto;min-height:100dvh;overflow:visible}
@@ -1025,6 +1032,8 @@ textarea.project-heading-input{resize:none;overflow:hidden}
   .project-head{padding:0 16px!important}
   .page-h .title{font-size:28px}
   .tabbar{display:grid;position:fixed}
+  /* Fundo esmaecido atrás da pílula: a lista some por baixo dela em vez de cruzar as abas. */
+  .app::after{content:"";position:fixed;left:0;right:0;bottom:0;height:calc(var(--mobile-tabbar-height) + 20px);background:linear-gradient(to top,var(--bg) 45%,color-mix(in srgb,var(--bg) 0%,transparent));pointer-events:none;z-index:4}
   .fab{display:grid;position:fixed}
   .mobile-only{display:revert}
   .desktop-only{display:none!important}
@@ -1051,14 +1060,16 @@ textarea.project-heading-input{resize:none;overflow:hidden}
   .dialog-wrap{align-items:flex-end;padding:44px 0 0}
   .dialog{width:100%!important;max-height:calc(100dvh - 44px);border-radius:18px 18px 0 0}
   .dialog-wrap .dialog::before{content:"";display:block;width:40px;height:5px;border-radius:3px;background:var(--line-strong);margin:8px auto 0}
-  .toast-stack{bottom:164px;width:calc(100% - 32px)}
+  .toast-stack{bottom:calc(var(--mobile-tabbar-height) + 12px);width:calc(100% - 32px)}
+  /* Teclado aberto: a pílula e o botão saem de cena para não flutuar sobre o teclado. */
+  html:has(:is(input,textarea,[contenteditable=true]):focus) :is(.tabbar,.fab){opacity:0;transform:translateY(12px);pointer-events:none}
   .toast-stack .toast{white-space:normal;height:auto;min-height:44px;padding:10px 14px}
   .seg-o:has(.badge) svg{margin-top:12px}
   .day-btn{font-size:12px;gap:2px}
   .day-btn .n{min-width:20px;height:20px;padding:0 3px}
   .btn,.icon-btn{min-height:40px}
 }
-@media (min-width: 900px){
+@media (min-width: 600px) and (min-height: 500px), (min-width: 600px) and (pointer: fine){
   .app>.side{flex:0 0 var(--sidebar-width)}
 }
 
@@ -1072,7 +1083,7 @@ textarea.project-heading-input{resize:none;overflow:hidden}
 .te-title::placeholder,.te-desc::placeholder{color:var(--text-3)}
 .te-desc[readonly]{color:var(--text-2)}
 /* Campos com pelo menos 16px evitam o zoom automático ao focar no iOS. */
-@media (max-width: 899px){
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   .te-title,.te-desc,.qa-desc,.desc-input{font-size:16px}
   .te-desc{line-height:1.45}
 }
@@ -1090,7 +1101,7 @@ textarea.project-heading-input{resize:none;overflow:hidden}
 .te-foot{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);margin:6px -20px 0;padding:12px 20px 0;flex-wrap:wrap}
 .te-foot .hint{min-width:0;overflow:hidden;white-space:nowrap;flex-shrink:1}
 .te-foot .hint .kbd{flex:none}
-@media (min-width: 900px){.te-foot{flex-wrap:nowrap}}
+@media (min-width: 600px) and (min-height: 500px), (min-width: 600px) and (pointer: fine){.te-foot{flex-wrap:nowrap}}
 
 /* Grupos de ícones no menu da tarefa (Data, Prioridade). */
 .mgroup{padding:4px 4px 2px}
@@ -1173,7 +1184,7 @@ html.dark .tooltip{background:var(--surface-raised);color:var(--text)}
 
 /* Troca de rota com layout persistente: o conteúdo novo entra em fade (AppShell, via Web Animations). */
 
-@media (max-width: 899px){
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   /* Folha inferior: sobe da borda e desce ao fechar. */
   .dialog-wrap .dialog{transition:transform var(--dur-slow) var(--ease-out)}
   @starting-style{.dialog-wrap[data-state=entering] .dialog{opacity:1;transform:translateY(100%)}}
@@ -1224,7 +1235,7 @@ html.dark .tooltip{background:var(--surface-raised);color:var(--text)}
 .compact-title svg{width:18px;height:18px;flex:none}
 .compact-title>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .compact-title+.tools{grid-column:3;justify-self:end}
-@media (max-width: 899px){
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   .topbar:has(.compact-title){display:none}
   .m-top:has(.compact-title){display:grid;grid-template-columns:minmax(max-content,1fr) minmax(0,max-content) minmax(max-content,1fr)}
 }
@@ -1255,7 +1266,7 @@ html.dark .tooltip{background:var(--surface-raised);color:var(--text)}
 .share-notes{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--text-2)}
 .share-notes li{display:flex;gap:8px;align-items:flex-start}
 .share-notes svg{width:15px;height:15px;flex:none;margin-top:1px}
-@media (max-width: 899px){
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   .share-url{height:44px;font-size:14px}
 }
 
@@ -1282,7 +1293,7 @@ html.dark .tooltip{background:var(--surface-raised);color:var(--text)}
 .public-missing{max-width:440px;margin:15vh auto 0;padding:0 24px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
 .public-missing h1{font-size:22px;font-weight:700}
 .public-missing p{color:var(--text-2)}
-@media (max-width: 899px){
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   .public-top{padding:10px 16px}
   .public .project-head{padding:0 16px!important}
   .public .content{padding:0 16px 48px}
@@ -1345,7 +1356,7 @@ svg.ic-repeat{color:var(--accent-text)}
   opacity: 1;
 }
 
-@media (max-width: 899px) {
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   .sync-status {
     --sync-inset: 8px;
     inset-inline-start: var(--sync-inset);
@@ -1396,7 +1407,7 @@ body:has(.sync-status) .update-notice {
   opacity: 1;
 }
 
-@media (max-width: 899px) {
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   .update-notice {
     inset-inline-start: var(--update-inset);
     inset-inline-end: auto;
@@ -1492,7 +1503,7 @@ body:has(.sync-status) .update-notice {
 .pcal-empty{padding:12px 0}
 .pcal-undated{margin-top:8px;justify-content:space-between;padding:0 14px;color:var(--text)}
 .pcal-undated .count{color:var(--text-2);font-weight:500}
-@media (max-width: 899px){
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   .pcal{padding-top:4px}
   .pcal-title{order:-1;flex-basis:100%;font-size:17px}
   .pcal-nav{margin-right:auto}
@@ -1535,7 +1546,7 @@ body:has(.sync-status) .update-notice {
 .ptable-add td{height:auto;padding:0 8px;background:var(--surface)}
 .ptable-add .t-editor.te-inline{margin:8px 0;white-space:normal}
 /* Toque ou janela estreita: sem largura mínima, título em até duas linhas e células mais justas, para caber em tablets. */
-@media (pointer:coarse),(max-width:899px){
+@media (pointer:coarse),(max-width:599px){
   .ptable-grid{min-width:0}
   .ptable-grid th,.ptable-grid td{padding-inline:8px}
   .ptable-task{min-width:220px}

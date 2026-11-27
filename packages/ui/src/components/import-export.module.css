@@ -114,7 +114,7 @@
 .option{display:flex;gap:16px;align-items:center;padding:12px 14px;border-radius:12px;border:1px solid var(--line)}
 .option>div{display:flex;flex-direction:column;gap:2px;flex:1}
 
-@media (max-width: 899px){
+@media (max-width: 599px), (pointer: coarse) and (max-height: 499px){
   .choices,.notes{grid-template-columns:minmax(0,1fr)}
   .steps{grid-template-columns:minmax(0,1fr);gap:6px}
   .step{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;row-gap:2px;padding:12px}
