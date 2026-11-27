@@ -29,8 +29,10 @@ export function ViewMenu({ view, scope, onChange }: {
   const mobile = useIsMobile();
   const isInbox = scope === "inbox";
   const agenda = scope === "agenda";
-  const label = t("Mostrar: {0}", [t(LAYOUT_LABEL[view.layout])]);
-  const LayoutIcon = LAYOUT_ICON[view.layout];
+  // No celular não há Tabela: uma visão salva assim aparece como Lista, sem alterar o que está gravado.
+  const layout: Layout = mobile && view.layout === "table" ? "list" : view.layout;
+  const label = t("Mostrar: {0}", [t(LAYOUT_LABEL[layout])]);
+  const LayoutIcon = LAYOUT_ICON[layout];
   const close = () => { setOpen(false); setSortOpen(false); };
   const closeSort = () => setSortOpen(false);
 
@@ -46,16 +48,17 @@ export function ViewMenu({ view, scope, onChange }: {
         </div>
       )}
       <div className="lbl" style={{ color: "var(--muted)", fontSize: 12 }}>Layout</div>
-      <div className="seg" role="radiogroup" aria-label={agenda ? t("Layout") : t("Layout do projeto")}>
-        <button type="button" className={`seg-o${view.layout === "list" ? " on" : ""}`} role="radio" aria-checked={view.layout === "list"}
-          onClick={() => view.layout !== "list" && onChange({ layout: "list" })}><IconList />{t("Lista")}</button>
-        <button type="button" className={`seg-o${view.layout === "board" ? " on" : ""}`} role="radio" aria-checked={view.layout === "board"}
+      <div className="seg" role="radiogroup" aria-label={agenda ? t("Layout") : t("Layout do projeto")}
+        style={mobile ? { gridTemplateColumns: "repeat(3,minmax(0,1fr))" } : undefined}>
+        <button type="button" className={`seg-o${layout === "list" ? " on" : ""}`} role="radio" aria-checked={layout === "list"}
+          onClick={() => layout !== "list" && onChange({ layout: "list" })}><IconList />{t("Lista")}</button>
+        <button type="button" className={`seg-o${layout === "board" ? " on" : ""}`} role="radio" aria-checked={layout === "board"}
           disabled={isInbox} data-tooltip={isInbox ? t(INBOX_LAYOUT_HELP) : undefined} aria-description={isInbox ? t(INBOX_LAYOUT_HELP) : undefined}
-          onClick={() => view.layout !== "board" && onChange({ layout: "board" })}><IconBoard />{t("Painel")}</button>
-        <button type="button" className={`seg-o${view.layout === "calendar" ? " on" : ""}`} role="radio" aria-checked={view.layout === "calendar"}
-          onClick={() => view.layout !== "calendar" && onChange({ layout: "calendar" })}><IconCalendar />{t("Calendário")}</button>
-        <button type="button" className={`seg-o${view.layout === "table" ? " on" : ""}`} role="radio" aria-checked={view.layout === "table"}
-          onClick={() => view.layout !== "table" && onChange({ layout: "table" })}><IconTable />{t("Tabela")}</button>
+          onClick={() => layout !== "board" && onChange({ layout: "board" })}><IconBoard />{t("Painel")}</button>
+        <button type="button" className={`seg-o${layout === "calendar" ? " on" : ""}`} role="radio" aria-checked={layout === "calendar"}
+          onClick={() => layout !== "calendar" && onChange({ layout: "calendar" })}><IconCalendar />{t("Calendário")}</button>
+        {!mobile && <button type="button" className={`seg-o${layout === "table" ? " on" : ""}`} role="radio" aria-checked={layout === "table"}
+          onClick={() => layout !== "table" && onChange({ layout: "table" })}><IconTable />{t("Tabela")}</button>}
       </div>
       {!agenda && <div className="row">
         <span id="show-completed-label">{t("Mostrar concluídas")}</span>
@@ -66,7 +69,7 @@ export function ViewMenu({ view, scope, onChange }: {
       {!agenda && <div className="grp-h">{t("Ordenar")}</div>}
       <div className="row">
         <span>{t("Agrupar")}</span>
-        <span className="select" aria-disabled="true" style={{ color: "var(--muted)" }}>{view.layout === "calendar" || agenda ? t("Por dia") : isInbox ? t("Nenhum") : t("Seções do projeto")}</span>
+        <span className="select" aria-disabled="true" style={{ color: "var(--muted)" }}>{layout === "calendar" || agenda ? t("Por dia") : isInbox ? t("Nenhum") : t("Seções do projeto")}</span>
       </div>
       {!agenda && <div className="row">
         <span id="sort-label">{t("Ordenar")}</span>

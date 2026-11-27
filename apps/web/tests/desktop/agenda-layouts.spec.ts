@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import type { Layout } from "@feito/core/types";
 import { handleLocal } from "../../../desktop/src/data/local";
 import { mockDesktop, newPortugueseWorkspace, test } from "./fixtures";
 
@@ -10,8 +11,9 @@ function civil(offset: number) {
   return date.toISOString().slice(0, 10);
 }
 
-async function openAgenda(page: Page, path: string) {
+async function openAgenda(page: Page, path: string, preferences: { todayLayout?: Layout } = {}) {
   let workspace = newPortugueseWorkspace();
+  Object.assign(workspace.preferences, preferences);
   const write = async (route: string, body: object) => {
     const result = await handleLocal(workspace, { method: "POST", path: route, body });
     expect(result.status).toBeLessThan(400);
@@ -118,5 +120,25 @@ test.describe("agendas no celular", () => {
     await expect(page.locator(".pcal-mgrid .pcal-mday")).toHaveCount(7);
     await expect(page.locator(".pcal-agenda")).toContainText("Comprar tinta");
     await page.screenshot({ path: test.info().outputPath("celular-calendario.png") });
+  });
+
+  test("uma visão salva em Tabela vira Lista, sem a opção no menu nem mudar o que está salvo", async ({ page }) => {
+    await openAgenda(page, "/#/hoje", { todayLayout: "table" });
+    await expect(page.getByText("Regar as plantas")).toBeVisible();
+    await expect(page.locator(".ptable")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Mostrar: Lista" }).click();
+    const sheet = page.getByRole("dialog", { name: "Visualização" });
+    await expect(sheet.getByRole("radio")).toHaveText(["Lista", "Painel", "Calendário"]);
+    await expect(sheet.getByRole("radio", { name: "Lista" })).toBeChecked();
+    await sheet.getByRole("radio", { name: "Lista" }).click();
+    await page.screenshot({ path: test.info().outputPath("celular-tabela-salva.png") });
+    await page.keyboard.press("Escape");
+    expect(await savedPreferences(page)).toMatchObject({ todayLayout: "table" });
+
+    // Em uma tela larga a escolha salva volta a valer.
+    await page.setViewportSize({ width: 1180, height: 800 });
+    await expect(page.getByRole("table", { name: "Tarefas" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mostrar: Tabela" })).toBeVisible();
   });
 });
