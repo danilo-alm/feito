@@ -980,5 +980,8 @@
   "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "D’autres onglets ou fenêtres Feito sont encore ouverts. Fermez-les et réessayez.",
   "Não foi possível atualizar. Tente de novo.": "Impossible de mettre à jour. Réessayez.",
   "Recolher subtarefas de “{0}”": "Masquer les sous-tâches de “{0}”",
-  "Mostrar subtarefas de “{0}”": "Afficher les sous-tâches de “{0}”"
+  "Mostrar subtarefas de “{0}”": "Afficher les sous-tâches de “{0}”",
+  "Expandir painel": "Agrandir le panneau",
+  "Reduzir painel": "Réduire le panneau",
+  "Etiquetas: {0}": "Étiquettes : {0}"
 }

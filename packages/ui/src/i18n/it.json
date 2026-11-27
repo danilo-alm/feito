@@ -980,5 +980,8 @@
   "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "Ci sono ancora altre schede o finestre di Feito aperte. Chiudile e riprova.",
   "Não foi possível atualizar. Tente de novo.": "Impossibile aggiornare. Riprova.",
   "Recolher subtarefas de “{0}”": "Comprimi le sottoattività di “{0}”",
-  "Mostrar subtarefas de “{0}”": "Espandi le sottoattività di “{0}”"
+  "Mostrar subtarefas de “{0}”": "Espandi le sottoattività di “{0}”",
+  "Expandir painel": "Espandi pannello",
+  "Reduzir painel": "Riduci pannello",
+  "Etiquetas: {0}": "Etichette: {0}"
 }

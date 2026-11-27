@@ -980,5 +980,8 @@
   "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "Other Feito tabs or windows are still open. Close them and try again.",
   "Não foi possível atualizar. Tente de novo.": "Could not update. Try again.",
   "Recolher subtarefas de “{0}”": "Collapse subtasks of “{0}”",
-  "Mostrar subtarefas de “{0}”": "Expand subtasks of “{0}”"
+  "Mostrar subtarefas de “{0}”": "Expand subtasks of “{0}”",
+  "Expandir painel": "Expand panel",
+  "Reduzir painel": "Shrink panel",
+  "Etiquetas: {0}": "Labels: {0}"
 }

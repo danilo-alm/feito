@@ -70,7 +70,7 @@ function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean, initi
 const dialogStack: object[] = [];
 
 export function Dialog({
-  open, onClose, title, children, footer, wide, labelledBy, initialFocus, hideHeader, width,
+  open, onClose, title, children, footer, wide, labelledBy, initialFocus, hideHeader, width, expandable,
 }: {
   open: boolean;
   onClose: () => void;
@@ -82,6 +82,8 @@ export function Dialog({
   initialFocus?: RefObject<HTMLElement | null>;
   hideHeader?: boolean;
   width?: number;
+  /** No celular, abre a folha pela metade; arrastar a alça ou rolar o conteúdo para cima ocupa a tela. */
+  expandable?: boolean;
 }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
@@ -90,8 +92,9 @@ export function Dialog({
   const mobile = useIsMobile();
   // Presença: o diálogo fica montado durante a saída (veja docs/04-motion-and-interaction.md).
   const { mounted, state } = usePresence(open, mobile ? { enter: "slow", exit: "base" } : { enter: "base", exit: "fast" });
-  const view = useSticky({ title, children, footer, wide, labelledBy, hideHeader, width }, open);
+  const view = useSticky({ title, children, footer, wide, labelledBy, hideHeader, width, expandable }, open);
   useFocusTrap(ref, open, initialFocus);
+  const sheet = useExpandableSheet(ref, open && mobile && !!view.expandable, onClose);
   useEffect(() => {
     if (!open) return;
     const token = {};
@@ -114,14 +117,19 @@ export function Dialog({
       <div className="scrim" onClick={open ? onClose : undefined} />
       <div
         ref={ref}
-        className={`pop dialog${view.wide ? " wide" : ""}`}
+        className={`pop dialog${view.wide ? " wide" : ""}${sheet.active ? ` sheet-x${sheet.expanded ? " full" : ""}` : ""}`}
         style={view.width ? { width: `min(${view.width}px, 100%)` } : undefined}
+        onScroll={sheet.onScroll}
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
         aria-label={view.labelledBy ? undefined : view.title}
         aria-labelledby={view.labelledBy}
       >
+        {sheet.active && (
+          <button type="button" className="sheet-grab" {...sheet.grabProps}
+            aria-label={sheet.expanded ? t("Reduzir painel") : t("Expandir painel")} aria-expanded={sheet.expanded} />
+        )}
         {!view.hideHeader && (
           <div className="dialog-h">
             <h2>{view.title}</h2>
@@ -134,6 +142,83 @@ export function Dialog({
     </div>,
     document.body,
   );
+}
+
+// ---------- Folha expansível (celular) ----------
+
+const SHEET_SNAP = 48;
+
+/**
+ * Folha inferior em dois tamanhos: abre pela metade e ocupa a tela ao arrastar a alça para cima ou rolar o conteúdo.
+ * Arrastar para baixo reduz a folha cheia e fecha a folha pela metade. Tocar na alça alterna os tamanhos (teclado também).
+ */
+function useExpandableSheet(ref: RefObject<HTMLDivElement | null>, active: boolean, onClose: () => void) {
+  const [expanded, setExpanded] = useState(false);
+  const [wasActive, setWasActive] = useState(active);
+  if (wasActive !== active) {
+    setWasActive(active);
+    if (!active) setExpanded(false);
+  }
+  const drag = useRef<{ id: number; y: number; height: number; moved: boolean } | null>(null);
+  const dragged = useRef(false);
+  const reset = (node: HTMLElement) => {
+    node.classList.remove("dragging");
+    node.style.removeProperty("transform");
+    node.style.removeProperty("min-height");
+  };
+  const grabProps = {
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      const node = ref.current;
+      if (!node || event.button !== 0) return;
+      dragged.current = false;
+      try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* ponteiro já liberado */ }
+      drag.current = { id: event.pointerId, y: event.clientY, height: node.offsetHeight, moved: false };
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLButtonElement>) => {
+      const node = ref.current;
+      const current = drag.current;
+      if (!node || !current || current.id !== event.pointerId) return;
+      const dy = event.clientY - current.y;
+      if (!current.moved && Math.abs(dy) < 6) return;
+      current.moved = true;
+      node.classList.add("dragging");
+      if (dy < 0) {
+        node.style.removeProperty("transform");
+        node.style.minHeight = `${current.height - dy}px`;
+      } else {
+        node.style.removeProperty("min-height");
+        node.style.transform = `translateY(${dy}px)`;
+      }
+    },
+    onPointerUp: (event: React.PointerEvent<HTMLButtonElement>) => {
+      const node = ref.current;
+      const current = drag.current;
+      if (!node || !current || current.id !== event.pointerId) return;
+      drag.current = null;
+      const dy = event.clientY - current.y;
+      reset(node);
+      if (!current.moved) return;
+      // O clique que segue um arraste não deve alternar o tamanho de novo.
+      dragged.current = true;
+      if (dy < -SHEET_SNAP) setExpanded(true);
+      else if (dy > SHEET_SNAP) {
+        if (expanded) setExpanded(false);
+        else onClose();
+      }
+    },
+    onPointerCancel: () => {
+      if (ref.current) reset(ref.current);
+      drag.current = null;
+    },
+    onClick: () => {
+      if (dragged.current) dragged.current = false;
+      else setExpanded((value) => !value);
+    },
+  };
+  const onScroll = active && !expanded
+    ? (event: React.UIEvent<HTMLDivElement>) => { if (event.currentTarget.scrollTop > 8) setExpanded(true); }
+    : undefined;
+  return { active, expanded: active && expanded, grabProps, onScroll };
 }
 
 // ---------- Popover ancorado ----------

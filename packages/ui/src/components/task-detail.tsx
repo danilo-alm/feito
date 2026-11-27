@@ -2,7 +2,7 @@
 
 import { useT } from "./language";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, ApiFailure } from "../client/api";
 import { tagColor } from "../client/colors";
 import { dateInSentence, dateLabel, dayOfMonth, dueTone, FREQUENCY_LABEL } from "../client/dates";
@@ -13,8 +13,8 @@ import { editTask } from "../client/task-mutations";
 import type { EditTask, Frequency, Label, TaskDetail as Detail } from "@feito/core/types";
 import { useApp, type TaskSelection } from "./app";
 import {
-  DueIcon, IconChevronDown, IconChevronUp, IconClock, IconCopy, IconExternal, IconFlag, IconInbox, IconLink,
-  IconMore, IconPlus, IconRepeat, IconTag, IconTrash, IconX,
+  DueIcon, IconCalendar, IconChevronDown, IconChevronRight, IconChevronUp, IconClock, IconCopy, IconExternal, IconFlag, IconInbox, IconLink,
+  IconMenu, IconMore, IconPlus, IconRepeat, IconTag, IconTrash, IconX,
 } from "./icons";
 import { ProjectGlyph } from "./project-style";
 import { DatePicker, LabelPicker, PRIORITY_NAMES, PriorityMenu, RepeatMenu, TimePicker } from "./pickers";
@@ -22,7 +22,8 @@ import { useTaskActions } from "./task-actions";
 import { TaskContent } from "./task-content";
 import { TaskDescription } from "./task-description";
 import { Checkbox } from "./task-row";
-import { Dialog, MenuButton, Popover, ReadFallback, useContextMenu, useToast } from "./ui";
+import { Collapse } from "./motion";
+import { Dialog, MenuButton, Popover, ReadFallback, useContextMenu, useIsMobile, useToast } from "./ui";
 
 type Pop = "date" | "time" | "repeat" | "priority" | "labels" | null;
 type TextField = "title" | "description";
@@ -50,10 +51,14 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
   const title = draft.title?.value ?? task?.title ?? "";
   const description = draft.description?.value ?? task?.description ?? "";
   const [pop, setPop] = useState<Pop>(null);
+  const mobile = useIsMobile();
+  const [subtasksOpen, setSubtasksOpen] = useState(true);
   const [manualLink, setManualLink] = useState<string | null>(null);
   const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
   const titleRef = useRef<HTMLInputElement>(null);
   const titleField = useSidewaysScroll(titleRef);
+  // No celular o título quebra linhas como no modelo de folha; Enter continua salvando.
+  const titleArea = useRef<HTMLTextAreaElement>(null);
   // O título também recebe foco sozinho; só um clique ou uma digitação contam como edição em andamento.
   const editingTitle = useRef(false);
   const focusTask = useRef<string | null>(null);
@@ -64,10 +69,17 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
 
   useEffect(() => {
     if (task && focusTask.current === task.id) {
-      titleRef.current?.focus();
+      (titleRef.current ?? titleArea.current)?.focus();
       focusTask.current = null;
     }
   }, [task]);
+
+  useLayoutEffect(() => {
+    const area = titleArea.current;
+    if (!area) return;
+    area.style.height = "auto";
+    area.style.height = `${area.scrollHeight}px`;
+  }, [title, mobile, task?.id]);
 
   useEffect(() => {
     if (query.error instanceof ApiFailure && query.error.code === "NOT_FOUND") {
@@ -135,8 +147,179 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
     }
   };
 
+  const menu = task && <MenuButton key={task.id} label={t("Ações da tarefa")} contextMenu={contextMenu} items={() => [
+    { label: t("Duplicar"), icon: <IconCopy />, onSelect: () => void actions.duplicate(task) },
+    ...(app.browserTools ? [
+      { label: t("Copiar link para a tarefa"), icon: <IconLink />, onSelect: () => void copyLink(task.id) },
+      { label: t("Abrir em nova janela"), icon: <IconExternal />, onSelect: () => {
+        window.open(taskLink(task.id), "_blank", "noopener,popup");
+      } },
+    ] : []),
+    "separator",
+    { label: t("Excluir"), icon: <IconTrash />, danger: true, onSelect: async () => {
+      const removed = await actions.remove(task);
+      if (removed && currentTaskId.current === task.id) onClose();
+    } },
+  ]}><IconMore /></MenuButton>;
+
+  const togglePop = (key: Exclude<Pop, null>) => setPop(pop === key ? null : key);
+
+  type TitleElement = HTMLInputElement | HTMLTextAreaElement;
+  const titleProps = {
+    value: title, readOnly: completed, maxLength: 500,
+    onPointerDown: () => { editingTitle.current = true; },
+    onChange: (event: React.ChangeEvent<TitleElement>) => { editingTitle.current = true; updateText("title", event.target.value); },
+    onBlur: (event: React.FocusEvent<TitleElement>) => {
+      // Trocar de janela dispara blur, mas o cursor continua no campo.
+      if (document.activeElement !== event.currentTarget) editingTitle.current = false;
+      commitText("title");
+    },
+    onKeyDown: (event: React.KeyboardEvent<TitleElement>) => {
+      if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+      if (event.key !== "Escape" || !editingTitle.current || completed) return;
+      // Esc salva e sai do campo; o diálogo só fecha no Esc seguinte.
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.nativeEvent.isComposing) event.currentTarget.closest<HTMLElement>('[role="dialog"]')?.focus();
+    },
+  };
+
+  const titleInput = (
+    <>
+      <label htmlFor="detail-title" className="sr-only">{t("Título")}</label>
+      {mobile
+        ? <textarea id="detail-title" ref={titleArea} className="title-input md-title-input" rows={1} {...titleProps} />
+        : <input id="detail-title" ref={titleField} className="title-input" {...titleProps} />}
+    </>
+  );
+
+  const descriptionField = (current: Detail) => (
+    <TaskDescription key={current.id} defaultPreview toolbar id="detail-desc" className="desc-input" value={description} readOnly={completed} rows={1}
+      placeholder={t("Descrição")} maxLength={10_000} style={{ color: description ? "var(--text)" : undefined }}
+      onValueChange={(value) => updateText("description", value)} onCommit={() => commitText("description")} />
+  );
+
+  const completedBanner = (current: Detail) => completed && (
+    <div className="banner warn">
+      {t("Tarefa concluída. Reabra para editar ou mover.")}<button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
+        onClick={() => void actions.reopen(current)}>{t("Reabrir")}</button>
+    </div>
+  );
+
+  const subtaskRows = (current: Detail) => (
+    <>
+      {current.children.map((child) => (
+        <div key={child.id} className={`task${child.status === "completed" ? " done-t" : ""}`} style={{ background: "transparent" }}>
+          <Checkbox task={child} onToggle={() => actions.toggle(child)} />
+          <TaskContent task={child} actions={actions} showDescription={false}
+            onOpen={(id) => openRelatedTask(id, current.children.map((item) => item.id))} />
+        </div>
+      ))}
+      {!completed && !current.recurrence && (
+        <button type="button" className="add-task" onClick={() => app.openQuickAdd({ parentId: current.id })}>
+          <span className="plus"><IconPlus /></span>{t("Adicionar subtarefa")}</button>
+      )}
+    </>
+  );
+
+  /** Celular: cartão com título, descrição, origem e data; demais campos numa faixa rolável; subtarefas abaixo. */
+  const mobileBody = (current: Detail) => {
+    const tone = current.dueDate ? dueTone(current.dueDate, app.reference, current.overdue) : null;
+    const labelNames = current.labels.map((label) => label.name).join(", ");
+    return (
+      <div className="md-body">
+        {completedBanner(current)}
+        <div className="md-card">
+          <div className="md-title">
+            <Checkbox task={current} onToggle={() => actions.toggle(current)} />
+            <div className="md-grow">{titleInput}</div>
+          </div>
+          <div className="md-row md-desc">
+            <IconMenu className="md-ic" aria-hidden="true" />
+            <div className="md-grow">{descriptionField(current)}</div>
+          </div>
+          <div className="md-row md-origin">
+            <button type="button" className="md-link" disabled={completed} onClick={() => actions.openMove(current)}
+              aria-label={t("Projeto: {0}. Mover para…", [project?.name ?? ""])}>
+              {project?.inbox ? <IconInbox className="ic-inbox" /> : <ProjectGlyph id={current.projectId} />}
+              <span className="d-text">{project?.name}</span>
+            </button>
+            {current.parentId && current.origin?.parentTitle && (
+              <>
+                <IconChevronRight className="md-sep" aria-hidden="true" />
+                <button type="button" className="md-link md-parent" onClick={() => openRelatedTask(current.parentId!)}
+                  aria-label={t("Tarefa-pai: {0}", [current.origin.parentTitle])}>
+                  <span className="d-text">{current.origin.parentTitle}</span>
+                </button>
+              </>
+            )}
+          </div>
+          <div className="md-row md-date">
+            <button type="button" ref={anchorRef("date")} className={`md-link${tone ? ` tone-${tone}` : " md-placeholder"}`} disabled={completed}
+              aria-haspopup="dialog" aria-expanded={pop === "date"} aria-label={current.dueDate ? undefined : t("Adicionar data")}
+              onClick={() => togglePop("date")}>
+              {current.dueDate && tone ? <DueIcon tone={tone} day={dayOfMonth(current.dueDate)} /> : <IconCalendar />}
+              <span className="d-text">{current.dueDate ? dateLabel(current.dueDate, app.reference) : t("Data")}</span>
+            </button>
+            {current.dueDate && (
+              <button type="button" ref={anchorRef("time")} className="md-link md-time" disabled={completed} aria-haspopup="dialog"
+                aria-label={current.dueTime ? t("Hora: {0}", [current.dueTime]) : t("Adicionar horário")} onClick={() => togglePop("time")}>
+                <IconClock /><span className="d-text">{current.dueTime ?? t("Hora")}</span>
+              </button>
+            )}
+          </div>
+          <div className="md-chips">
+            <button type="button" ref={anchorRef("priority")} className={`pill p${current.priority}${current.priority < 4 ? " on" : ""}`} disabled={completed}
+              aria-haspopup="listbox" aria-label={t("Prioridade: {0}", [t(PRIORITY_NAMES[current.priority])])} onClick={() => togglePop("priority")}>
+              <IconFlag style={{ color: "var(--pc)" }} />{current.priority < 4 ? `P${current.priority}` : t("Prioridade")}
+            </button>
+            {(current.recurrenceRule || !recurrenceBlocked) && (
+              <button type="button" ref={anchorRef("repeat")} className={`pill${current.recurrenceRule ? " on" : ""}`} disabled={completed}
+                aria-haspopup="listbox" aria-label={current.recurrenceRule ? undefined : t("Repetir: definir repetição")} onClick={() => togglePop("repeat")}>
+                <IconRepeat />{current.recurrenceRule ? t(FREQUENCY_LABEL[current.recurrenceRule.frequency]) : t("Repetir")}
+              </button>
+            )}
+            <button type="button" ref={anchorRef("labels")} className={`pill${current.labels.length ? " on" : ""}`} disabled={completed}
+              aria-haspopup="dialog" aria-expanded={pop === "labels"}
+              aria-label={current.labels.length ? t("Etiquetas: {0}", [labelNames]) : t("Etiquetas: adicionar etiqueta")} onClick={() => togglePop("labels")}>
+              {current.labels.length
+                ? current.labels.map((label) => <IconTag key={label.id} style={{ color: tagColor(label.id) }} />)
+                : <IconTag />}
+              {current.labels.length ? labelNames : t("Etiquetas")}
+            </button>
+          </div>
+        </div>
+        {(!completed || current.children.length > 0) && (
+          <section className="md-subs" aria-label={t("Subtarefas")}>
+            <div className="md-subs-h">
+              <h3>{t("Subtarefas")}</h3>
+              {current.subtasks.total > 0 && <span className="sub">{current.subtasks.completed}/{current.subtasks.total}</span>}
+              {current.children.length > 0 && (
+                <button type="button" className="icon-btn" aria-expanded={subtasksOpen}
+                  aria-label={subtasksOpen ? t("Recolher subtarefas de “{0}”", [current.title]) : t("Mostrar subtarefas de “{0}”", [current.title])}
+                  onClick={() => setSubtasksOpen((value) => !value)}>
+                  <IconChevronDown className={subtasksOpen ? undefined : "md-rot"} />
+                </button>
+              )}
+            </div>
+            <Collapse open={subtasksOpen || current.children.length === 0} appear={false}>
+              <div className="md-card md-list">{subtaskRows(current)}</div>
+            </Collapse>
+            {current.recurrence && <p className="hint">{t("Tarefas recorrentes não recebem subtarefas.")}</p>}
+          </section>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <Dialog open={!!taskId} onClose={onClose} title={task?.title ?? t("Detalhe da tarefa")} wide hideHeader initialFocus={titleRef}>
+    <Dialog open={!!taskId} onClose={onClose} title={task?.title ?? t("Detalhe da tarefa")} wide hideHeader expandable initialFocus={mobile ? titleArea : titleRef}>
+      {mobile ? (
+        <div className="task-detail-head-m" onContextMenu={contextMenu.onContextMenu}>
+          <button type="button" className="icon-btn round" onClick={onClose} aria-label={t("Fechar (Esc)")} data-autofocus><IconX /></button>
+          {menu}
+        </div>
+      ) : (
       <div className="dialog-h task-detail-head" onContextMenu={contextMenu.onContextMenu}>
         <div className="crumb">
           {project?.inbox ? <IconInbox className="sm" /> : <ProjectGlyph id={task?.projectId} className="sm" />}
@@ -154,57 +337,22 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
             disabled={!previousId} onClick={() => previousId && openRelatedTask(previousId, order)}><IconChevronUp /></button>
           <button type="button" className="icon-btn" aria-label={t("Mostrar próxima tarefa")} data-tooltip={t("Mostrar próxima tarefa")}
             disabled={!nextId} onClick={() => nextId && openRelatedTask(nextId, order)}><IconChevronDown /></button>
-          {task && <MenuButton key={task.id} label={t("Ações da tarefa")} contextMenu={contextMenu} items={() => [
-            { label: t("Duplicar"), icon: <IconCopy />, onSelect: () => void actions.duplicate(task) },
-            ...(app.browserTools ? [
-              { label: t("Copiar link para a tarefa"), icon: <IconLink />, onSelect: () => void copyLink(task.id) },
-              { label: t("Abrir em nova janela"), icon: <IconExternal />, onSelect: () => {
-                window.open(taskLink(task.id), "_blank", "noopener,popup");
-              } },
-            ] : []),
-            "separator",
-            { label: t("Excluir"), icon: <IconTrash />, danger: true, onSelect: async () => {
-              const removed = await actions.remove(task);
-              if (removed && currentTaskId.current === task.id) onClose();
-            } },
-          ]}><IconMore /></MenuButton>}
+          {menu}
           <button type="button" className="icon-btn" onClick={onClose} aria-label={t("Fechar (Esc)")} data-autofocus><IconX /></button>
         </div>
       </div>
-      {!task ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : (
+      )}
+      {!task ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : mobile ? mobileBody(task) : (
         <div style={{ display: "flex", flexWrap: "wrap" }}>
           <div style={{ flex: "999 1 420px", minWidth: 0, padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
-            {completed && (
-              <div className="banner warn">
-                {t("Tarefa concluída. Reabra para editar ou mover.")}<button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
-                  onClick={() => void actions.reopen(task)}>{t("Reabrir")}</button>
-              </div>
-            )}
+            {completedBanner(task)}
             <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
               <div style={{ marginTop: 2 }}>
                 <Checkbox task={task} onToggle={() => actions.toggle(task)} />
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-                <label htmlFor="detail-title" className="sr-only">{t("Título")}</label>
-                <input id="detail-title" ref={titleField} className="title-input" value={title} readOnly={completed} maxLength={500}
-                  onPointerDown={() => { editingTitle.current = true; }}
-                  onChange={(event) => { editingTitle.current = true; updateText("title", event.target.value); }}
-                  onBlur={(event) => {
-                    // Trocar de janela dispara blur, mas o cursor continua no campo.
-                    if (document.activeElement !== event.currentTarget) editingTitle.current = false;
-                    commitText("title");
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
-                    if (event.key !== "Escape" || !editingTitle.current || completed) return;
-                    // Esc salva e sai do campo; o diálogo só fecha no Esc seguinte.
-                    event.preventDefault();
-                    event.stopPropagation();
-                    if (!event.nativeEvent.isComposing) event.currentTarget.closest<HTMLElement>('[role="dialog"]')?.focus();
-                  }} />
-                <TaskDescription key={task.id} defaultPreview toolbar id="detail-desc" className="desc-input" value={description} readOnly={completed} rows={1}
-                  placeholder={t("Descrição")} maxLength={10_000} style={{ color: description ? "var(--text)" : undefined }}
-                  onValueChange={(value) => updateText("description", value)} onCommit={() => commitText("description")} />
+                {titleInput}
+                {descriptionField(task)}
               </div>
             </div>
             {(!completed || task.children.length > 0) && (
@@ -212,17 +360,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
                 <div className="lbl" style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 6, borderBottom: "1px solid var(--border)" }}>
                   {t("Subtarefas")}{" "}{task.subtasks.total > 0 && <span className="sub">{task.subtasks.completed}/{task.subtasks.total}</span>}
                 </div>
-                {task.children.map((child) => (
-                  <div key={child.id} className={`task${child.status === "completed" ? " done-t" : ""}`} style={{ background: "transparent" }}>
-                    <Checkbox task={child} onToggle={() => actions.toggle(child)} />
-                    <TaskContent task={child} actions={actions} showDescription={false}
-                      onOpen={(id) => openRelatedTask(id, task.children.map((item) => item.id))} />
-                  </div>
-                ))}
-                {!completed && !task.recurrence && (
-                  <button type="button" className="add-task" onClick={() => app.openQuickAdd({ parentId: task.id })}>
-                    <span className="plus"><IconPlus /></span>{t("Adicionar subtarefa")}</button>
-                )}
+                {subtaskRows(task)}
                 <p className="hint" style={{ marginTop: 4 }}>
                   {task.recurrence ? t("Tarefas recorrentes não recebem subtarefas.")
                     : t("Subtarefas ficam no mesmo projeto e seção e têm data, prioridade e etiquetas próprias.")}

@@ -369,6 +369,58 @@ button.t-origin:hover{background:var(--hover)}
 .d-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .d-chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:4px}
 @media (max-width: 899px){.d-side{border-left:0;border-top:1px solid var(--border);padding:4px 16px 24px}}
+/* Detalhe da tarefa no celular: cartão principal, faixa de campos rolável na horizontal e subtarefas abaixo. */
+.task-detail-head-m{display:flex;align-items:center;justify-content:space-between;padding:6px 16px 10px}
+.task-detail-head-m .icon-btn{width:44px;height:44px;border-radius:50%;background:var(--hover);color:var(--text)}
+.md-body{display:flex;flex-direction:column;gap:20px;padding:0 16px calc(24px + env(safe-area-inset-bottom))}
+.md-body>.banner{margin:0}
+.md-card{background:var(--raised);border:1px solid var(--border);border-radius:18px;padding:14px 16px 16px;display:flex;flex-direction:column}
+.md-grow{flex:1;min-width:0}
+.md-title{display:flex;gap:12px;align-items:flex-start;padding-bottom:10px}
+.md-title .chk{margin-top:2px}
+.md-title .title-input{font-size:20px}
+.md-title-input{display:block;resize:none;overflow:hidden}
+.md-row{display:flex;align-items:center;gap:12px;min-height:48px;border-top:1px solid var(--border)}
+.md-row.md-desc{align-items:flex-start;border-top:0;padding:4px 0 10px}
+.md-ic{width:20px;height:20px;flex:none;color:var(--muted)}
+.md-desc .md-ic{margin-top:4px}
+.md-link{display:flex;align-items:center;gap:12px;min-width:0;min-height:44px;padding:0;border:0;background:none;color:var(--text);font:inherit;font-size:16px;text-align:left}
+.md-link svg{width:20px;height:20px;flex:none;color:var(--muted)}
+.md-link.md-placeholder{color:var(--muted)}
+.md-link[class*=tone-],.md-link[class*=tone-] svg{color:var(--tc)}
+.md-link:disabled{cursor:default}
+.md-origin{gap:6px}
+.md-origin>.md-link:first-child{flex:none;max-width:45%}
+.md-parent{flex:1}
+.md-sep{width:16px;height:16px;flex:none;color:var(--faint)}
+.md-time{margin-left:auto;gap:8px;color:var(--muted);font-size:15px}
+.md-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:6px -16px 0;padding:6px 16px 2px;scroll-padding-inline:16px;overscroll-behavior-x:contain}
+.md-chips::-webkit-scrollbar{display:none}
+.md-chips .pill{flex:none;height:40px;padding:0 14px;border-radius:12px;font-size:15px;font-weight:600;background:transparent;gap:8px}
+.md-chips .pill svg{width:18px;height:18px}
+.md-chips .pill:disabled{opacity:.55}
+.md-subs{display:flex;flex-direction:column;gap:8px}
+.md-subs-h{display:flex;align-items:center;gap:8px;padding:0 4px}
+.md-subs-h h3{font-size:17px;font-weight:700}
+.md-subs-h .icon-btn{margin-left:auto}
+.md-subs-h svg{transition:transform var(--dur-base) var(--ease-in-out)}
+.md-subs-h .md-rot{transform:rotate(-90deg)}
+.md-list{padding:2px 16px}
+.md-list>.task{border-bottom:1px solid var(--border)}
+.md-list .add-task{height:52px;font-size:16px;color:var(--text)}
+.md-subs>.hint{padding:0 4px}
+@media (max-width: 899px){
+  .dialog-wrap .dialog.sheet-x{background:var(--bg);max-height:min(68dvh,calc(100dvh - 44px));min-height:0;transition:transform var(--dur-slow) var(--ease-out),max-height var(--dur-base) var(--ease-out),min-height var(--dur-base) var(--ease-out)}
+  .dialog-wrap .dialog.sheet-x.full{max-height:calc(100dvh - 8px - env(safe-area-inset-top));min-height:calc(100dvh - 8px - env(safe-area-inset-top))}
+  .dialog-wrap .dialog.sheet-x.dragging{transition:none}
+  .dialog-wrap:has(>.dialog.sheet-x){padding-top:calc(8px + env(safe-area-inset-top))}
+  /* A alça desenhada pelo ::before vira um botão: arrastável e acessível pelo teclado. */
+  .dialog-wrap .dialog.sheet-x::before{display:none}
+  .sheet-grab{position:sticky;top:0;z-index:2;flex:none;display:grid;place-items:center;width:100%;height:24px;margin-bottom:-4px;border:0;padding:0;background:var(--bg);touch-action:none;cursor:grab}
+  .sheet-grab::before{content:"";width:40px;height:5px;border-radius:3px;background:var(--border-strong)}
+  .sheet-grab:focus-visible{outline:none}
+  .sheet-grab:focus-visible::before{box-shadow:0 0 0 3px var(--focus)}
+}
 .prop{display:flex;align-items:center;gap:12px;min-height:44px;border-bottom:1px solid var(--border);font-size:14px}
 .prop .k{width:120px;color:var(--muted);display:flex;gap:8px;align-items:center;flex:none}
 .prop .k svg{width:16px;height:16px}
