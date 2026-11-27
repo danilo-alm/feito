@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Locale } from "../types";
+import { DARK_THEMES, LIGHT_THEMES, type Locale } from "../types";
 
 const timezone = z.string().min(1).max(128).refine((value) => {
   if (!/^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/.test(value)) return false;
@@ -18,6 +18,7 @@ const agendaLayout = z.enum(["list", "board", "calendar", "table"]).optional();
 export const preferences = z.strictObject({
   timezone, theme: z.enum(["light", "dark", "system"]), locale: z.enum(locales).optional(),
   todayLayout: agendaLayout, upcomingLayout: agendaLayout,
+  lightTheme: z.enum(LIGHT_THEMES).optional(), darkTheme: z.enum(DARK_THEMES).optional(), accent: z.enum(["green", "violet"]).optional(),
 });
 export const preferencesPatch = preferences.partial();
 export type Preferences = z.infer<typeof preferences>;

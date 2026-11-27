@@ -6,11 +6,7 @@
 /* Faixa de título desenhada pelo app (titlebar.tsx). Mesmo desenho no macOS, no Windows e no Linux;
    só os botões da janela mudam por sistema. */
 :root {
-  --tb-press: #DED9CF;
-}
-
-html.dark {
-  --tb-press: #3D3A35;
+  --tb-press: var(--hover);
 }
 
 .desktop-overlay {
@@ -53,7 +49,7 @@ html.dark {
 }
 
 .tb-glass-side {
-  --tb-glass: var(--side);
+  --tb-glass: var(--sidebar);
   display: none;
   right: auto;
   width: calc(var(--sidebar-width) - 1px);
@@ -185,7 +181,7 @@ html.dark {
   padding: 0;
   border: 0;
   border-radius: 8px;
-  color: var(--muted);
+  color: var(--text-2);
   background: transparent;
 }
 
@@ -201,7 +197,7 @@ html.dark {
 }
 
 .tb-btn[aria-disabled="true"] {
-  color: var(--faint);
+  color: var(--text-3);
   background: transparent;
   cursor: default;
 }
@@ -218,9 +214,9 @@ html.dark {
   gap: 8px;
   height: 28px;
   padding: 0 4px 0 9px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  color: var(--muted);
+  color: var(--text-2);
   background: var(--surface);
   font-size: 13px;
   text-align: start;
@@ -229,7 +225,7 @@ html.dark {
 }
 
 .tb-search:hover {
-  border-color: var(--border-strong);
+  border-color: var(--line-strong);
 }
 
 .tb-search svg {
@@ -317,7 +313,7 @@ html.dark {
 }
 
 .desktop-overlay[data-titlebar="linux"] .tb-win:active .tb-dot {
-  background: var(--border-strong);
+  background: var(--line-strong);
 }
 
 .desktop-overlay[data-titlebar="linux"] .tb-win:focus-visible {
@@ -330,7 +326,7 @@ html.dark {
 
 /* Janela inativa: só os glifos clareiam. */
 [data-window-inactive] :is(.tb-btn, .tb-win, .tb .icon-btn) {
-  color: var(--faint);
+  color: var(--text-3);
 }
 
 [data-window-inactive] .tb-dot {
@@ -338,7 +334,7 @@ html.dark {
 }
 
 [data-window-inactive] .tb-title .compact-title {
-  color: var(--muted);
+  color: var(--text-2);
 }
 
 [data-fullscreen] .tb-window {
@@ -485,5 +481,5 @@ html:has(.dialog-wrap) .tb-app {
 }
 
 .desktop-error-details {
-  color: var(--muted);
+  color: var(--text-2);
 }

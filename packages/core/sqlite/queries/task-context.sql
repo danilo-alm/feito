@@ -25,7 +25,8 @@ links AS (
 SELECT json_object(
     'preferences', json_patch(
         json_object('theme', preferences.theme, 'timezone', preferences.timezone),
-        json_object('locale', preferences.locale, 'todayLayout', preferences.today_layout, 'upcomingLayout', preferences.upcoming_layout)
+        json_object('locale', preferences.locale, 'todayLayout', preferences.today_layout, 'upcomingLayout', preferences.upcoming_layout,
+            'lightTheme', preferences.light_theme, 'darkTheme', preferences.dark_theme, 'accent', preferences.accent)
     ),
     'projects', json_array(json_object(
         'id', project.id, 'revision', project.revision, 'isInbox', json(IIF(project.is_inbox, 'true', 'false')),

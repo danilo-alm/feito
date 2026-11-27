@@ -425,7 +425,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
             </div>
             <Collapse open={archived} appear={false}>
               <div className="banner warn">
-                {t("Projeto arquivado: só leitura. Reative para editar.")}<button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
+                {t("Projeto arquivado: só leitura. Reative para editar.")}<button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--accent-text)" }}
                   onClick={() => void app.run(() => api.projects.unarchive(project.id, project.revision), { success: t("Projeto reativado"), revalidate: refreshProjects })}>{t("Reativar")}</button>
               </div>
             </Collapse>
@@ -435,7 +435,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
                 <span style={{ flex: 1 }}>
                   {t("Ordenação por")}{" "}{inSentence(t(SORT_LABEL[view.sortMode]))}{t(": reordenar por posição está desativado.")}{board ? t(" Ainda dá para arrastar entre colunas e criar subtarefas.") : t(" Use o menu ⋯ para mudar de seção.")}
                 </span>
-                <button type="button" className="btn ghost" style={{ height: 30, color: "var(--brand-text)" }} onClick={() => void changeView({ sortMode: "manual" })}>
+                <button type="button" className="btn ghost" style={{ height: 30, color: "var(--accent-text)" }} onClick={() => void changeView({ sortMode: "manual" })}>
                   {t("Voltar a Manual")}</button>
               </div>
             </Collapse>
@@ -782,7 +782,7 @@ function SectionHeader({ sectionId, name, count, archived, renameSection, sectio
   const title = name ?? t(unnamedColumnTitle);
   return (
     <div className={board ? "col-h" : "sec-h"} data-flip={board ? undefined : `sec:${sectionId ?? "none"}`}
-      style={name === null ? { color: "var(--muted)" } : undefined} onContextMenu={contextMenu.onContextMenu}>
+      style={name === null ? { color: "var(--text-2)" } : undefined} onContextMenu={contextMenu.onContextMenu}>
       <SectionTitle sectionId={sectionId} name={name} archived={archived} renameSection={renameSection} />
       <span className="count">{count}</span>
       {showMenu && (
@@ -829,7 +829,7 @@ function ListLayout({ page, tasks, renderTask, targetSection, dropGap, dragging,
               {!project.isInbox && title ? (
                 <SectionHeader sectionId={group.sectionId} name={title} count={activeCounts.get(group.sectionId) ?? 0}
                   archived={archived} renameSection={renameSection} sectionMenu={sectionMenu} />
-              ) : <div style={{ height: 10, borderBottom: "1px solid var(--border)" }} />}
+              ) : <div style={{ height: 10, borderBottom: "1px solid var(--line)" }} />}
               {section?.description && <p className="section-description">{section.description}</p>}
               {dropGap(group.sectionId, null)}
               {active.flatMap(block)}
@@ -843,7 +843,7 @@ function ListLayout({ page, tasks, renderTask, targetSection, dropGap, dragging,
               )}
               {done.length > 0 && (
                 <>
-                  <div className="sec-h" data-flip={`done:${group.sectionId ?? "none"}`} style={{ color: "var(--muted)", fontSize: 13, paddingTop: 12 }}>{t("Concluídas")}<span className="count">{done.length}</span></div>
+                  <div className="sec-h" data-flip={`done:${group.sectionId ?? "none"}`} style={{ color: "var(--text-2)", fontSize: 13, paddingTop: 12 }}>{t("Concluídas")}<span className="count">{done.length}</span></div>
                   {done.flatMap(block)}
                 </>
               )}
@@ -959,7 +959,7 @@ function BoardLayout({ page, tasks, renderTask, indicator, targetSection, dropGa
           </div>
         ) : (
           <button type="button" className="col-new" onClick={() => setAdding(true)}>
-            <IconPlus style={{ color: "var(--brand-text)" }} />{t("Adicionar seção")}</button>
+            <IconPlus style={{ color: "var(--accent-text)" }} />{t("Adicionar seção")}</button>
         ))}
       </div>
     </>

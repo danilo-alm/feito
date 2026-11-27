@@ -160,7 +160,7 @@ export function TaskTable({ groups, tasks: list, actions, archived, label, empty
           <div className="ptable-task" style={{ "--task-depth": depth } as CSSProperties}>
             <Checkbox task={task} disabled={archived} onToggle={() => actions.toggle(task)} />
             <button type="button" className="ptable-title t-click" onClick={() => app.openTask(task.id)}><span>{task.title}</span></button>
-            {task.recurrence && <IconRepeat className="sm" label={t("Recorrente")} style={{ color: "var(--muted)" }} />}
+            {task.recurrence && <IconRepeat className="sm" label={t("Recorrente")} style={{ color: "var(--text-2)" }} />}
           </div>
         </td>
         {show("date") && (
@@ -215,7 +215,7 @@ export function TaskTable({ groups, tasks: list, actions, archived, label, empty
       </div>
       <Popover anchor={columnsAnchor} open={columnsOpen} onClose={() => setColumnsOpen(false)} label={t("Colunas da tabela")} align="end" width={240}>
         <div className="menu" role="group" aria-label={t("Colunas da tabela")}>
-          <div className="mi" aria-disabled="true" style={{ color: "var(--muted)" }}>
+          <div className="mi" aria-disabled="true" style={{ color: "var(--text-2)" }}>
             <span style={{ flex: 1 }}>{t("Tarefa")}</span><IconCheck />
           </div>
           {TABLE_COLUMNS.map(({ key, label }) => (

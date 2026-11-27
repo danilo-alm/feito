@@ -6,7 +6,7 @@ import { clearComposer } from "@feito/ui/client/composer";
 import { closeEditor } from "@feito/ui/client/editor-store";
 import { clearCache, invalidate } from "@feito/ui/client/store";
 import { clearTaskMutationQueues } from "@feito/ui/client/task-mutations";
-import { applyTheme } from "@feito/ui/components/app";
+import { applyTheme, forgetAppearance } from "@feito/ui/components/app";
 import { clearInlineCreateQueues } from "@feito/ui/components/task-editor";
 import { createBrowserSqliteStorage } from "./sqlite/client";
 import { createBrowserWorkspace, initialStatus } from "./workspace";
@@ -52,7 +52,8 @@ export function persistBrowserData() {
 
 export function startBrowserWorkspace() {
   configureApi({ fetch: workspace.fetch, onAuthFailure: undefined });
-  try { localStorage.removeItem("feito:theme"); } catch { /* Preferências são lidas no espaço selecionado. */ }
+  // Preferências são lidas no espaço selecionado.
+  forgetAppearance();
 
   let stream: EventSource | undefined;
   let epoch: string | undefined;

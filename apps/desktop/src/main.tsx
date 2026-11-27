@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState, useSyncExternalStore, type ReactNode } f
 import { createRoot } from "react-dom/client";
 import { NavigationProvider } from "@feito/ui/navigation";
 import { configureApi } from "@feito/ui/client/api";
-import { applyTheme, AppProviders, AppShell } from "@feito/ui/components/app";
+import { applyTheme, AppProviders, AppShell, storedAppearance } from "@feito/ui/components/app";
 import { MobileChrome, Sidebar } from "@feito/ui/components/chrome";
 import { QuickAdd } from "@feito/ui/components/quick-add";
 import { Spinner } from "@feito/ui/components/ui";
@@ -135,12 +135,7 @@ function WorkspaceScreen() {
   );
 }
 
-try {
-  const theme = localStorage.getItem("feito:theme");
-  applyTheme(theme === "light" || theme === "dark" ? theme : "system");
-} catch {
-  applyTheme("system");
-}
+applyTheme(storedAppearance());
 const titlebar = detectTitlebar();
 if (titlebar) {
   document.documentElement.classList.add("desktop-overlay");

@@ -144,7 +144,7 @@ function MoveDialog({ task, onClose }: { task: TaskItem | null; onClose: () => v
     <Dialog open={!!task} onClose={onClose} title={t("Mover para…")}>
       <div className="dialog-b" style={{ gap: 10 }}>
         <div style={{ position: "relative" }}>
-          <IconSearch style={{ position: "absolute", left: 12, top: 13, color: "var(--muted)" }} />
+          <IconSearch style={{ position: "absolute", left: 12, top: 13, color: "var(--text-2)" }} />
           <label htmlFor="move-filter" className="sr-only">{t("Buscar projeto")}</label>
           <input id="move-filter" className="input" placeholder={t("Projeto ou seção")} style={{ paddingLeft: 40 }}
             value={filter} onChange={(event) => setFilter(event.target.value)} data-autofocus />

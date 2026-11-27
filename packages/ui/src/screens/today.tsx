@@ -28,7 +28,7 @@ export default function TodayPage() {
   const viewMenu = <AgendaViewMenu layout={layout} onChange={setLayout} />;
   const toggle = (
     <button type="button" className={`btn ghost${showDone ? " on" : ""}`} aria-pressed={showDone}
-      style={{ color: showDone ? "var(--brand-text)" : "var(--muted)" }} onClick={() => setShowDone((value) => !value)}>
+      style={{ color: showDone ? "var(--accent-text)" : "var(--text-2)" }} onClick={() => setShowDone((value) => !value)}>
       <IconCheck />{t("Concluídas")}</button>
   );
   return (
@@ -36,7 +36,7 @@ export default function TodayPage() {
       <PageHeader crumb={t("Agenda do dia")} title={t("Hoje")} tools={<>{toggle}{viewMenu}</>}
         mobileTools={<>
           <button type="button" className="icon-btn" aria-pressed={showDone} aria-label={t("Mostrar concluídas de hoje")}
-            onClick={() => setShowDone((value) => !value)} style={showDone ? { color: "var(--brand-text)" } : undefined}><IconCheck /></button>
+            onClick={() => setShowDone((value) => !value)} style={showDone ? { color: "var(--accent-text)" } : undefined}><IconCheck /></button>
           {viewMenu}
         </>} />
       <div className={wide ? "project-content" : "content"}>

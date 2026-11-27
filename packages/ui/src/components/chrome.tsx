@@ -143,7 +143,7 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
         )}
         {nav && !nav.projects.length && <p className="hint" style={{ padding: "2px 10px 6px" }}>{t("Crie seu primeiro projeto com o +.")}</p>}
         {!!nav?.archivedCount && (
-          <Link href="/ajustes#arquivados" className="nav" style={{ color: "var(--muted)" }}>
+          <Link href="/ajustes#arquivados" className="nav" style={{ color: "var(--text-2)" }}>
             <IconArchive /><SidebarName>{t("Arquivados")}</SidebarName><span className="count">{nav.archivedCount}</span>
           </Link>
         )}
@@ -354,7 +354,7 @@ export function BrowsePanel() {
         )}
         {nav && !nav.projects.length && (
           <li><button type="button" className="b-row" onClick={projectDetails.create}>
-            <span className="b-ico"><IconPlus /></span><span className="b-name" style={{ color: "var(--muted)" }}>{t("Criar o primeiro projeto")}</span>
+            <span className="b-ico"><IconPlus /></span><span className="b-name" style={{ color: "var(--text-2)" }}>{t("Criar o primeiro projeto")}</span>
           </button></li>
         )}
         {!!nav?.archivedCount && (

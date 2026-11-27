@@ -15,6 +15,7 @@ const MIGRATIONS: [&str; 8] = [
     include_str!("../../../../../packages/core/sqlite/migrations/006-agenda-layouts.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/007-parent-projects.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/008-task-comments.sql"),
+    include_str!("../../../../../packages/core/sqlite/migrations/009-appearance.sql"),
 ];
 macro_rules! query {
     ($name:literal) => {

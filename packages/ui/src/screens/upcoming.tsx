@@ -70,7 +70,7 @@ export default function UpcomingPage() {
                       <IconPlus className="sm" />
                     </button>
                   )}
-                  empty={<div className="sub" style={{ padding: "12px 4px", borderBottom: "1px solid var(--border)" }}>{t("Nada planejado.")}</div>} />
+                  empty={<div className="sub" style={{ padding: "12px 4px", borderBottom: "1px solid var(--line)" }}>{t("Nada planejado.")}</div>} />
                 <CreateSlot slot={`add:day:${day.date}`} defaults={{ dueDate: day.date }} />
               </div>
             );

@@ -263,7 +263,7 @@ export function ImportFlow({ variant, target, onClose }: { variant: Variant; tar
             <h3 className={s.title}>{counts ? t("Pronto para importar do {0}", [source.name]) : t("Não deu para ler os arquivos")}</h3>
             <span className={s.sub}>{counts ? t("Revise o que vai entrar. Nada mudou ainda.") : t("Corrija os pontos abaixo ou escolha outros arquivos.")}</span>
           </div>
-          <button type="button" className="btn ghost" disabled={busy} onClick={reset} style={{ color: "var(--brand-text)" }}>{t("Trocar arquivos")}</button>
+          <button type="button" className="btn ghost" disabled={busy} onClick={reset} style={{ color: "var(--accent-text)" }}>{t("Trocar arquivos")}</button>
         </div>
 
         {counts && (

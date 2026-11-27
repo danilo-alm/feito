@@ -91,7 +91,7 @@ export default function SearchPage() {
           <h1 className="sr-only">{t("Buscar tarefas")}</h1>
           <div style={{ position: "relative", marginTop: 8 }}>
             <label htmlFor="q" className="sr-only">{t("Buscar tarefas por título ou descrição")}</label>
-            <IconSearch style={{ position: "absolute", left: 14, top: 14, color: "var(--muted)" }} />
+            <IconSearch style={{ position: "absolute", left: 14, top: 14, color: "var(--text-2)" }} />
             <input id="q" ref={input} className="input" type="search" placeholder={t("Buscar por título ou descrição")} value={text}
               style={{ paddingLeft: 42, fontSize: 16, height: 46 }} autoComplete="off"
               onChange={(event) => setText(event.target.value)}
@@ -102,7 +102,7 @@ export default function SearchPage() {
             {pill("label", <IconTag style={{ color: tagColor(labelId) }} />, t("Etiqueta"), labelName, () => setLabelId(undefined))}
             {pill("priority", <IconFlag />, t("Prioridade"), priority ? `P${priority}` : null, () => setPriority(undefined))}
             {pill("date", <IconCalendar />, t("Data"), dateName, () => setDate(undefined))}
-            {(projectId || labelId || priority || date) && <button type="button" className="btn ghost" style={{ height: 30, color: "var(--muted)" }} onClick={clear}>{t("Limpar filtros")}</button>}
+            {(projectId || labelId || priority || date) && <button type="button" className="btn ghost" style={{ height: 30, color: "var(--text-2)" }} onClick={clear}>{t("Limpar filtros")}</button>}
             <span style={{ flex: 1 }} />
             <span style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13 }}>
               <span id="inc-done">{t("Incluir concluídas")}</span>
@@ -163,7 +163,7 @@ export default function SearchPage() {
               <button key={kind} type="button" className="mi" onClick={() => { setDate({ kind }); close(); }}>{t(DATE_NAMES[kind])}</button>
             ))}
             <form onSubmit={(event) => { event.preventDefault(); if (range.from <= range.to) { setDate({ kind: "range", ...range }); close(); } }}
-              style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 8, borderTop: "1px solid var(--border)", marginTop: 4 }}>
+              style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 8, borderTop: "1px solid var(--line)", marginTop: 4 }}>
               <span className="lbl">{t("Intervalo")}</span>
               <span className="range-date-field">
                 <span>{t("De")}</span>

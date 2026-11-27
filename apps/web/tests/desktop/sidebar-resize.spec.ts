@@ -39,7 +39,7 @@ test("menu acompanha cada movimento sem animação ou destaque verde", async ({ 
     else await expect(page.locator("html")).not.toHaveClass(/dark/);
     const colors = await separator.evaluate((element) => ({
       line: getComputedStyle(element, "::after").backgroundColor,
-      neutral: getComputedStyle(element).getPropertyValue("--border-strong").trim(),
+      neutral: getComputedStyle(element).getPropertyValue("--line-strong").trim(),
     }));
     const neutral = await page.evaluate((color) => {
       const element = document.createElement("span");

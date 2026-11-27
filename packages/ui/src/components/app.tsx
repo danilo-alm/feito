@@ -11,33 +11,62 @@ import { dismissFailedDrafts, useFailedDrafts, type FailedDraft } from "../clien
 import { closeEditor, type InsertDefaults } from "../client/editor-store";
 import { cacheScope, clearCache, invalidate, useQuery } from "../client/store";
 import { isTemporaryTask, type MutationContext } from "../client/task-mutations";
-import type { Me, Navigation, Theme } from "@feito/core/types";
+import type { Me, Navigation, Preferences, Theme } from "@feito/core/types";
 import { motionMs, useFlip } from "./motion";
 import { TooltipLayer } from "./tooltip";
 import { ContextMenusProvider, Dialog, Spinner, ToastProvider, useToast, type ToastAction } from "./ui";
 
 // ---------- Tema ----------
 
-export function applyTheme(theme: Theme, persist = true) {
+export type Appearance = Pick<Preferences, "theme" | "lightTheme" | "darkTheme" | "accent">;
+const APPEARANCE_KEY = "feito:appearance";
+
+/** Aplica o modo, o tema claro ou escuro escolhido e a cor de destaque no elemento raiz. */
+export function applyTheme(appearance: Appearance | Theme, persist = true) {
+  const value: Appearance = typeof appearance === "string" ? { theme: appearance } : appearance;
   try {
-    if (persist) localStorage.setItem("feito:theme", theme);
+    if (persist) localStorage.setItem(APPEARANCE_KEY, JSON.stringify(value));
   } catch {
     // Preferência visual opcional; o servidor continua com o valor salvo.
   }
-  const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", dark);
+  const dark = value.theme === "dark" || (value.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const root = document.documentElement;
+  root.classList.toggle("dark", dark);
+  root.dataset.theme = dark ? value.darkTheme ?? "feito-dark" : value.lightTheme ?? "feito-light";
+  if (value.accent === "violet") root.dataset.accent = "violet";
+  else delete root.dataset.accent;
 }
 
-function useThemeSync(theme: Theme | undefined, persist: boolean) {
+/** Aparência guardada neste aparelho, para pintar o tema certo antes de as preferências chegarem. */
+export function storedAppearance(): Appearance {
+  try {
+    const saved = JSON.parse(localStorage.getItem(APPEARANCE_KEY) ?? "null") as Appearance | null;
+    if (saved && (saved.theme === "light" || saved.theme === "dark" || saved.theme === "system")) return saved;
+  } catch {
+    // Valor ausente ou corrompido: segue o sistema.
+  }
+  return { theme: "system" };
+}
+
+export function forgetAppearance() {
+  try { localStorage.removeItem(APPEARANCE_KEY); } catch { /* Nada guardado. */ }
+}
+
+function useThemeSync(preferences: Preferences | undefined, persist: boolean) {
+  const theme = preferences?.theme;
+  const lightTheme = preferences?.lightTheme;
+  const darkTheme = preferences?.darkTheme;
+  const accent = preferences?.accent;
   useEffect(() => {
     if (!theme) return;
-    applyTheme(theme, persist);
+    const appearance: Appearance = { theme, lightTheme, darkTheme, accent };
+    applyTheme(appearance, persist);
     if (theme !== "system") return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => applyTheme("system", persist);
+    const onChange = () => applyTheme(appearance, persist);
     media.addEventListener("change", onChange);
     return () => media.removeEventListener("change", onChange);
-  }, [theme, persist]);
+  }, [theme, lightTheme, darkTheme, accent, persist]);
 }
 
 // ---------- Contexto ----------
@@ -136,7 +165,7 @@ export function AppShell({
   const me = useQuery<Me>("me", api.me);
   const nav = useQuery<Navigation>(me.data ? "nav" : null, api.navigation);
   if (nav.data) registerTagOrder(nav.data.projects, nav.data.labels.map((label) => label.id));
-  useThemeSync(me.data?.preferences.theme, persistTheme);
+  useThemeSync(me.data?.preferences, persistTheme);
   const locale = useLocale();
   const workspaceLocale = me.data?.preferences.locale ?? defaultLocale;
   const languageInitialized = useRef(false);
@@ -358,7 +387,7 @@ function ConfirmDialog({ state, onDone }: { state: ConfirmOptions | null; onDone
         </>
       )}
     >
-      {state?.body && <div className="dialog-b" style={{ color: "var(--muted)" }}>{state.body}</div>}
+      {state?.body && <div className="dialog-b" style={{ color: "var(--text-2)" }}>{state.body}</div>}
     </Dialog>
   );
 }
@@ -401,7 +430,7 @@ function FailedDraftsDialog() {
       footer={<button ref={close} type="button" className="btn primary" onClick={dismissFailedDrafts}>{t("Fechar")}</button>}
     >
       <div className="dialog-b">
-        <p style={{ color: "var(--muted)" }}>
+        <p style={{ color: "var(--text-2)" }}>
           {count === 1 ? t("Não foi possível adicionar esta tarefa.") : t("Não foi possível adicionar estas tarefas.")}
           {" "}{t("Copie o texto antes de fechar para tentar de novo.")}</p>
         <ul className="failed-drafts">

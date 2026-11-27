@@ -19,7 +19,7 @@ export function FlatGroup({ title, count, tasks, actions, aside, muted, empty, s
   return (
     <section aria-label={typeof title === "string" ? title : undefined}>
       {title && (
-        <div className="sec-h" data-flip={typeof title === "string" ? `group:${title}` : undefined} style={muted ? { color: "var(--muted)" } : undefined}>
+        <div className="sec-h" data-flip={typeof title === "string" ? `group:${title}` : undefined} style={muted ? { color: "var(--text-2)" } : undefined}>
           {title}{count !== undefined && <span className="count">{count}</span>}
           {aside}
         </div>

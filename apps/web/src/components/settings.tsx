@@ -241,7 +241,7 @@ function RestoreRow() {
     <div className="set-status" role="status">
       {file && <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{file.name}</div>}
       {result ? (
-        <div style={{ color: "var(--brand-text)", fontWeight: 600 }}>{t("Restaurado:")}{" "}{countsText(result.summary)}</div>
+        <div style={{ color: "var(--accent-text)", fontWeight: 600 }}>{t("Restaurado:")}{" "}{countsText(result.summary)}</div>
       ) : preview && (
         <>
           {preview.counts && <div className="sub">{t("Versão")}{" "}{preview.schemaVersion} · {countsText(preview.counts)} · {preview.errors.length} {" "}{t("erros")}</div>}

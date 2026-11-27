@@ -202,7 +202,7 @@ export function ProjectStyleFields({ projectId, color, icon, disabled, onColor, 
   const [open, setOpen] = useState<"color" | "icon" | null>(null);
   const colorRef = useRef<HTMLButtonElement>(null);
   const iconRef = useRef<HTMLButtonElement>(null);
-  const auto = projectId ? tagColor(projectId) : "var(--faint)";
+  const auto = projectId ? tagColor(projectId) : "var(--text-3)";
   const current = color ? colorValue(color) : auto;
   const colorName = color ? COLOR_OPTIONS.find((option) => option.value === color)?.label : t("Automática");
   const close = () => setOpen(null);

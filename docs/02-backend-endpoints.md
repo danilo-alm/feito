@@ -153,6 +153,7 @@ type Label = { id: string; revision: number; name: string; activeCount: number }
 type Preferences = {
   timezone: string; theme: "light" | "dark" | "system"; locale?: "pt-BR" | "en";
   todayLayout?: Layout; upcomingLayout?: Layout; // layout de Hoje e Em breve; ausente, vale "list"
+  lightTheme?: LightTheme; darkTheme?: DarkTheme; accent?: "green" | "violet"; // temas usados pelo modo; ausentes, Feito Claro, Feito Escuro e verde
 };
 ```
 
@@ -182,7 +183,7 @@ A coluna Fase segue o [plano de implementação](01-architecture-and-stack.md#10
 | --- | --- | --- | --- |
 | `GET /api/v1/me` | 1 | Vazio. | `200 { user, mustChangePassword, preferences, inboxProjectId, referenceDate }`. Provisiona de forma idempotente tenant, DEK, preferências e Caixa de entrada no primeiro acesso. |
 | `GET /api/v1/navigation` | 2 | Vazio. | `200 { inbox: { projectId, activeCount }, todayCount, projects: ProjectSummary[], archivedCount, labels: Label[], referenceDate }`. Alimenta a barra lateral e a navegação do celular. `todayCount` soma atrasadas e de hoje. Projetos ativos e etiquetas na ordem manual; os que nunca foram movidos seguem no fim, projetos por criação e etiquetas por nome. Projetos vêm em árvore: cada projeto principal seguido dos subprojetos, na ordem manual entre irmãos. Um projeto cujo principal está arquivado, ausente ou num ciclo aparece no topo, com `parentId: null`. |
-| `PATCH /api/v1/preferences` | 1 | `{ timezone?, theme?, locale?, todayLayout?, upcomingLayout? }` | `200 Preferences`. `timezone` precisa ser um identificador IANA válido. Trocar o fuso muda o cálculo de Hoje sem alterar datas e horas gravadas. `locale` seleciona o idioma da interface; quando ausente em dados antigos, vale `pt-BR`. É sincronizado e exportado com as preferências. `todayLayout` e `upcomingLayout` (`list`, `board`, `calendar` ou `table`) guardam o layout das agendas; a sincronização desktop resolve cada campo pela edição mais recente. |
+| `PATCH /api/v1/preferences` | 1 | `{ timezone?, theme?, locale?, todayLayout?, upcomingLayout?, lightTheme?, darkTheme?, accent? }` | `200 Preferences`. `timezone` precisa ser um identificador IANA válido. Trocar o fuso muda o cálculo de Hoje sem alterar datas e horas gravadas. `locale` seleciona o idioma da interface; quando ausente em dados antigos, vale `pt-BR`. É sincronizado e exportado com as preferências. `todayLayout` e `upcomingLayout` (`list`, `board`, `calendar` ou `table`) guardam o layout das agendas. `theme` é o modo (`light`, `dark` ou `system`); `lightTheme` e `darkTheme` escolhem o tema usado em cada modo, e `accent` troca o destaque dos temas Feito. A sincronização desktop resolve cada campo pela edição mais recente. |
 
 ### 3.3 Projetos
 

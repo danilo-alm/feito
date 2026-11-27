@@ -48,7 +48,7 @@ export function ViewMenu({ view, scope, onChange }: {
           </span>
         </div>
       )}
-      <div className="lbl" style={{ color: "var(--muted)", fontSize: 12 }}>Layout</div>
+      <div className="lbl" style={{ color: "var(--text-2)", fontSize: 12 }}>Layout</div>
       <div className="seg" role="radiogroup" aria-label={agenda ? t("Layout") : t("Layout do projeto")}
         style={phone ? { gridTemplateColumns: "repeat(3,minmax(0,1fr))" } : undefined}>
         <button type="button" className={`seg-o${layout === "list" ? " on" : ""}`} role="radio" aria-checked={layout === "list"}
@@ -70,7 +70,7 @@ export function ViewMenu({ view, scope, onChange }: {
       {!agenda && <div className="grp-h">{t("Ordenar")}</div>}
       <div className="row">
         <span>{t("Agrupar")}</span>
-        <span className="select" aria-disabled="true" style={{ color: "var(--muted)" }}>{layout === "calendar" || agenda ? t("Por dia") : isInbox ? t("Nenhum") : t("Seções do projeto")}</span>
+        <span className="select" aria-disabled="true" style={{ color: "var(--text-2)" }}>{layout === "calendar" || agenda ? t("Por dia") : isInbox ? t("Nenhum") : t("Seções do projeto")}</span>
       </div>
       {!agenda && <div className="row">
         <span id="sort-label">{t("Ordenar")}</span>

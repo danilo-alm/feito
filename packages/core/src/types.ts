@@ -4,6 +4,15 @@ import type { ProjectColor, ProjectIcon } from "./validation/project-style";
 export type Priority = 1 | 2 | 3 | 4;
 export type Frequency = "daily" | "weekly" | "monthly";
 export type Theme = "light" | "dark" | "system";
+// Temas com nome: o modo (Theme) escolhe entre o tema claro e o escuro das preferências.
+export const LIGHT_THEMES = ["feito-light", "catppuccin-latte", "solarized-light"] as const;
+export const DARK_THEMES = [
+  "feito-dark", "feito-black", "catppuccin-mocha", "catppuccin-macchiato", "monokai-pro-spectrum", "dracula",
+  "nord", "tokyo-night", "gruvbox-dark", "one-dark", "rose-pine", "solarized-dark",
+] as const;
+export type LightTheme = typeof LIGHT_THEMES[number];
+export type DarkTheme = typeof DARK_THEMES[number];
+export type Accent = "green" | "violet";
 export type Layout = "list" | "board" | "calendar" | "table";
 export type SortMode = "manual" | "date" | "priority";
 
@@ -99,7 +108,11 @@ export type ProjectPage = {
 export type Label = { id: string; revision: number; name: string; activeCount: number };
 export type Locale = "pt-BR" | "pt-PT" | "en" | "es" | "fr" | "it" | "de";
 // Ausente nos documentos anteriores à internacionalização: usar o idioma padrão.
-export type Preferences = { timezone: string; theme: Theme; locale?: Locale; todayLayout?: Layout; upcomingLayout?: Layout };
+export type Preferences = {
+  timezone: string; theme: Theme; locale?: Locale; todayLayout?: Layout; upcomingLayout?: Layout;
+  // Ausentes: Feito Claro, Feito Escuro e destaque verde.
+  lightTheme?: LightTheme; darkTheme?: DarkTheme; accent?: Accent;
+};
 export type User = { id: string; email: string };
 
 export type Session = { user: User; mustChangePassword: boolean };

@@ -202,7 +202,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
 
   const completedBanner = (current: Detail) => completed && (
     <div className="banner warn">
-      {t("Tarefa concluída. Reabra para editar ou mover.")}<button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--brand-text)" }}
+      {t("Tarefa concluída. Reabra para editar ou mover.")}<button type="button" className="btn ghost" style={{ marginLeft: "auto", height: 30, color: "var(--accent-text)" }}
         onClick={() => void actions.reopen(current)}>{t("Reabrir")}</button>
     </div>
   );

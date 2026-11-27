@@ -119,7 +119,7 @@ function PublicList({ page, tasks, onOpen }: LayoutProps) {
               {active.flatMap(block)}
               {done.length > 0 && (
                 <>
-                  <div className="sec-h" style={{ color: "var(--muted)", fontSize: 13, paddingTop: 12 }}>{t("Concluídas")}<span className="count">{done.length}</span></div>
+                  <div className="sec-h" style={{ color: "var(--text-2)", fontSize: 13, paddingTop: 12 }}>{t("Concluídas")}<span className="count">{done.length}</span></div>
                   {done.flatMap(block)}
                 </>
               )}
@@ -147,7 +147,7 @@ function PublicBoard({ page, tasks, onOpen }: LayoutProps) {
         const title = name ?? unnamedColumnTitle;
         return (
           <section key={group.sectionId ?? "none"} className="column" aria-label={t("Coluna {0}", [title])}>
-            <div className="col-h" style={{ color: name === null ? "var(--muted)" : undefined }}>
+            <div className="col-h" style={{ color: name === null ? "var(--text-2)" : undefined }}>
               {title}<span className="count">{active.length}</span>
             </div>
             {active.flatMap(block)}
@@ -242,7 +242,7 @@ function PublicTaskDetail({ task, tasks, reference, onOpen }: {
         : <p className="hint">{t("Sem descrição.")}</p>}
       {children.length > 0 && (
         <div>
-          <div className="lbl" style={{ color: "var(--muted)", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{t("Subtarefas")}</div>
+          <div className="lbl" style={{ color: "var(--text-2)", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{t("Subtarefas")}</div>
           <ul className="public-sub">
             {children.map((child) => (
               <li key={child.id} className={child.status === "completed" ? "done" : undefined}>
