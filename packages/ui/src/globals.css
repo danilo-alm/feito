@@ -452,8 +452,7 @@ button.t-origin:hover{background:var(--hover)}
 .md-time{margin-left:auto;gap:8px;color:var(--muted);font-size:15px}
 .md-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:6px -16px 0;padding:6px 16px 2px;scroll-padding-inline:16px;overscroll-behavior-x:contain}
 .md-chips::-webkit-scrollbar{display:none}
-.md-chips .pill{flex:none;height:40px;padding:0 14px;border-radius:12px;font-size:15px;font-weight:600;background:transparent;gap:8px}
-.md-chips .pill svg{width:18px;height:18px}
+.md-chips .pill{flex:none;height:32px;border-radius:10px;font-weight:500;background:transparent}
 .md-chips .pill:disabled{opacity:.55}
 .md-subs{display:flex;flex-direction:column;gap:8px}
 .md-subs-h{display:flex;align-items:center;gap:8px;padding:0 4px}
