@@ -314,13 +314,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
 
   return (
     <Dialog open={!!taskId} onClose={onClose} title={task?.title ?? t("Detalhe da tarefa")} wide hideHeader expandable initialFocus={mobile ? titleArea : titleRef}>
-      {mobile ? (
-        <div className="task-detail-head-m" onContextMenu={contextMenu.onContextMenu}>
-          <button type="button" className="icon-btn round" onClick={onClose} aria-label={t("Fechar (Esc)")} data-autofocus><IconX /></button>
-          {menu}
-        </div>
-      ) : (
-        <div className="dialog-h task-detail-head" onContextMenu={contextMenu.onContextMenu}>
+      <div className="dialog-h task-detail-head" onContextMenu={contextMenu.onContextMenu}>
         <div className="crumb">
           {project?.inbox ? <IconInbox className="sm" /> : <ProjectGlyph id={task?.projectId} className="sm" />}
           <span>{project?.name}</span>
@@ -334,7 +328,6 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
           <button type="button" className="icon-btn" onClick={onClose} aria-label={t("Fechar (Esc)")} data-autofocus><IconX /></button>
         </div>
       </div>
-      )}
       {!task ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : mobile ? mobileBody(task) : (
         <div style={{ display: "flex", flexWrap: "wrap" }}>
           <div className="td-main">

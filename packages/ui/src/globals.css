@@ -391,9 +391,7 @@ button.t-origin:hover{background:var(--hover)}
 .td-list-empty{margin-top:8px}
 .td-hint{padding-left:34px}
 /* Detalhe da tarefa no celular: cartão principal, faixa de campos rolável na horizontal e subtarefas abaixo. */
-.task-detail-head-m{display:flex;align-items:center;justify-content:space-between;padding:6px 16px 10px}
-.task-detail-head-m .icon-btn{width:44px;height:44px;border-radius:50%;background:var(--hover);color:var(--text)}
-.md-body{display:flex;flex-direction:column;gap:20px;padding:0 16px calc(24px + env(safe-area-inset-bottom))}
+.md-body{display:flex;flex-direction:column;gap:20px;padding:12px 16px calc(24px + env(safe-area-inset-bottom))}
 .md-body>.banner{margin:0}
 .md-card{background:var(--raised);border:1px solid var(--border);border-radius:18px;padding:14px 16px 16px;display:flex;flex-direction:column}
 .md-grow{flex:1;min-width:0}
