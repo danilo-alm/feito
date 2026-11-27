@@ -38,7 +38,7 @@ test.describe("celular", () => {
     const source = await row(page, "Listar móveis para doação").boundingBox();
     const target = await row(page, "Definir orçamento da reforma").boundingBox();
     const drop = await longPressDrag(page, { x: source!.x + 150, y: source!.y + source!.height / 2 }, { x: target!.x + 150, y: target!.y + 6 });
-    await expect(page.locator(".ins")).toBeVisible();
+    await expect(page.locator(".drop-gap[data-open] .ins")).toBeVisible();
     await drop();
     await expect.poll(async () => (await projectState(api, seed.id)).order(seed.sections.Planejar))
       .toEqual(["Listar móveis para doação", "Definir orçamento da reforma", "Escolher a cor da pintura do quarto"]);

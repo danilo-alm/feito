@@ -95,7 +95,7 @@ test.describe("organizar um projeto", () => {
     const card = await row(page, "Lâmpadas para o corredor").boundingBox();
     const column = await page.getByRole("region", { name: "Coluna Resolver" }).boundingBox();
     await mouseDrag(page, { x: card!.x + 100, y: card!.y + 15 }, { x: column!.x + column!.width / 2, y: column!.y + column!.height - 60 });
-    await expect(page.getByText("Soltar aqui muda para Resolver")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Coluna Resolver" }).locator(".drop-gap[data-open] .ins")).toBeVisible();
     await page.mouse.up();
     await expect.poll(async () => (await projectState(api, seed.id)).byTitle["Lâmpadas para o corredor"].sectionId).toBe(seed.sections.Resolver);
     await expect(page.getByRole("status").locator(".toast")).toHaveCount(0);
