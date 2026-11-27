@@ -48,7 +48,7 @@ export default function TodayPage() {
           {!data && <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} />}
           {data && !wide && (
             <>
-              {data.overdue.length > 0 && <FlatGroup title={t("Atrasadas")} count={data.overdue.length} tasks={data.overdue} actions={actions} />}
+              {data.overdue.length > 0 && <FlatGroup title={t("Atrasadas")} late count={data.overdue.length} tasks={data.overdue} actions={actions} />}
               <FlatGroup title={t("Hoje · {0}", [shortDate(data.referenceDate)])} count={data.today.length} tasks={data.today} actions={actions} timeOnly
                 empty={!data.overdue.length ? (
                   <div className="empty"><strong>{t("Tudo em dia")}</strong>{t("Nada planejado para hoje.")}</div>

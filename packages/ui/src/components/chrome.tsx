@@ -7,7 +7,7 @@ import { useEffect, useState, type CSSProperties, type MouseEvent, type ReactNod
 import { createPortal } from "react-dom";
 import { useTitlebar } from "./titlebar";
 import { api, ApiFailure, errorMessage } from "../client/api";
-import { tagColor } from "../client/colors";
+import { projectStyle, tagColor } from "../client/colors";
 import { invalidate } from "../client/store";
 import type { Label, Navigation, OrderAnchor, ProjectMove, ProjectSummary } from "@feito/core/types";
 import { moveInOrder, moveInTree, treeStep, type OrderKind } from "../client/manual-order";
@@ -264,7 +264,7 @@ function ProjectRow({ project, active, shortcut, onEdit, reorder, orderMenu }: {
 
   return (
     <div className={`nav proj-row tree-row${active ? " on" : ""}${reorder?.dragging ? " drag-src" : ""}`}
-      style={reorder?.depth ? { "--depth": reorder.depth } as CSSProperties : undefined}
+      style={{ ...reorder?.depth ? { "--depth": reorder.depth } : {}, "--proj": projectStyle(project.id).color } as CSSProperties}
       {...rowProps(reorder, contextMenu.onContextMenu)}>
       <Link href={`/projetos/${project.id}`} className="proj-link" aria-current={active ? "page" : undefined} draggable={false}
         aria-keyshortcuts={[shortcut && `Control+${shortcut}`, reorder && TREE_KEYS].filter(Boolean).join(" ") || undefined}>

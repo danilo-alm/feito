@@ -185,7 +185,7 @@ h1,h2,h3,p{margin:0}
 :focus-visible,.focus{outline:2px solid var(--focus);outline-offset:2px}
 
 /* prioridade */
-.p1{--pc:var(--p1);--pcs:var(--p1-soft)}.p2{--pc:var(--p2);--pcs:var(--p2-soft)}
+.p1{--pc:var(--p1);--pcs:color-mix(in srgb,var(--p1) 22%,transparent)}.p2{--pc:var(--p2);--pcs:color-mix(in srgb,var(--p2) 12%,transparent)}
 .p3{--pc:var(--p3);--pcs:var(--p3-soft)}.p4{--pc:var(--p4);--pcs:var(--p4-soft)}
 
 /* app shell */
@@ -206,6 +206,9 @@ h1,h2,h3,p{margin:0}
 .nav svg{color:var(--text-2)}
 .nav.on{background:var(--accent-soft);color:var(--accent-text);font-weight:600}
 .nav.on svg{color:var(--accent-text)}
+/* Projeto aberto: o destaque usa a cor do próprio projeto, e o ícone mantém a cor dele. */
+.side .proj-row.on{background:color-mix(in srgb,var(--proj,var(--accent)) var(--tint),transparent);color:var(--text)}
+.side .proj-row.on svg{color:var(--proj,var(--accent-text))}
 .nav .count{margin-left:auto;min-width:var(--nav-end-size);text-align:center;font-size:12px;color:var(--text-2);font-weight:500}
 .nav-label{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-2);padding:18px 10px 6px}
 .proj-row{position:relative}
@@ -305,6 +308,23 @@ h1,h2,h3,p{margin:0}
 .sec-h .count{font-weight:500;color:var(--text-2);font-size:13px}
 .sec-h .icon-btn{width:28px;height:28px;margin-left:auto}
 .task{display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid var(--line);position:relative;background:var(--bg)}
+/* Prioridade sem depender só da cor: anel mais grosso e preenchido em P1 e P2, fino e neutro em P4, título forte em P1. */
+.chk.p1 .ring,.chk.p2 .ring{border-width:2.5px}
+.chk.p3 .ring{--pcs:transparent}
+.chk.p4 .ring{border-width:1.5px}
+.task:not(.done-t):has(>.chk.p1) .t-title,.card:not(.done-t):has(>.chk.p1) .t-title{font-weight:600}
+.t-meta>.m-prio{color:var(--pc);font-weight:700;gap:3px}
+.m-prio svg.fill{fill:currentColor;stroke:currentColor}
+.t-meta>span>span,.t-meta>button>span{font-weight:500}
+/* Seções em cartões: título no topo do cartão, tarefas separadas por linhas finas por dentro. */
+.task-group,.list-group{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0 14px;margin:0 0 16px;box-shadow:var(--shadow)}
+.task-group>.sec-h,.list-group>.sec-h,.list-group+.list-group .sec-h{padding:12px 2px 10px}
+.task-group .task,.list-group .task{background:var(--surface)}
+.task-group>.task:last-child,.list-group>.task:last-child{border-bottom:0}
+.task-group:not(:has(.task)):not(:has(.empty)){padding-bottom:4px}
+.sec-h .count{min-width:20px;height:20px;padding:0 6px;box-sizing:border-box;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);display:inline-grid;place-items:center;font-size:11.5px;font-weight:600}
+.sec-h.late{color:var(--late)}
+.sec-h.late .count{background:var(--late-soft);color:var(--late)}
 .task.sub{padding-inline-start:calc(4px + var(--task-depth,1) * var(--task-indent-step,30px))}
 .task-tree-inset{margin-inline-start:calc(var(--task-depth,0) * var(--task-indent-step,30px))}
 .grip{position:absolute;left:-26px;align-self:flex-start;margin-top:-2px;width:22px;height:24px;display:grid;place-items:center;color:var(--text-2);opacity:0;border-radius:6px;cursor:grab}

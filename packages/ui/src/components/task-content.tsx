@@ -12,7 +12,7 @@ import { editTask, isTemporaryTask } from "../client/task-mutations";
 import { useQuery } from "../client/store";
 import type { TaskDetail, TaskItem } from "@feito/core/types";
 import { useApp } from "./app";
-import { DueIcon, IconCheck, IconInbox, IconClock, IconRepeat, IconSub, IconTag } from "./icons";
+import { DueIcon, IconCheck, IconFlag, IconInbox, IconClock, IconRepeat, IconSub, IconTag } from "./icons";
 import { ProjectGlyph } from "./project-style";
 import { DatePicker, LabelPicker, RepeatMenu, TimePicker } from "./pickers";
 import type { useTaskActions } from "./task-actions";
@@ -98,7 +98,10 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
       }) : item("subtasks", <><IconSub />{task.subtasks.completed}/{task.subtasks.total}</>, {
         field: "subtasks", label: t("{0} de {1} subtarefas concluídas", [task.subtasks.completed, task.subtasks.total]),
       }))}
-      {task.labels.map((label) => item(`label:${label.id}`, <><IconTag style={{ color: tagColor(label.id) }} />{label.name}</>, {
+      {active && task.priority < 4 && item("priority", <><IconFlag className={task.priority === 1 ? "fill" : undefined} />P{task.priority}</>, {
+        className: "m-prio", label: t("Prioridade {0}", [task.priority]),
+      })}
+      {task.labels.map((label) => item(`label:${label.id}`, <><IconTag style={{ color: tagColor(label.id) }} /><span style={{ color: tagColor(label.id) }}>{label.name}</span></>, {
         field: editable ? "labels" : undefined, label: editable ? t("Etiqueta: {0}", [label.name]) : undefined,
       }))}
     </span>
