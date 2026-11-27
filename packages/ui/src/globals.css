@@ -488,7 +488,10 @@ button.t-origin:hover{background:var(--hover)}
 .touch.hold{box-shadow:0 0 0 8px rgba(47,125,90,.14),0 0 0 16px rgba(47,125,90,.07)}
 
 /* popover, menus, folhas */
-.pop{background:var(--surface-raised);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);color:var(--text)}
+/* Camadas: popovers e menus no tom de sobreposição, diálogos um degrau abaixo. A borda clara separa as camadas
+   mesmo quando a sombra quase não aparece (temas escuros e Preto). */
+.pop{background:var(--overlay);border:1px solid var(--overlay-line);border-radius:14px;box-shadow:var(--pop-shadow);color:var(--text)}
+.pop.dialog{background:var(--surface-raised);border-radius:16px;box-shadow:var(--lift)}
 .menu{padding:6px;min-width:240px}
 .mi{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 10px;border:0;background:none;border-radius:8px;font-size:14px;text-align:left;color:var(--text)}
 .mi:hover,.mi.hl{background:var(--hover)}
