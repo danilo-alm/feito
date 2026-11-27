@@ -20,6 +20,13 @@ async function longPressDrag(page: Page, from: { x: number; y: number }, to: { x
   };
 }
 
+/** Toque prolongado sem mover, com eventos de toque reais (CDP). */
+async function longPress(page: Page, title: string) {
+  const box = (await row(page, title).locator(".t-title").boundingBox())!;
+  const release = await longPressDrag(page, { x: box.x + 20, y: box.y + box.height / 2 }, { x: box.x + 20, y: box.y + box.height / 2 });
+  await release();
+}
+
 test.describe("celular", () => {
   test.skip(({ isMobile }) => !isMobile, "Somente no perfil de celular");
 
@@ -42,6 +49,38 @@ test.describe("celular", () => {
     await drop();
     await expect.poll(async () => (await projectState(api, seed.id)).order(seed.sections.Planejar))
       .toEqual(["Listar móveis para doação", "Definir orçamento da reforma", "Escolher a cor da pintura do quarto"]);
+  });
+
+  test("tocar e segurar abre o menu da tarefa, sem o botão ⋯ na tela", async ({ page, api }) => {
+    const seed = await seedProject(api, `Menu ${Date.now()}`);
+    const title = "Listar móveis para doação";
+    const before = (await projectState(api, seed.id)).order(seed.sections.Planejar);
+    await page.goto(`/projetos/${seed.id}`);
+    const menuButton = row(page, title).getByRole("button", { name: `Ações de “${title}”` });
+    await expect(menuButton).toHaveCount(1);
+    expect((await menuButton.boundingBox())!.width).toBeLessThanOrEqual(1);
+
+    // Na Lista, a linha é arrastável: segurar e soltar sem mover abre o menu e não muda nada.
+    await longPress(page, title);
+    const sheet = page.getByRole("dialog", { name: title, exact: true });
+    await expect(sheet.getByRole("menuitem", { name: "Editar" })).toBeVisible();
+    await sheet.getByRole("button", { name: "Fechar (Esc)" }).click();
+    await expect(sheet).toBeHidden();
+    expect((await projectState(api, seed.id)).order(seed.sections.Planejar)).toEqual(before);
+
+    // Um toque rápido continua abrindo o detalhe da tarefa.
+    await row(page, title).locator(".t-title").tap();
+    const detail = page.getByRole("dialog", { name: title, exact: true });
+    await expect(detail.getByRole("textbox", { name: "Título" })).toBeVisible();
+    await expect(detail.getByRole("menuitem")).toHaveCount(0);
+
+    // Numa lista sem arraste (busca), o toque prolongado também abre o menu.
+    const unique = `Segurar na busca ${Date.now()}`;
+    await api("POST", "/tasks", { projectId: seed.id, title: unique });
+    await page.goto("/busca");
+    await page.getByRole("searchbox").fill(unique);
+    await longPress(page, unique);
+    await expect(page.getByRole("dialog", { name: unique, exact: true }).getByRole("menuitem", { name: "Editar" })).toBeVisible();
   });
 
   test("navega pela aba Navegar até o projeto e troca a visualização", async ({ page, api }) => {
@@ -89,8 +128,8 @@ test.describe("celular", () => {
       await expect(input).not.toBeFocused();
     };
 
-    // Pelo menu da tarefa.
-    await page.getByRole("button", { name: `Ações de “${title}”` }).tap();
+    // Pelo menu da tarefa, aberto com toque prolongado.
+    await longPress(page, title);
     await page.getByRole("menuitemradio", { name: "Escolher data…" }).tap();
     await expectNoKeyboard();
     await input.tap();

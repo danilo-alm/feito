@@ -44,6 +44,9 @@ const blockScroll = (event: TouchEvent) => {
   if (dragActive && event.cancelable) event.preventDefault();
 };
 
+/** Há um arraste em andamento (de tarefa, projeto ou etiqueta). */
+export const isDragActive = () => dragActive;
+
 export function useTouchScrollGuard() {
   useEffect(() => {
     document.addEventListener("touchmove", blockScroll, { passive: false });
@@ -63,6 +66,23 @@ export function listenPointer(on: boolean) {
     lastPointerY = null;
     lastPointerX = null;
   }
+}
+
+/** Toque prolongado sem mover: mesmo tempo e tolerância do arraste por toque. */
+export const LONG_PRESS_MS = 400;
+export const LONG_PRESS_TOLERANCE = 8;
+
+/**
+ * Depois de um toque prolongado que abriu um menu, descarta o clique que o navegador gera ao soltar o dedo
+ * (abriria a tarefa ou fecharia a folha recém-aberta).
+ */
+export function swallowReleaseClick() {
+  const swallow = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  window.addEventListener("click", swallow, { capture: true, once: true });
+  window.setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 600);
 }
 
 /** Depois de soltar um arraste, descarta o clique que o navegador gera sobre o link ou botão de origem. */

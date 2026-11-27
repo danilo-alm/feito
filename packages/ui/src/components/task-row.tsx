@@ -3,7 +3,7 @@
 import { translate as t } from "../client/locale";
 import { useT } from "./language";
 
-import { forwardRef, useState, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type MouseEventHandler, type ReactNode } from "react";
+import { forwardRef, useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type MouseEventHandler, type PointerEvent, type ReactNode } from "react";
 import { addDays, dayOfMonth, nextWeek, shortDate, weekend } from "../client/dates";
 import { editKey, openEditor, useEditorOpen } from "../client/editor-store";
 import { isTemporaryTask } from "../client/task-mutations";
@@ -15,6 +15,7 @@ import {
   IconTrash,
 } from "./icons";
 import { DatePicker, PRIORITY_NAMES } from "./pickers";
+import { isDragActive, LONG_PRESS_MS, LONG_PRESS_TOLERANCE, swallowReleaseClick } from "./drag-pointer";
 import type { useTaskActions } from "./task-actions";
 import { TaskContent } from "./task-content";
 import { InlineEdit } from "./task-editor";
@@ -73,6 +74,36 @@ function SubtaskToggleButton({ task, subtasks }: { task: TaskItem; subtasks: Sub
       <IconChevronDown />
     </button>
   );
+}
+
+/** Toque prolongado sem mover abre o menu da tarefa (no celular o botão ⋯ fica oculto). */
+function useLongPress(enabled: boolean, onLongPress: () => void) {
+  const timer = useRef<number | undefined>(undefined);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const cancel = () => {
+    window.clearTimeout(timer.current);
+    start.current = null;
+  };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  if (!enabled) return {};
+  return {
+    onPointerDown: (event: PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "touch" || event.target instanceof Element && event.target.closest("input, textarea, [contenteditable=true]")) return;
+      cancel();
+      start.current = { x: event.clientX, y: event.clientY };
+      timer.current = window.setTimeout(() => {
+        start.current = null;
+        swallowReleaseClick();
+        onLongPress();
+      }, LONG_PRESS_MS);
+    },
+    onPointerMove: (event: PointerEvent<HTMLDivElement>) => {
+      const origin = start.current;
+      if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > LONG_PRESS_TOLERANCE) cancel();
+    },
+    onPointerUp: cancel,
+    onPointerCancel: cancel,
+  };
 }
 
 export type ArrangeItem = { action: "up" | "down" | "nest" | "promote"; label: string; key: string };
@@ -169,11 +200,13 @@ type RowProps = HTMLAttributes<HTMLDivElement> & {
   extraClass?: string;
   noMenu?: boolean;
   timeOnly?: boolean;
+  /** Toque prolongado abre o menu. Desligado nas linhas arrastáveis: lá o próprio arraste, solto sem mover, abre o menu. */
+  longPressMenu?: boolean;
 };
 
 export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
   task, actions, showOrigin, grip, tag, arrange, onArrange, onKeyArrange, insert, variant = "row",
-  depth = task.parentId && !showOrigin ? 1 : 0, subtasks, showMoreSubtasks, extraClass = "", noMenu, timeOnly, style, onContextMenu, ...rest
+  depth = task.parentId && !showOrigin ? 1 : 0, subtasks, showMoreSubtasks, extraClass = "", noMenu, timeOnly, longPressMenu = true, style, onContextMenu, ...rest
 }, ref) {
   const t = useT();
   const app = useApp();
@@ -183,6 +216,7 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
   const editing = useEditorOpen(editKey(task)) && !noMenu && !temporary;
   const [dateOpen, setDateOpen] = useState(false);
   const [acts, setActs] = useState<HTMLDivElement | null>(null);
+  const longPress = useLongPress(longPressMenu && !noMenu && !temporary, contextMenu.open);
   // Em edição, o editor rápido ocupa o lugar da tarefa (sem os atributos de arraste da linha).
   const indent = { "--task-depth": depth } as CSSProperties;
   if (editing) return depth
@@ -199,6 +233,11 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
     .filter(Boolean).join(" ");
   const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
   const handleContextMenu: MouseEventHandler<HTMLDivElement> = (event) => {
+    // Durante um arraste por toque, o menu nativo do toque prolongado não abre o menu da tarefa.
+    if (isDragActive()) {
+      event.preventDefault();
+      return;
+    }
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed && selection.rangeCount > 0 && selection.getRangeAt(0).intersectsNode(event.currentTarget)) {
       selection.removeAllRanges();
@@ -207,7 +246,7 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
   };
   return (
     <div ref={ref} className={classes} data-task-id={noMenu ? undefined : task.id} onKeyDown={onKeyArrange} style={{ ...indent, ...style }}
-      onContextMenu={handleContextMenu} {...rest}>
+      onContextMenu={handleContextMenu} {...longPress} {...rest}>
       {grip && !temporary && variant === "row" && <span className="grip" aria-hidden="true"><IconGrip /></span>}
       {subtasks && <SubtaskToggleButton task={task} subtasks={subtasks} />}
       <Checkbox task={task} disabled={temporary} onToggle={() => actions.toggle(task)} />
@@ -228,7 +267,7 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
               </button>
             </>
           )}
-          <MenuButton label={t("Ações de “{0}”", [task.title])} title={task.title} contextMenu={contextMenu}
+          <MenuButton className="icon-btn t-menu" label={t("Ações de “{0}”", [task.title])} title={task.title} contextMenu={contextMenu}
             items={() => taskMenu({
               task, actions, reference: app.reference, edit, insert, arrange, onArrange,
               datePicker: (close) => (

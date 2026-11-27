@@ -4,7 +4,7 @@ import { inSentence } from "../client/locale";
 
 import {
   DndContext, DragOverlay, MeasuringStrategy, MouseSensor, TouchSensor, pointerWithin, rectIntersection, useDraggable,
-  useDroppable, useSensor, useSensors, type CollisionDetection, type DragMoveEvent, type DragStartEvent,
+  useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragMoveEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { useRouter } from "../navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
@@ -23,7 +23,7 @@ import type { NamedDetails, ProjectPage, Section, TaskItem } from "@feito/core/t
 import { taskAncestors } from "@feito/core/domain/task-tree";
 import { refreshProjects, useApp } from "./app";
 import { PageHeader, PageTaskCount } from "./chrome";
-import { listenPointer, pointerX, pointerY, startX, useTouchScrollGuard } from "./drag-pointer";
+import { LONG_PRESS_TOLERANCE, listenPointer, pointerX, pointerY, startX, swallowReleaseClick, useTouchScrollGuard } from "./drag-pointer";
 import { Collapse, flipFrom, motionMs, refreshFlip } from "./motion";
 import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconMore, IconPlus, IconDownload, IconTrash, IconUpload } from "./icons";
 import { useExportDialog, useImportDialog } from "./import-export-dialogs";
@@ -238,11 +238,17 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     refreshFlip();
     if (drag) flipFrom(drag.activeId, document.querySelector<HTMLElement>(".drag-overlay"));
   };
-  const onDragEnd = () => {
+  const onDragEnd = (event: DragEndEvent) => {
     settle();
     const state = drag;
     setDrag(null);
     if (!state) return;
+    // Toque prolongado solto sem mover: abre o menu da tarefa em vez de arrastar.
+    if (event.activatorEvent.type.startsWith("touch") && Math.hypot(event.delta.x, event.delta.y) <= LONG_PRESS_TOLERANCE) {
+      swallowReleaseClick();
+      openTaskMenu(state.activeId);
+      return;
+    }
     if (!state.slot) {
       toast(t("Arraste cancelado — a tarefa voltou ao lugar"));
       return;
@@ -460,6 +466,14 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
   );
 }
 
+/** Abre o menu ⋯ da tarefa depois que a prévia do arraste sai da tela. */
+function openTaskMenu(taskId: string) {
+  window.setTimeout(() => {
+    document.querySelector(`[data-task-id="${CSS.escape(taskId)}"]`)
+      ?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+  }, 0);
+}
+
 /** Selo "Público" ao lado da contagem enquanto o link de compartilhamento está ativo. */
 function PublicBadge({ projectId, origin }: { projectId: string; origin?: string }) {
   const t = useT();
@@ -523,6 +537,7 @@ function DraggableTask({
         insert={insert}
         grip={grip && !editing}
         subtasks={subtasks}
+        longPressMenu={disabled || editing || temporary}
         {...draggable.attributes}
         {...draggable.listeners}
         role={undefined}

@@ -383,7 +383,11 @@ export function useContextMenu(enabled = true) {
     const point = event.button === 2 || event.ctrlKey ? { x: event.clientX, y: event.clientY } : undefined;
     setActivation({ point });
   };
-  return { activation, close, onContextMenu: supported && enabled ? handle : undefined };
+  /** Abre o menu sem evento de mouse (toque prolongado no celular). */
+  const open = useCallback(() => {
+    if (supported && enabled) setActivation({});
+  }, [supported, enabled]);
+  return { activation, close, open, onContextMenu: supported && enabled ? handle : undefined };
 }
 
 /** Botão que abre um menu de ações (popover no desktop, folha no celular). */

@@ -183,6 +183,12 @@ h1,h2,h3,p{margin:0}
 .task.has-sub .grip{left:-32px;width:16px}
 .task.sub.has-sub .grip{inset-inline-start:calc(var(--task-depth,1) * var(--task-indent-step,30px) - 32px)}
 .card>.sub-toggle{margin:-4px -4px -4px -6px}
+/* Celular com toque: o menu da tarefa abre com toque prolongado; o botão ⋯ some da tela, mas continua para leitores de tela.
+   A linha não seleciona texto nem mostra a prévia do sistema no toque prolongado. */
+@media (max-width:899px) and (pointer:coarse){
+  :is(.task,.card) .t-acts .t-menu{position:absolute;width:1px;height:1px;min-height:0;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);border:0}
+  :is(.task,.card)[data-task-id]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+}
 .chk{width:28px;height:28px;margin:-4px -2px -4px -4px;border:0;background:none;padding:0;display:grid;place-items:center;flex:none}
 .ring{width:20px;height:20px;border-radius:50%;border:2px solid var(--pc);background:var(--pcs);display:grid;place-items:center;color:var(--pc)}
 .ring svg{width:12px;height:12px;stroke-width:3;opacity:0}
