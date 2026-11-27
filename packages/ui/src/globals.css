@@ -1026,7 +1026,6 @@ svg.ic-repeat{color:var(--brand-text)}
     inset-inline-start: var(--sync-inset);
     inset-inline-end: auto;
     inset-block-end: calc(var(--mobile-tabbar-height) + var(--sync-inset));
-    border: 1px solid var(--border);
     background: var(--bg);
   }
 

@@ -41,6 +41,7 @@ for (const narrow of [false, true]) {
       expect(tabbarBox.y - (indicatorBox.y + indicatorBox.height)).toBe(indicatorBox.x);
       await expect(indicator).toHaveCSS("background-color", appBackground);
       await expect(indicator).toHaveCSS("border-radius", "50%");
+      await expect(indicator).toHaveCSS("border-width", "0px");
     }
     await page.screenshot({ path: `/tmp/feito-sync-setting-dark-${narrow ? "narrow" : "wide"}.png`, fullPage: true });
   });

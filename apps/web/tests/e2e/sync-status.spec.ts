@@ -38,6 +38,7 @@ test("indicador mostra só a bolinha e revela o estado ao receber foco", async (
     expect(tabbarBox.y - (indicatorBox.y + indicatorBox.height)).toBe(indicatorBox.x);
     await matchesTheme(indicator);
     await expect(indicator).toHaveCSS("border-radius", "50%");
+    await expect(indicator).toHaveCSS("border-width", "0px");
   } else {
     await expect(indicator).toHaveCSS("right", "8px");
     await expect(indicator).toHaveCSS("bottom", "8px");
