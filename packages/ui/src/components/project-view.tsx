@@ -140,7 +140,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     if (plan.steps.some((step) => step.type === "position"
       && [step.parentId, step.beforeId, step.afterId].some((id) => id && isTemporaryTask(id)))) return;
     if (focus) focusAfter.current = taskId;
-    return app.run(() => moveTask(app.taskContext, task, plan.steps), { success: plan.message });
+    return app.run(() => moveTask(app.taskContext, task, plan.steps));
   }, [app, page, toast]);
 
   const arrange = useCallback((taskId: string, action: KeyAction) => {

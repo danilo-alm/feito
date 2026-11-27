@@ -82,7 +82,7 @@ export function useTaskActions() {
       danger: true,
     });
     if (!ok) return false;
-    const done = await app.run(() => removeTask(app.taskContext, task).then(() => true), { success: t("Tarefa excluída") });
+    const done = await app.run(() => removeTask(app.taskContext, task).then(() => true));
     return !!done;
   }, [app, t]);
 
@@ -128,16 +128,14 @@ function MoveDialog({ task, onClose }: { task: TaskItem | null; onClose: () => v
   const sections = useQuery<ProjectPage>(expanded ? `project:${expanded}` : null, () => api.projects.get(expanded!));
   const needle = filter.trim().toLocaleLowerCase(getLocale());
 
-  const choose = async (projectId: string, sectionId: string | null, label: string) => {
+  const choose = async (projectId: string, sectionId: string | null) => {
     if (!task || busy) return;
     if (task.projectId === projectId && task.sectionId === sectionId && !task.parentId) {
       onClose();
       return;
     }
     setBusy(true);
-    const saved = await app.run(() => editTask(app.taskContext, task, { destination: { projectId, sectionId } }), {
-      success: t("Movida para {0}", [label]),
-    });
+    const saved = await app.run(() => editTask(app.taskContext, task, { destination: { projectId, sectionId } }));
     setBusy(false);
     if (saved) onClose();
   };
@@ -160,7 +158,7 @@ function MoveDialog({ task, onClose }: { task: TaskItem | null; onClose: () => v
               <div key={project.id}>
                 <button type="button" className="mi" role="option" aria-selected={current && task?.sectionId === null}
                   aria-expanded={project.isInbox ? undefined : open}
-                  onClick={() => (project.isInbox ? choose(project.id, null, project.name) : setExpanded(open ? null : project.id))}>
+                  onClick={() => (project.isInbox ? choose(project.id, null) : setExpanded(open ? null : project.id))}>
                   {project.isInbox ? <IconInbox /> : <ProjectGlyph id={project.id} />}
                   <span style={{ flex: 1 }}>{project.name}</span>
                   {current && <span className="sub">{t("atual")}</span>}
@@ -168,14 +166,14 @@ function MoveDialog({ task, onClose }: { task: TaskItem | null; onClose: () => v
                 <Collapse open={open}>
                   <div>
                     <button type="button" className="mi" role="option" style={{ paddingLeft: 36 }} aria-selected={false}
-                      onClick={() => choose(project.id, null, `${project.name} · ${defaultSectionName}`)}>
+                      onClick={() => choose(project.id, null)}>
                       <span style={{ flex: 1 }}>{defaultSectionName}</span>
                       {current && task?.sectionId === null && <IconCheck />}
                     </button>
                     {sections.data?.project.id === project.id && sections.data.sections.map((section) => (
                       <button key={section.id} type="button" className="mi" role="option" style={{ paddingLeft: 36 }}
                         aria-selected={task?.sectionId === section.id}
-                        onClick={() => choose(project.id, section.id, section.name)}>
+                        onClick={() => choose(project.id, section.id)}>
                         <span style={{ flex: 1 }}>{section.name}</span>
                         {task?.sectionId === section.id && <span className="sub">{t("atual")}</span>}
                       </button>

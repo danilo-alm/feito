@@ -55,23 +55,12 @@ function fixture(sortMode: SortMode = "manual"): ProjectPage {
 }
 
 describe("groupPlan", () => {
-  it("uses the saved name of the default section when moving a task there", () => {
-    const page = fixture();
-    page.project.defaultSectionName = "Entrada";
-    expect(groupPlan(page, "e", null)).toMatchObject({
-      valid: true,
-      steps: [{ type: "position", projectId: "p", sectionId: null, parentId: null }],
-      message: "Moved to Entrada",
-    });
-  });
-
   it("moves a root to the end of another column", () => {
     const plan = groupPlan(fixture(), "a", "buy");
     expect(plan).toMatchObject({
       valid: true,
       steps: [{ type: "position", sectionId: "buy", parentId: null }],
       indicator: { type: "group", sectionId: "buy" },
-      message: "Moved to Comprar",
     });
     expect((plan as { steps: object[] }).steps[0]).not.toHaveProperty("afterId");
   });
@@ -105,7 +94,6 @@ describe("drop slots", () => {
       plan: {
         valid: true,
         steps: [{ type: "position", projectId: "p", sectionId: "plan", parentId: null, afterId: "a" }],
-        message: "New position saved in Planejar",
       },
     });
     // Abaixo de uma tarefa com subtarefas, no nível dela: depois do ramo inteiro.
@@ -130,7 +118,7 @@ describe("drop slots", () => {
   it("nests under the row above when dragged to the right", () => {
     expect(resolveSlot(fixture(), "e", "plan", 1, 1)).toMatchObject({
       slot: { afterId: "a", depth: 1 },
-      plan: { valid: true, steps: [{ type: "position", sectionId: "plan", parentId: "a" }], message: "“E” is now a subtask of “A”" },
+      plan: { valid: true, steps: [{ type: "position", sectionId: "plan", parentId: "a" }] },
     });
     // O nível fica limitado a um abaixo da linha de cima: depois de d (nível 1), no máximo subtarefa de d.
     expect(resolveSlot(fixture(), "e", "plan", 3, 5)).toMatchObject({
@@ -154,7 +142,7 @@ describe("drop slots", () => {
       const result = resolveSlot(page, "d", "buy", 1, 1);
       expect(result).toMatchObject({
         slot: { sectionId: "buy", afterId: "f", depth: 0 },
-        plan: { valid: true, steps: [{ type: "position", sectionId: "buy", parentId: null, afterId: "f" }], message: "Moved to Comprar" },
+        plan: { valid: true, steps: [{ type: "position", sectionId: "buy", parentId: null, afterId: "f" }] },
       });
       if (!result?.plan?.valid) throw new Error("Expected a valid move");
       const moved = applyStep(page, "d", result.plan.steps[0]);

@@ -41,12 +41,11 @@ test.describe("organizar um projeto", () => {
     await expect(gap.locator(".ins")).toBeVisible();
     await expect.poll(async () => (await budget.boundingBox())!.y).toBeGreaterThan(target.y + target.height / 2);
     await page.mouse.up();
-    await expect(page.getByRole("status").getByText("Nova posição salva em Planejar")).toBeVisible();
     await expect.poll(async () => (await projectState(api, seed.id)).order(seed.sections.Planejar))
       .toEqual(["Listar móveis para doação", "Definir orçamento da reforma", "Escolher a cor da pintura do quarto"]);
     await expect(page.locator(".drop-gap")).toHaveCount(0);
 
-    // As notificações podem cobrir o ponto de partida perto do rodapé.
+    // Mover uma tarefa não mostra notificação.
     const toasts = page.getByRole("status").locator(".toast");
     await expect(toasts).toHaveCount(0);
     // Passar por cima de outra tarefa só reordena; a subtarefa vem do deslocamento para a direita.
@@ -70,7 +69,6 @@ test.describe("organizar um projeto", () => {
     await expect(toasts).toHaveCount(0);
 
     // Esc cancela e devolve a tarefa ao lugar.
-    await expect(toasts).toHaveCount(0);
     await row(page, "Lâmpadas para o corredor").scrollIntoViewIfNeeded();
     const again = await row(page, "Lâmpadas para o corredor").boundingBox();
     await mouseDrag(page, { x: again!.x + 200, y: again!.y + again!.height / 2 }, { x: again!.x + 200, y: again!.y - 140 });
@@ -99,8 +97,8 @@ test.describe("organizar um projeto", () => {
     await mouseDrag(page, { x: card!.x + 100, y: card!.y + 15 }, { x: column!.x + column!.width / 2, y: column!.y + column!.height - 60 });
     await expect(page.getByText("Soltar aqui muda para Resolver")).toBeVisible();
     await page.mouse.up();
-    await expect(page.getByRole("status").getByText("Movida para Resolver")).toBeVisible();
     await expect.poll(async () => (await projectState(api, seed.id)).byTitle["Lâmpadas para o corredor"].sectionId).toBe(seed.sections.Resolver);
+    await expect(page.getByRole("status").locator(".toast")).toHaveCount(0);
 
     // O layout escolhido persiste e a Lista mostra a mesma organização.
     await page.reload();

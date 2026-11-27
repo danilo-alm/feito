@@ -14,7 +14,7 @@ export type Indicator =
   | { type: "group"; sectionId: string | null }
   | { type: "invalid"; id: string; message: string };
 
-export type MovePlan = { valid: true; steps: MoveTarget[]; indicator: Indicator; message: string };
+export type MovePlan = { valid: true; steps: MoveTarget[]; indicator: Indicator };
 export type InvalidPlan = { valid: false; indicator: Indicator; message: string };
 export type Plan = MovePlan | InvalidPlan;
 
@@ -65,7 +65,6 @@ function nestPlan(page: ProjectPage, active: TaskItem, target: TaskItem, tasks: 
     valid: true,
     steps: [{ type: "position", projectId: page.project.id, sectionId: target.sectionId, parentId: target.id }],
     indicator: { type: "nest", id: target.id, depth: depth + 1 },
-    message: t("“{0}” agora é subtarefa de “{1}”", [active.title, target.title]),
   };
 }
 
@@ -90,11 +89,7 @@ export function groupPlan(page: ProjectPage, activeId: string, sectionId: string
   const target: PositionTarget = { type: "position", projectId: page.project.id, sectionId, parentId: null };
   if (!wouldChange(page, active, target, tasks)) return null;
   if (!active.parentId && active.sectionId === sectionId && page.project.view.sortMode !== "manual") return null;
-  const name = sectionName(page, sectionId);
-  return {
-    valid: true, steps: [target], indicator: { type: "group", sectionId },
-    message: active.sectionId === sectionId ? t("Movida para o fim de {0}", [name]) : t("Movida para {0}", [name]),
-  };
+  return { valid: true, steps: [target], indicator: { type: "group", sectionId } };
 }
 
 /** Linha visível de uma seção durante o arraste, na ordem da tela. */
@@ -211,18 +206,7 @@ export function resolveSlot(
   }
   if (!step.afterId && next?.depth === depth) step.beforeId = next.id;
   if (!wouldChange(page, active, step, tasks)) return { slot, plan: null };
-  const name = sectionName(page, step.sectionId);
-  const nested = parent && active.parentId !== parent.id;
-  return {
-    slot,
-    plan: {
-      valid: true, steps: [step], indicator: { type: "slot", ...slot },
-      message: nested ? t("“{0}” agora é subtarefa de “{1}”", [active.title, parent.title])
-        : active.sectionId !== step.sectionId ? t("Movida para {0}", [name])
-          : active.parentId && !parent ? t("Promovida a tarefa")
-            : parent ? t("Nova posição salva") : t("Nova posição salva em {0}", [name]),
-    },
-  };
+  return { slot, plan: { valid: true, steps: [step], indicator: { type: "slot", ...slot } } };
 }
 
 export type KeyAction = "up" | "down" | "nest" | "promote" | "left" | "right";
@@ -248,7 +232,7 @@ export function keyboardPlan(page: ProjectPage, taskId: string, action: KeyActio
     const depth = Array.from(taskAncestors(task, tasks)).length;
     const side = action === "up" ? "before" : "after";
     const id = side === "after" ? blockEnd(neighbor, tasks, depth) : neighbor.id;
-    return { valid: true, steps: [step], indicator: { type: "line", id, side, depth }, message: t("Nova posição salva") };
+    return { valid: true, steps: [step], indicator: { type: "line", id, side, depth } };
   }
   if (action === "nest") {
     const previous = siblings[index - 1];
@@ -262,7 +246,6 @@ export function keyboardPlan(page: ProjectPage, taskId: string, action: KeyActio
     return {
       valid: true, steps: [{ type: "promote" }],
       indicator: { type: "line", id: blockEnd(parent, tasks, depth), side: "after", depth },
-      message: depth ? t("Subtarefa movida um nível acima") : t("Promovida a tarefa"),
     };
   }
   // Painel: coluna vizinha.
