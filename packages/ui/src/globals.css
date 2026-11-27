@@ -506,11 +506,12 @@ body:has(.drag-overlay) {user-select:none;-webkit-user-select:none}
 .task-description-preview{cursor:text;padding:4px;margin:-4px;border-radius:6px;min-height:30px}
 .task-description-preview:hover{background:var(--hover)}
 .task-description-empty{-webkit-user-select:none;user-select:none}
-.description-formatting{display:flex;flex-wrap:wrap;gap:2px;margin-top:8px;padding-top:6px;border-top:1px solid var(--border)}
-.description-formatting .icon-btn{width:30px;height:32px;min-width:30px;color:var(--muted)}
+.description-formatting{display:flex;gap:2px;margin-top:8px;padding-top:6px;border-top:1px solid var(--border)}
+/* Todos os botões numa linha só: em telas estreitas eles encolhem juntos. */
+.description-formatting .icon-btn{flex:0 1 30px;height:32px;min-width:0;padding:0;color:var(--muted)}
 .description-formatting .icon-btn:hover{color:var(--text)}
 .description-formatting svg{width:16px;height:16px}
-@media(pointer:coarse){.description-formatting .icon-btn{width:44px;height:44px}}
+@media(pointer:coarse){.description-formatting{gap:0}.description-formatting .icon-btn{flex-basis:40px;height:40px}}
 .task-markdown{font-size:14px;line-height:1.6;color:var(--text);overflow-wrap:anywhere;min-width:0}
 .task-markdown :where(p,ul,ol,blockquote,pre,table,hr){margin:0 0 10px}
 .task-markdown p{white-space:pre-wrap}

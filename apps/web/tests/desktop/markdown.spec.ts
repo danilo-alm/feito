@@ -26,6 +26,41 @@ test("formata a descrição ao sair do campo sem perder o rascunho", async ({ pa
   await expect(page.getByRole("region", { name: "Descrição", exact: true }).getByRole("listitem")).toHaveText("Item");
 });
 
+for (const width of [320, 390]) {
+  test.describe(`celular de ${width} px`, () => {
+    test.use({ viewport: { width, height: 844 }, hasTouch: true, isMobile: true });
+
+    test("mantém a barra de formatação numa linha só", async ({ page }) => {
+      const created = await handleLocal(newPortugueseWorkspace(), {
+        method: "POST", path: "/tasks", body: { title: "Formatar no celular", description: "Texto" },
+      });
+      const task = created.body as TaskDetail;
+      await mockDesktop(page, { generation: 1, value: { version: 1, active: "local", local: created.workspace } });
+      await page.goto(`/#/entrada?tarefa=${task.id}`);
+      const detail = page.getByRole("dialog", { name: task.title, exact: true });
+      await detail.getByRole("region", { name: "Descrição", exact: true }).tap();
+      const tools = detail.getByRole("group", { name: "Formatação da descrição" });
+      await expect(tools.getByRole("button")).toHaveCount(10);
+      // Espera a barra terminar de abrir antes de medir.
+      await expect(tools.getByRole("button", { name: "Código", exact: true })).toBeInViewport({ ratio: 1 });
+      const layout = await tools.evaluate((group) => {
+        const bounds = group.getBoundingClientRect();
+        const buttons = [...group.querySelectorAll("button")].map((button) => button.getBoundingClientRect());
+        return {
+          rows: new Set(buttons.map((button) => Math.round(button.top))).size,
+          inside: buttons.every((button) => button.left >= bounds.left - 0.5 && button.right <= bounds.right + 0.5),
+          narrowest: Math.min(...buttons.map((button) => button.width)),
+        };
+      });
+      expect(layout.rows).toBe(1);
+      expect(layout.inside).toBe(true);
+      // Em 320 px os dez botões dividem 236 px; não podem encolher além disso.
+      expect(layout.narrowest).toBeGreaterThanOrEqual(23.5);
+      await page.screenshot({ path: test.info().outputPath("formatting-touch.png") });
+    });
+  });
+}
+
 for (const narrow of [false, true]) {
   test(`campos de tarefa sem zoom automático em janela ${narrow ? "estreita" : "ampla"}`, async ({ page }) => {
     await page.setViewportSize({ width: 1180, height: 844 });
