@@ -4,7 +4,8 @@ import type {
   CompleteResponse, CreateTask, EditTask, Frequency, ImportPreview, ImportResult, Label, LabelTasks, Layout,
   Me, MoveResponse, MoveTarget, NamedDetails, Navigation, OrderAnchor, ProjectDetails, ProjectMove, Preferences, ProjectPage, ProjectShare, ProjectSummary, ProjectView,
   PublicProjectPage, ReopenResponse,
-  SearchInput, SearchResult, Section, Session, SortMode, SourceImportPreview, SourceImportResult, TaskDetail, TaskMutation,
+  SearchInput, SearchResult, Section, Session, SortMode, SourceImportPreview, SourceImportResult, TaskComment, TaskComments,
+  TaskDetail, TaskMutation,
   TodayView, UndoCompletionInput, UndoCompletionResponse, UpcomingView,
 } from "@feito/core/types";
 
@@ -181,6 +182,15 @@ export const api = {
       request<TaskDetail>("PUT", `/tasks/${enc(id)}/recurrence`, input),
     clearRecurrence: (id: string, revision: number) =>
       request<TaskDetail>("DELETE", `/tasks/${enc(id)}/recurrence${query({ revision })}`),
+  },
+
+  /** Comments of a task. The author is always the account owner (`api.me().user`). */
+  comments: {
+    list: (taskId: string) => request<TaskComments>("GET", `/tasks/${enc(taskId)}/comments`),
+    create: (taskId: string, body: string) => request<TaskComment>("POST", `/tasks/${enc(taskId)}/comments`, { body }),
+    edit: (id: string, revision: number, body: string) =>
+      request<TaskComment>("PATCH", `/comments/${enc(id)}`, { revision, body }),
+    remove: (id: string, revision: number) => request<void>("DELETE", `/comments/${enc(id)}${query({ revision })}`),
   },
 
   labels: {
