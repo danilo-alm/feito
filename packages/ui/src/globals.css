@@ -708,6 +708,13 @@ button.t-origin:hover{background:var(--hover)}
 .set-extra{flex:1 1 100%;min-width:0;padding-left:46px}
 .set-status{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--surface-sunken);display:flex;flex-direction:column;gap:6px;font-size:13px}
 .set-pill{font-size:12px;font-weight:600;line-height:18px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text)}
+/* Abas dos ajustes: pílulas finas; o título do primeiro grupo repetiria o da aba e fica oculto. */
+.set-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:-8px 0 4px}
+.set-tab{height:28px;padding:0 11px;border:0;border-radius:999px;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;transition:background-color var(--dur-fast) var(--ease-out),color var(--dur-fast) var(--ease-out)}
+@media (hover:hover){.set-tab:not(.on):hover{background:var(--hover);color:var(--text)}}
+.set-tab.on{background:var(--accent-soft);color:var(--accent-text)}
+.set-panel{display:flex;flex-direction:column;gap:28px}
+.set-panel>.set-group:first-child>h2{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .set-foot{padding:0 4px;font-size:13px;color:var(--text-2)}
 /* Seletor de temas: cada miniatura usa os tokens do próprio tema (data-theme no elemento). */
 .theme-groups{display:flex;flex-direction:column;gap:10px;padding-top:4px}

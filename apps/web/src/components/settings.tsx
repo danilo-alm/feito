@@ -10,7 +10,7 @@ import { useApp } from "@feito/ui/components/app";
 import { IconAlert, IconClock, IconDownload, IconLock, IconLogout, IconMail, IconMonitor, IconRepeat, IconUpload } from "@feito/ui/components/icons";
 import { Monogram } from "@feito/ui/components/import-export-common";
 import { useImportDialog } from "@feito/ui/components/import-export-dialogs";
-import { AgendaSettings, AppearanceSettings, ArchivedSettings, SettingsGroup, SettingsLinkRow, SettingsRow, SettingsVersion } from "@feito/ui/components/settings";
+import { AgendaSettings, AppearanceSettings, ArchivedSettings, SettingsGroup, SettingsLinkRow, SettingsRow, SettingsTabs, SettingsVersion } from "@feito/ui/components/settings";
 import { version } from "../../package.json";
 import { useToast } from "@feito/ui/components/ui";
 import { importSources } from "@feito/core/domain/import-sources";
@@ -32,12 +32,13 @@ export function BrowserSettings() {
           <h1 className="title">{t("Ajustes")}</h1>
           <p className="hint">{t("Conta, preferências e seus dados.")}</p>
         </div>
-        <AppearanceSettings />
-        <AgendaSettings />
-        <AccountSettings />
-        <OfflineStatus />
-        <DataSettings />
-        <ArchivedSettings />
+        <SettingsTabs tabs={[
+          { id: "aparencia", label: t("Aparência"), content: <AppearanceSettings /> },
+          { id: "fuso", label: t("Fuso horário"), content: <AgendaSettings /> },
+          { id: "arquivados", label: t("Projetos arquivados"), content: <ArchivedSettings /> },
+          { id: "dados", label: t("Dados"), content: <DataSettings /> },
+          { id: "conta", label: t("Conta"), content: <><AccountSettings /><OfflineStatus /></> },
+        ]} />
         <SettingsVersion version={version} />
       </div></div>
     </>

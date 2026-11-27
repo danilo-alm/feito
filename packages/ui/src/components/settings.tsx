@@ -5,7 +5,7 @@ import { loadLocale } from "../client/locale";
 
 import { LanguagePicker } from "./language-picker";
 import { Link } from "../navigation";
-import { type ReactNode } from "react";
+import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { api } from "../client/api";
 import { cacheScope, setQueryData, useQuery } from "../client/store";
 import { setSyncIndicatorHidden, useSyncIndicatorHidden } from "../client/sync-indicator";
@@ -20,6 +20,52 @@ import { ReadFallback } from "./ui";
 
 // Ajustes em grupos de linhas: ícone, nome e explicação à esquerda, controle à direita.
 // O web e o desktop montam a página com os mesmos grupos; o desktop acrescenta os espaços de trabalho.
+
+export type SettingsTab = { id: string; label: string; content: ReactNode };
+const TAB_KEY = "feito:settings-tab";
+
+/** Ajustes em abas: uma seção por vez, e a última aberta volta na próxima visita. Setas trocam de aba. */
+export function SettingsTabs({ tabs }: { tabs: SettingsTab[] }) {
+  const t = useT();
+  const [current, setCurrent] = useState(() => {
+    try {
+      const saved = localStorage.getItem(TAB_KEY);
+      if (saved && tabs.some((tab) => tab.id === saved)) return saved;
+    } catch {
+      // Sem armazenamento, abre na primeira aba.
+    }
+    return tabs[0].id;
+  });
+  const list = useRef<HTMLDivElement>(null);
+  const pick = (id: string) => {
+    setCurrent(id);
+    try { localStorage.setItem(TAB_KEY, id); } catch { /* Só lembra durante a visita. */ }
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1, Home: -Infinity, End: Infinity }[event.key];
+    if (step === undefined) return;
+    event.preventDefault();
+    const index = tabs.findIndex((tab) => tab.id === current);
+    const next = Number.isFinite(step) ? (index + step + tabs.length) % tabs.length : step < 0 ? 0 : tabs.length - 1;
+    pick(tabs[next].id);
+    list.current?.querySelectorAll<HTMLButtonElement>("[role=tab]")[next]?.focus();
+  };
+  const active = tabs.find((tab) => tab.id === current) ?? tabs[0];
+  return (
+    <>
+      <div ref={list} className="set-tabs" role="tablist" aria-label={t("Seções dos ajustes")} onKeyDown={onKeyDown}>
+        {tabs.map((tab) => (
+          <button key={tab.id} type="button" role="tab" id={`set-tab-${tab.id}`} aria-selected={tab.id === active.id}
+            aria-controls={`set-panel-${tab.id}`} tabIndex={tab.id === active.id ? 0 : -1}
+            className={`set-tab${tab.id === active.id ? " on" : ""}`} onClick={() => pick(tab.id)}>{tab.label}</button>
+        ))}
+      </div>
+      <div className="set-panel" role="tabpanel" id={`set-panel-${active.id}`} aria-labelledby={`set-tab-${active.id}`}>
+        {active.content}
+      </div>
+    </>
+  );
+}
 
 export function SettingsVersion({ version }: { version: string }) {
   const t = useT();
