@@ -115,6 +115,18 @@ describe("drop slots", () => {
     }
   });
 
+  it("skips the subtasks of collapsed tasks", () => {
+    const collapsed = new Set(["c"]);
+    expect(slotRows(fixture(), "plan", "e", undefined, collapsed)).toEqual([{ id: "a", depth: 0 }, { id: "c", depth: 0 }]);
+    expect(originSlot(fixture(), "e", undefined, collapsed)).toEqual({ sectionId: "plan", index: 2, depth: 0 });
+    // Logo abaixo de c recolhida, no nível dela: depois do ramo inteiro, sem mudar nada.
+    expect(resolveSlot(fixture(), "e", "plan", 2, 0, collapsed)).toEqual({ slot: { sectionId: "plan", afterId: "c", depth: 0 }, plan: null });
+    // Logo abaixo de c recolhida, um nível à direita: vira subtarefa de c.
+    expect(resolveSlot(fixture(), "a", "plan", 1, 1, collapsed)).toMatchObject({
+      slot: { afterId: "c", depth: 1 }, plan: { valid: true, steps: [{ type: "position", parentId: "c" }] },
+    });
+  });
+
   it("nests under the row above when dragged to the right", () => {
     expect(resolveSlot(fixture(), "e", "plan", 1, 1)).toMatchObject({
       slot: { afterId: "a", depth: 1 },

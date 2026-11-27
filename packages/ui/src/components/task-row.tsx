@@ -10,7 +10,7 @@ import { isTemporaryTask } from "../client/task-mutations";
 import type { Priority, TaskItem } from "@feito/core/types";
 import { useApp } from "./app";
 import {
-  IconArrowDown, IconArrowUp, IconBan, IconCalendar, IconCalendarDay, IconCheck, IconCopy, IconEdit, IconFlag, IconGrip,
+  IconArrowDown, IconArrowUp, IconBan, IconCalendar, IconCalendarDay, IconCheck, IconChevronDown, IconCopy, IconEdit, IconFlag, IconGrip,
   IconInsertAbove, IconInsertBelow, IconMore, IconMove, IconNextWeek, IconPromote, IconSofa, IconSub, IconSun,
   IconTrash,
 } from "./icons";
@@ -49,6 +49,28 @@ export function Checkbox({ task, onToggle, disabled }: { task: TaskItem; onToggl
       }}
     >
       <span className="ring"><IconCheck /></span>
+    </button>
+  );
+}
+
+/** Seta à esquerda da bolinha das tarefas com subtarefas à vista: aponta para baixo aberta e para cima recolhida. */
+export type SubtaskToggle = { collapsed: boolean; toggle: () => void };
+
+function SubtaskToggleButton({ task, subtasks }: { task: TaskItem; subtasks: SubtaskToggle }) {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      className="sub-toggle"
+      aria-label={t(subtasks.collapsed ? "Mostrar subtarefas de “{0}”" : "Recolher subtarefas de “{0}”", [task.title])}
+      aria-expanded={!subtasks.collapsed}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        subtasks.toggle();
+      }}
+    >
+      <IconChevronDown />
     </button>
   );
 }
@@ -141,6 +163,8 @@ type RowProps = HTMLAttributes<HTMLDivElement> & {
   insert?: (side: InsertSide) => void;
   variant?: "row" | "card";
   depth?: number;
+  /** Seta para recolher ou mostrar as subtarefas (só na árvore do projeto). */
+  subtasks?: SubtaskToggle;
   showMoreSubtasks?: boolean;
   extraClass?: string;
   noMenu?: boolean;
@@ -149,7 +173,7 @@ type RowProps = HTMLAttributes<HTMLDivElement> & {
 
 export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
   task, actions, showOrigin, grip, tag, arrange, onArrange, onKeyArrange, insert, variant = "row",
-  depth = task.parentId && !showOrigin ? 1 : 0, showMoreSubtasks, extraClass = "", noMenu, timeOnly, style, onContextMenu, ...rest
+  depth = task.parentId && !showOrigin ? 1 : 0, subtasks, showMoreSubtasks, extraClass = "", noMenu, timeOnly, style, onContextMenu, ...rest
 }, ref) {
   const t = useT();
   const app = useApp();
@@ -170,7 +194,8 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
   const active = task.status === "active";
   const showShortcuts = active && variant === "row";
   const sub = depth > 0;
-  const classes = [variant === "card" ? "card" : "task", sub ? "sub" : "", task.status === "completed" ? "done-t" : "", extraClass]
+  const classes = [variant === "card" ? "card" : "task", sub ? "sub" : "", subtasks ? "has-sub" : "", subtasks?.collapsed ? "sub-collapsed" : "",
+    task.status === "completed" ? "done-t" : "", extraClass]
     .filter(Boolean).join(" ");
   const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
   const handleContextMenu: MouseEventHandler<HTMLDivElement> = (event) => {
@@ -184,6 +209,7 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
     <div ref={ref} className={classes} data-task-id={noMenu ? undefined : task.id} onKeyDown={onKeyArrange} style={{ ...indent, ...style }}
       onContextMenu={handleContextMenu} {...rest}>
       {grip && !temporary && variant === "row" && <span className="grip" aria-hidden="true"><IconGrip /></span>}
+      {subtasks && <SubtaskToggleButton task={task} subtasks={subtasks} />}
       <Checkbox task={task} disabled={temporary} onToggle={() => actions.toggle(task)} />
       <TaskContent task={task} actions={actions} showOrigin={showOrigin} timeOnly={timeOnly} preview={noMenu} showMoreSubtasks={showMoreSubtasks} />
       {tag}

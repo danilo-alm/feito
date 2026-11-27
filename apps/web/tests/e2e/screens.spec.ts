@@ -47,6 +47,40 @@ test.describe("telas do dia a dia", () => {
     });
   }
 
+  for (const layout of ["list", "board"] as const) {
+    test(`recolhe e mostra as subtarefas pela seta de cada nível em ${layout}`, async ({ page, api }) => {
+      const project = await api<{ id: string }>("POST", "/projects", { name: `Subtarefas recolhíveis ${layout}` });
+      await api("PATCH", `/projects/${project.id}/view`, { layout });
+      const root = await api<{ id: string }>("POST", "/tasks", { projectId: project.id, title: "Mudança" });
+      const child = await api<{ id: string }>("POST", "/tasks", { parentId: root.id, title: "Caixas" });
+      await api("POST", "/tasks", { parentId: child.id, title: "Fita" });
+      await api("POST", "/tasks", { projectId: project.id, title: "Sem filhos" });
+      await page.goto(`/projetos/${project.id}`);
+
+      const collapseRoot = row(page, "Mudança").getByRole("button", { name: "Recolher subtarefas de “Mudança”" });
+      const collapseChild = row(page, "Caixas").getByRole("button", { name: "Recolher subtarefas de “Caixas”" });
+      await expect(collapseRoot).toHaveAttribute("aria-expanded", "true");
+      await expect(collapseChild).toBeVisible();
+      await expect(row(page, "Fita").getByRole("button", { name: /subtarefas de/ })).toHaveCount(0);
+      await expect(row(page, "Sem filhos").getByRole("button", { name: /subtarefas de/ })).toHaveCount(0);
+
+      await collapseChild.click();
+      await expect(row(page, "Fita")).toHaveCount(0);
+      await expect(row(page, "Caixas").getByRole("button", { name: "Mostrar subtarefas de “Caixas”" })).toHaveAttribute("aria-expanded", "false");
+
+      await collapseRoot.click();
+      await expect(row(page, "Caixas")).toHaveCount(0);
+      const expandRoot = row(page, "Mudança").getByRole("button", { name: "Mostrar subtarefas de “Mudança”" });
+      await expandRoot.click();
+      // Cada nível guarda o próprio estado: Caixas volta ainda recolhida.
+      await expect(row(page, "Caixas")).toBeVisible();
+      await expect(row(page, "Fita")).toHaveCount(0);
+      await row(page, "Caixas").getByRole("button", { name: "Mostrar subtarefas de “Caixas”" }).click();
+      await expect(row(page, "Fita")).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`/projetos/${project.id}$`));
+    });
+  }
+
   test("exibe cinco níveis e navega pelas subtarefas profundas no detalhe", async ({ page, api, isMobile }) => {
     const project = await api<{ id: string }>("POST", "/projects", { name: "Projeto com subtarefas aninhadas" });
     let parent = await api<{ id: string }>("POST", "/tasks", { projectId: project.id, title: "Tarefa raiz" });

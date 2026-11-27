@@ -18,6 +18,7 @@ import {
   unnamedColumnTitle, type KeyAction, type Plan, type Slot,
 } from "../client/tree";
 import { isTemporaryTask, moveTask } from "../client/task-mutations";
+import { expandTasks, toggleCollapsed, useCollapsedTasks } from "../client/collapsed-tasks";
 import type { NamedDetails, ProjectPage, Section, TaskItem } from "@feito/core/types";
 import { taskAncestors } from "@feito/core/domain/task-tree";
 import { refreshProjects, useApp } from "./app";
@@ -30,7 +31,7 @@ import { NamedDetailsForm, useProjectDetailsDialog } from "./named-details";
 import { colorValue, Glyph } from "./project-style";
 import { useTaskActions } from "./task-actions";
 import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
-import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
+import { TaskRow, type ArrangeItem, type InsertSide, type SubtaskToggle } from "./task-row";
 import { Dialog, MenuButton, ReadFallback, useAutoGrow, useContextMenu, useIsMobile, useIsPhone, useToast, type MenuItem } from "./ui";
 import { ShareMenu, useProjectShare, type ProjectSharing } from "./share-menu";
 import { SORT_LABEL, ViewMenu } from "./view-menu";
@@ -87,6 +88,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
   const showCompactTitle = !!page && !page.project.isInbox;
   const projectStatus = page?.project.status;
   const [drag, setDrag] = useState<DragState | null>(null);
+  const collapsed = useCollapsedTasks();
   const focusAfter = useRef<string | null>(null);
   const [importDialog, openImport] = useImportDialog();
   const [exportDialog, openExport] = useExportDialog();
@@ -140,6 +142,8 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     if (plan.steps.some((step) => step.type === "position"
       && [step.parentId, step.beforeId, step.afterId].some((id) => id && isTemporaryTask(id)))) return;
     if (focus) focusAfter.current = taskId;
+    // A tarefa que vira subtarefa de uma recolhida continua à vista.
+    expandTasks(plan.steps.flatMap((step) => step.type === "position" && step.parentId ? [step.parentId] : []));
     return app.run(() => moveTask(app.taskContext, task, plan.steps));
   }, [app, page, toast]);
 
@@ -193,12 +197,12 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     listenPointer(true);
     const id = String(event.active.id);
     const task = tasks.get(id);
-    const origin = originSlot(page, id, tasks);
+    const origin = originSlot(page, id, tasks, collapsed);
     if (!task || !origin) return;
     const node = groupNode(task.sectionId)?.querySelector<HTMLElement>(`[data-task-id="${id}"]`);
     const height = node ? node.getBoundingClientRect().height + (parseFloat(getComputedStyle(node).marginBottom) || 0) : 0;
     const left = groupNode(task.sectionId)?.getBoundingClientRect().left ?? 0;
-    const result = resolveSlot(page, id, origin.sectionId, origin.index, origin.depth);
+    const result = resolveSlot(page, id, origin.sectionId, origin.index, origin.depth, collapsed);
     setDrag({
       activeId: id, depth: origin.depth, offset: startX(event) - left, gap: height,
       slot: result?.slot ?? null, plan: result?.plan ?? null, live: false,
@@ -214,13 +218,13 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     // Mede as linhas no DOM agora: o espaço aberto e a rolagem automática mudam as posições a cada passo.
     const y = pointerY(event);
     let index = 0;
-    for (const row of slotRows(page, sectionId, drag.activeId, tasks)) {
+    for (const row of slotRows(page, sectionId, drag.activeId, tasks, collapsed)) {
       const rect = group.querySelector(`[data-task-id="${row.id}"]`)?.getBoundingClientRect();
       if (rect && rect.top + rect.height / 2 < y) index++;
     }
     // Arrastar para a direita, a partir de onde começou, pede um nível a mais: subtarefa da linha de cima.
     const shift = Math.round((pointerX(event) - group.getBoundingClientRect().left - drag.offset) / INDENT_STEP);
-    const result = resolveSlot(page, drag.activeId, sectionId, index, drag.depth + shift);
+    const result = resolveSlot(page, drag.activeId, sectionId, index, drag.depth + shift, collapsed);
     if (!result) return;
     setDrag((current) => {
       if (!current) return current;
@@ -362,6 +366,8 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
       onKeyArrange={onKeyArrange(task)}
       insert={manual && !archived ? (side) => startCreate(insertKey(side, task.id), insertDefaults(task, side)) : undefined}
       grip={canDrag && !archived && task.status === "active"}
+      subtasks={depth < maxOverviewDepth && task.childIds.some((id) => tasks.has(id))
+        ? { collapsed: collapsed.has(task.id), toggle: () => toggleCollapsed(task.id) } : undefined}
     />
   );
 
@@ -476,7 +482,7 @@ function BelowSlot({ task, depth }: { task: TaskItem; depth: number }) {
 }
 
 function DraggableTask({
-  task, variant, depth, disabled, hidden, source, after, actions, arrange, onArrange, onKeyArrange, insert, grip,
+  task, variant, depth, disabled, hidden, source, after, actions, arrange, onArrange, onKeyArrange, insert, grip, subtasks,
 }: {
   task: TaskItem;
   variant: "row" | "card";
@@ -494,6 +500,7 @@ function DraggableTask({
   onKeyArrange: (event: KeyboardEvent<HTMLDivElement>) => void;
   insert?: (side: InsertSide) => void;
   grip: boolean;
+  subtasks?: SubtaskToggle;
 }) {
   // Em edição a linha vira formulário: arrastar a partir dos campos selecionaria texto e moveria a tarefa.
   const editing = useEditorOpen(editKey(task));
@@ -515,6 +522,7 @@ function DraggableTask({
         onKeyArrange={onKeyArrange}
         insert={insert}
         grip={grip && !editing}
+        subtasks={subtasks}
         {...draggable.attributes}
         {...draggable.listeners}
         role={undefined}
@@ -569,13 +577,14 @@ function rowsOf(page: ProjectPage, tasks: Map<string, TaskItem>, sectionId: stri
 }
 
 function renderTaskBlock(
-  task: TaskItem, variant: "row" | "card", tasks: LayoutProps["tasks"], renderTask: LayoutProps["renderTask"], depth = 0,
+  task: TaskItem, variant: "row" | "card", tasks: LayoutProps["tasks"], renderTask: LayoutProps["renderTask"],
+  collapsed: ReadonlySet<string>, depth = 0,
 ): ReactNode[] {
   return [
     renderTask(task, variant, depth),
-    ...(depth < maxOverviewDepth ? task.childIds.flatMap((id) => {
+    ...(depth < maxOverviewDepth && !collapsed.has(task.id) ? task.childIds.flatMap((id) => {
       const child = tasks.get(id);
-      return child ? renderTaskBlock(child, variant, tasks, renderTask, depth + 1) : [];
+      return child ? renderTaskBlock(child, variant, tasks, renderTask, collapsed, depth + 1) : [];
     }) : []),
     <BelowSlot key={`below:${task.id}`} task={task} depth={depth} />,
   ];
@@ -761,7 +770,8 @@ function ListLayout({ page, tasks, renderTask, targetSection, dropGap, dragging,
   const app = useApp();
   const [adding, setAdding] = useState<string | null | undefined>(undefined);
   const { project } = page;
-  const block = (task: TaskItem) => renderTaskBlock(task, "row", tasks, renderTask);
+  const collapsed = useCollapsedTasks();
+  const block = (task: TaskItem) => renderTaskBlock(task, "row", tasks, renderTask, collapsed);
   const activeCounts = new Map<string | null, number>();
   for (const task of tasks.values()) {
     if (task.status === "active") activeCounts.set(task.sectionId, (activeCounts.get(task.sectionId) ?? 0) + 1);
@@ -847,7 +857,8 @@ function BoardLayout({ page, tasks, renderTask, indicator, targetSection, dropGa
   const app = useApp();
   const [adding, setAdding] = useState(false);
   const { project } = page;
-  const block = (task: TaskItem) => renderTaskBlock(task, "card", tasks, renderTask);
+  const collapsed = useCollapsedTasks();
+  const block = (task: TaskItem) => renderTaskBlock(task, "card", tasks, renderTask, collapsed);
   const columnName = (sectionId: string | null) =>
     sectionId === null ? project.defaultSectionName : sectionName(page, sectionId);
   const scrollTo = (sectionId: string | null) => {

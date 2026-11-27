@@ -978,5 +978,7 @@
   "Feche outras abas do Feito antes de prosseguir.": "Cierra las otras pestañas de Feito antes de continuar.",
   "Salve o que estiver editando: a página será recarregada.": "Guarda lo que estés editando: la página se recargará.",
   "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "Todavía hay otras pestañas o ventanas de Feito abiertas. Ciérralas e inténtalo de nuevo.",
-  "Não foi possível atualizar. Tente de novo.": "No se pudo actualizar. Inténtalo de nuevo."
+  "Não foi possível atualizar. Tente de novo.": "No se pudo actualizar. Inténtalo de nuevo.",
+  "Recolher subtarefas de “{0}”": "Contraer subtareas de “{0}”",
+  "Mostrar subtarefas de “{0}”": "Expandir subtareas de “{0}”"
 }

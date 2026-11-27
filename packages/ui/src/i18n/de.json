@@ -978,5 +978,7 @@
   "Feche outras abas do Feito antes de prosseguir.": "Schließe andere Feito-Tabs, bevor du fortfährst.",
   "Salve o que estiver editando: a página será recarregada.": "Speichere, was du gerade bearbeitest: Die Seite wird neu geladen.",
   "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "Es sind noch andere Feito-Tabs oder -Fenster geöffnet. Schließe sie und versuche es erneut.",
-  "Não foi possível atualizar. Tente de novo.": "Aktualisierung nicht möglich. Versuche es erneut."
+  "Não foi possível atualizar. Tente de novo.": "Aktualisierung nicht möglich. Versuche es erneut.",
+  "Recolher subtarefas de “{0}”": "Unteraufgaben von “{0}” einklappen",
+  "Mostrar subtarefas de “{0}”": "Unteraufgaben von “{0}” ausklappen"
 }

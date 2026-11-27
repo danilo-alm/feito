@@ -97,13 +97,18 @@ export type SlotRow = { id: string; depth: number };
 /** Onde a tarefa arrastada cairia: logo depois de `afterId` (ou no topo da seção), no nível `depth`. */
 export type Slot = { sectionId: string | null; afterId: string | null; depth: number };
 
-/** Linhas visíveis das tarefas abertas da seção, como na Lista e no Painel, sem o ramo de `activeId`. */
-export function slotRows(page: ProjectPage, sectionId: string | null, activeId: string, tasks = taskMap(page)): SlotRow[] {
+/**
+ * Linhas visíveis das tarefas abertas da seção, como na Lista e no Painel, sem o ramo de `activeId`
+ * nem as subtarefas das tarefas em `collapsed`.
+ */
+export function slotRows(
+  page: ProjectPage, sectionId: string | null, activeId: string, tasks = taskMap(page), collapsed: ReadonlySet<string> = new Set(),
+): SlotRow[] {
   const rows: SlotRow[] = [];
   const visit = (task: TaskItem, depth: number) => {
     if (task.id === activeId) return;
     rows.push({ id: task.id, depth });
-    if (depth >= maxOverviewDepth) return;
+    if (depth >= maxOverviewDepth || collapsed.has(task.id)) return;
     for (const id of task.childIds) {
       const child = tasks.get(id);
       if (child) visit(child, depth + 1);
@@ -117,11 +122,11 @@ export function slotRows(page: ProjectPage, sectionId: string | null, activeId: 
 }
 
 /** Lugar de origem da tarefa arrastada: a seção, a posição entre as linhas que continuam visíveis e o nível. */
-export function originSlot(page: ProjectPage, activeId: string, tasks = taskMap(page)) {
+export function originSlot(page: ProjectPage, activeId: string, tasks = taskMap(page), collapsed: ReadonlySet<string> = new Set()) {
   const active = tasks.get(activeId);
   if (!active) return null;
   const parentId = active.parentId && tasks.has(active.parentId) ? active.parentId : null;
-  const rows = slotRows(page, active.sectionId, activeId, tasks);
+  const rows = slotRows(page, active.sectionId, activeId, tasks, collapsed);
   // Antes do próximo irmão visível; sem ele, depois do último descendente visível do pai (ou no fim da seção).
   const siblings = parentId ? tasks.get(parentId)!.childIds : rootIds(page, active.sectionId);
   const next = siblings.slice(siblings.indexOf(active.id) + 1).find((id) => rows.some((row) => row.id === id));
@@ -144,11 +149,12 @@ export function originSlot(page: ProjectPage, activeId: string, tasks = taskMap(
  */
 export function resolveSlot(
   page: ProjectPage, activeId: string, sectionId: string | null, index: number, wanted: number,
+  collapsed: ReadonlySet<string> = new Set(),
 ): { slot: Slot; plan: Plan | null } | null {
   const tasks = taskMap(page);
   const active = tasks.get(activeId);
   if (!active) return null;
-  const rows = slotRows(page, sectionId, activeId, tasks);
+  const rows = slotRows(page, sectionId, activeId, tasks, collapsed);
   index = Math.max(0, Math.min(index, rows.length));
   const prev = rows[index - 1];
   const next = rows[index];
@@ -184,8 +190,8 @@ export function resolveSlot(
   if (page.project.view.sortMode !== "manual") {
     // Sem âncora, a posição segue a ordenação: o espaço fica na origem e só a seção ou o pai mudam.
     if (!parent) {
-      const origin = originSlot(page, activeId, tasks)!;
-      const there = slotRows(page, origin.sectionId, activeId, tasks);
+      const origin = originSlot(page, activeId, tasks, collapsed)!;
+      const there = slotRows(page, origin.sectionId, activeId, tasks, collapsed);
       return {
         slot: { sectionId: origin.sectionId, afterId: there[origin.index - 1]?.id ?? null, depth: origin.depth },
         plan: groupPlan(page, activeId, sectionId),

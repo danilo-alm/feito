@@ -978,5 +978,7 @@
   "Feche outras abas do Feito antes de prosseguir.": "Fermez les autres onglets Feito avant de continuer.",
   "Salve o que estiver editando: a página será recarregada.": "Enregistrez ce que vous modifiez : la page sera rechargée.",
   "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "D’autres onglets ou fenêtres Feito sont encore ouverts. Fermez-les et réessayez.",
-  "Não foi possível atualizar. Tente de novo.": "Impossible de mettre à jour. Réessayez."
+  "Não foi possível atualizar. Tente de novo.": "Impossible de mettre à jour. Réessayez.",
+  "Recolher subtarefas de “{0}”": "Masquer les sous-tâches de “{0}”",
+  "Mostrar subtarefas de “{0}”": "Afficher les sous-tâches de “{0}”"
 }

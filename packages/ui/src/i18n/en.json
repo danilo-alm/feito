@@ -978,5 +978,7 @@
   "Feche outras abas do Feito antes de prosseguir.": "Close other Feito tabs before continuing.",
   "Salve o que estiver editando: a página será recarregada.": "Save anything you are editing: the page will reload.",
   "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "Other Feito tabs or windows are still open. Close them and try again.",
-  "Não foi possível atualizar. Tente de novo.": "Could not update. Try again."
+  "Não foi possível atualizar. Tente de novo.": "Could not update. Try again.",
+  "Recolher subtarefas de “{0}”": "Collapse subtasks of “{0}”",
+  "Mostrar subtarefas de “{0}”": "Expand subtasks of “{0}”"
 }

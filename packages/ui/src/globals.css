@@ -175,6 +175,14 @@ h1,h2,h3,p{margin:0}
 .task:hover .grip,.task:focus-within .grip,.grip.show{opacity:1}
 .grip svg{width:16px;height:16px}
 .grip circle{r:2.2px}
+/* Seta das subtarefas: na Lista fica pendurada à esquerda da bolinha, no recuo; o puxador vai para o lado dela e os dois cabem na margem. */
+.sub-toggle{flex:none;position:relative;z-index:1;width:16px;height:28px;margin:-4px -6px -4px -20px;border:0;border-radius:6px;background:none;padding:0;display:grid;place-items:center;color:var(--muted)}
+@media (hover:hover){.sub-toggle:hover{background:var(--hover);color:var(--text)}}
+.sub-toggle svg{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-in-out)}
+.sub-collapsed>.sub-toggle svg{transform:rotate(180deg)}
+.task.has-sub .grip{left:-32px;width:16px}
+.task.sub.has-sub .grip{inset-inline-start:calc(var(--task-depth,1) * var(--task-indent-step,30px) - 32px)}
+.card>.sub-toggle{margin:-4px -4px -4px -6px}
 .chk{width:28px;height:28px;margin:-4px -2px -4px -4px;border:0;background:none;padding:0;display:grid;place-items:center;flex:none}
 .ring{width:20px;height:20px;border-radius:50%;border:2px solid var(--pc);background:var(--pcs);display:grid;place-items:center;color:var(--pc)}
 .ring svg{width:12px;height:12px;stroke-width:3;opacity:0}
@@ -713,6 +721,9 @@ textarea.project-heading-input{resize:none;overflow:hidden}
   .task{padding:12px 0;gap:12px}
   .list-group{--task-indent-step:clamp(12px,3.6vw,22px)}
   .chk{width:44px;height:44px;margin:-12px -10px -12px -12px}
+  /* No celular não há margem à esquerda: a seta vai para a direita da linha, antes do menu ⋯, com área de toque maior. */
+  .task>.sub-toggle{order:1;width:32px;height:44px;margin:-12px -10px -12px 0}
+  .task>.t-acts{order:2}
   .t-title{font-size:15px;line-height:21px}
   .t-line{gap:12px}
   .t-origin{max-width:112px;line-height:21px}
