@@ -38,6 +38,7 @@ Crie um único conjunto versionado de migrações para o subconjunto comum do SQ
 | `replica_state`, `preferences` | Cursor confirmado, identidade da réplica e metadados necessários à interface. Preferências por espaço e camada, incluindo idioma, tema e fuso horário. |
 | `projects`, `sections`, `tasks`, `labels` | Uma linha por entidade, identificada por espaço, camada e ID. Preserve revisões, Inbox, relações e ordem. Coloque em colunas os campos usados nas consultas e invariantes. Uma estrutura pequena, como uma regra de recorrência ou configuração de exibição, pode ocupar um campo de uma linha com validação do domínio. |
 | `task_labels`, `completed_occurrences` | Vínculo por tarefa e etiqueta e conclusão por tarefa e ID da ocorrência. Chaves e referências incluem espaço e camada. Preserve a ordem dos vínculos se ela fizer parte da projeção atual. |
+| `task_comments` | Comentários por espaço, camada e ID, com tarefa, revisão, texto, criação e edição. Excluir a tarefa remove os comentários. Documentos salvos antes da migração `008` não trazem `comments` e valem como lista vazia. |
 | `pending_operations` | Espaço, sequência estável e ID de operação único no espaço. Preserve método, caminho, corpo, instante de autoria e IDs gerados. Um payload por operação pode ser serializado em JSON. |
 | `import_receipts` | Espaço, ID da importação e os dados necessários para detectar reenvio e devolver o resultado já confirmado. Se houver conversão, traga `binding` e `result` do web junto com as entidades. |
 

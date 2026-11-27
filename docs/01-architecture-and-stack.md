@@ -189,9 +189,11 @@ Usar IDs opacos para as referências e escopo `tenant_id` em cada chave de domí
 
 **Contrato da versão 1.** Incluir tipo de documento estável, `schemaVersion` inteiro, instante de exportação, preferências, projetos com indicação de Caixa de entrada, seções, tarefas, etiquetas, vínculos e ocorrências concluídas. Em tarefas, exportar estados, ordem, timestamps, agenda efetiva, âncora e regra, data nominal e ID de ocorrência corrente quando aplicáveis. Usar IDs de referência locais ao documento, sem vínculo com a identidade original, credenciais, chaves, sessões ou registros operacionais. Ao acrescentar uma entidade persistente do produto, ampliar a versão do formato e oferecer leitura das versões anteriores com transformação de dados explícita. Importar versões desconhecidas retorna uma mensagem clara, antes da gravação.
 
-O formato publicado usa `type: "feito-data"`, `schemaVersion: 1` e referências locais de até 64 caracteres ASCII alfanuméricos, hífen ou sublinhado. IDs são únicos dentro do documento. Os instantes em UTC, datas civis, horários opcionais e enumerações seguem o [guia da API](02-backend-endpoints.md#2-objetos-de-resposta).
+O formato publicado usa `type: "feito-data"`, `schemaVersion: 2` e referências locais de até 64 caracteres ASCII alfanuméricos, hífen ou sublinhado. IDs são únicos dentro do documento. Os instantes em UTC, datas civis, horários opcionais e enumerações seguem o [guia da API](02-backend-endpoints.md#2-objetos-de-resposta).
 
-| Campo | Registros da versão 1 |
+A versão 2 acrescentou `comments`, obrigatório nela. A importação continua aceitando a versão 1, que não tem comentários.
+
+| Campo | Registros |
 | --- | --- |
 | `exportedAt` | Instante UTC da exportação. |
 | `preferences` | `timezone` e `theme`. |
@@ -201,6 +203,7 @@ O formato publicado usa `type: "feito-data"`, `schemaVersion: 1` e referências 
 | `labels` | `id` e `name`. |
 | `taskLabels` | `taskId` e `labelId`. |
 | `occurrences` | `occurrenceId`, `taskId`, `nominalDate`, `dueDate`, `dueTime` e `completedAt`. |
+| `comments` | Versão 2. `taskId`, `body`, `createdAt` e `editedAt` (`null` sem edição), por tarefa e do mais antigo ao mais novo. Até 1.000 por tarefa. |
 
 As posições são inteiros não negativos e únicos por grupo de irmãos ou, para seções, por projeto. O documento contém exatamente uma Caixa de entrada ativa, com nome fixo, layout Lista e sem seções. O arquivo preserva instantes de produto e preferências. As revisões de concorrência são inicializadas na conta de destino.
 

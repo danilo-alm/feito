@@ -113,6 +113,17 @@ type TaskDetail = TaskItem & {
     nominalDate: string;             // data da regra para a ocorrência aberta
   } | null;
   children: TaskItem[];              // filhos diretos, incluindo os concluídos
+  commentCount: number;              // comentários da tarefa; a lista vem de GET /tasks/{id}/comments
+};
+
+// Comentário de uma tarefa. A conta tem um único usuário: o autor é sempre o dono da conta (`GET /me`).
+type TaskComment = {
+  id: string;
+  taskId: string;
+  revision: number;
+  body: string;                      // texto sem espaços nas pontas, de 1 a 10.000 caracteres
+  createdAt: string;                 // instante UTC
+  editedAt: string | null;           // instante UTC da última edição
 };
 
 type Section = { id: string; revision: number; name: string; taskCount: number };
@@ -325,7 +336,21 @@ type CreateTask = {
 
 **Regras de reabertura.** Aplicam-se a tarefas avulsas concluídas. A tarefa volta à mesma seção e posição. Com data passada, aparece como atrasada. Reabrir uma subtarefa reabre seus ancestrais concluídos e informa o ID do pai direto reaberto em `reopenedParentId`. Para desfazer uma conclusão em cascata, envie `completedChildIds` retornado pela conclusão para reabrir só as subtarefas afetadas.
 
-**Regras de exclusão.** Com `withChildren=true`, a exclusão permanente apaga todos os descendentes, vínculos de etiqueta e histórico de ocorrências. `childCount` conta todos os descendentes.
+**Regras de exclusão.** Com `withChildren=true`, a exclusão permanente apaga todos os descendentes, vínculos de etiqueta, histórico de ocorrências e comentários. `childCount` conta todos os descendentes.
+
+#### Comentários
+
+| Método e rota | Entrada | Resposta |
+| --- | --- | --- |
+| `GET /api/v1/tasks/{id}/comments` | Vazio. | `200 { comments: TaskComment[] }`, do mais antigo ao mais novo. Inclui tarefas concluídas e de projetos arquivados. |
+| `POST /api/v1/tasks/{id}/comments` | `{ body }` | `201 TaskComment`. |
+| `PATCH /api/v1/comments/{id}` | `{ revision, body }` | `200 TaskComment`. Um texto igual ao atual não muda a revisão nem `editedAt`. |
+| `DELETE /api/v1/comments/{id}?revision=N` | Vazio. | `204`. |
+
+- O texto é cifrado com a DEK da conta, como a descrição da tarefa, e fica fora do cache de leituras, das URLs e dos logs. `commentCount` vem da contagem de linhas, sem decifrar os comentários.
+- Comentar, editar ou excluir avança a revisão do produto. A revisão do comentário protege a edição e a exclusão: `409 REVISION_CONFLICT` traz o comentário atual em `details.current`.
+- Tarefa concluída aceita comentários. Projeto arquivado devolve `409 PROJECT_ARCHIVED` nas escritas. Cada tarefa guarda até 1.000 comentários; acima disso, `422 COMMENT_LIMIT`.
+- Tarefa ou comentário de outra conta, ou já excluído, devolve `404 NOT_FOUND`.
 
 ### 3.6 Mover, reordenar e criar subtarefa
 
@@ -450,7 +475,7 @@ type SearchRequest = {
 
 | Método e rota | Fase | Entrada | Resposta |
 | --- | --- | --- | --- |
-| `GET /api/v1/export` | 4 | Vazio. | `200 application/json` com `Content-Disposition: attachment; filename="feito-dados-YYYY-MM-DD.json"`. Documento versionado com todos os dados de produto da conta, incluindo arquivados, concluídas e ocorrências, conforme o [contrato da versão 1](01-architecture-and-stack.md#7-exportação-e-importação). |
+| `GET /api/v1/export` | 4 | Vazio. | `200 application/json` com `Content-Disposition: attachment; filename="feito-dados-YYYY-MM-DD.json"`. Documento versionado com todos os dados de produto da conta, incluindo arquivados, concluídas, ocorrências e comentários, conforme o [contrato do formato](01-architecture-and-stack.md#7-exportação-e-importação). A exportação usa a versão 2; a importação também aceita a versão 1, sem comentários. |
 | `POST /api/v1/import/preview` | 4 | Corpo bruto `application/json` com o arquivo. Cabeçalho `X-Operation-Id` opcional (UUID). | `200 ImportPreview`. Se houver token, a resposta inclui `X-Operation-Id`. Arquivo grande demais: `413`. |
 | `POST /api/v1/import/confirm` | 4 | Corpo bruto com o mesmo arquivo e cabeçalhos `X-Preview-Token` e `X-Operation-Id` (UUID gerado pela interface). | `200 { operationId, summary }`. Repetir a mesma operação já registrada devolve o mesmo resumo. |
 | `GET /api/v1/import/operations/{operationId}` | 4 | Vazio. | `200 { operationId, status: "completed", summary }` ou `404`. Serve para recuperar o resultado se a resposta da confirmação se perder. |
@@ -533,12 +558,12 @@ Os modelos ficam em [`export-formats.ts`](../packages/core/src/domain/export-for
 
 As duas operações em `/api/v1/desktop-sync` exigem a sessão da conta. O envio exige o `Origin` da instalação, assim como as gravações do site.
 
-- **GET** devolve `{ cursor, user, workspace }`. A primeira leitura devolve a base da conta com projetos, seções, tarefas, etiquetas, vínculos, ocorrências concluídas e preferências. Quando `cursor` corresponde à revisão atual, `workspace` é nulo. Com `incremental=1` e um cursor anterior ainda coberto pelo diário, a resposta traz `changes` e `workspace: null`. Projetos, seções, tarefas e etiquetas usam `{ upsert, remove }`. Cada par em `taskLabels` ou `occurrences` substitui os vínculos ou o histórico da tarefa correspondente, incluindo listas vazias. Uma lacuna, excesso de alterações ou cursor antigo aciona uma nova base completa.
-- **POST** recebe `{ id, userId?, authoredAt, method, path, body?, generatedIds? }`. `id` é o UUID persistido junto à operação local. O desktop e o navegador enviam o `userId` esperado para prevenir gravação em outra conta após nova autenticação. `path` é relativo a `/api/v1`. `generatedIds` preserva os IDs criados offline. O servidor aceita as mutações de tarefas, projetos, seções, etiquetas e preferências previstas no serviço e responde `{ outcome: "applied" }` ou `{ outcome: "ignored", message }`. Repetir a mesma operação retorna o recibo original. Reusar o ID com outro conteúdo retorna conflito.
+- **GET** devolve `{ cursor, user, workspace }`. A primeira leitura devolve a base da conta com projetos, seções, tarefas, etiquetas, vínculos, ocorrências concluídas, comentários e preferências. Quando `cursor` corresponde à revisão atual, `workspace` é nulo. Com `incremental=1` e um cursor anterior ainda coberto pelo diário, a resposta traz `changes` e `workspace: null`. Projetos, seções, tarefas, etiquetas e comentários usam `{ upsert, remove }`. Excluir uma tarefa remove os comentários dela sem listá-los em `comments.remove`. Cada par em `taskLabels` ou `occurrences` substitui os vínculos ou o histórico da tarefa correspondente, incluindo listas vazias. Uma lacuna, excesso de alterações ou cursor antigo aciona uma nova base completa.
+- **POST** recebe `{ id, userId?, authoredAt, method, path, body?, generatedIds? }`. `id` é o UUID persistido junto à operação local. O desktop e o navegador enviam o `userId` esperado para prevenir gravação em outra conta após nova autenticação. `path` é relativo a `/api/v1`. `generatedIds` preserva os IDs criados offline. O servidor aceita as mutações de tarefas, comentários, projetos, seções, etiquetas e preferências previstas no serviço e responde `{ outcome: "applied" }` ou `{ outcome: "ignored", message }`. Repetir a mesma operação retorna o recibo original. Reusar o ID com outro conteúdo retorna conflito.
 
 O diário guarda referências às entidades afetadas nas últimas 512 revisões. O limite por leitura incremental é de 1.000 referências. O servidor monta os dados canônicos e as exclusões usando o mesmo snapshot que fornece o cursor.
 
-Edições de tarefa e preferências recebem ordenação por campo ou grupo de campos. Em um empate de milissegundo, as gravações diretas na API prevalecem sobre as operações sincronizadas. Entre operações sincronizadas, a ordem usa o UUID da operação. Horários mais de cinco minutos adiantados são recusados. Exclusões não são revertidas por edições pendentes. Revisões das entidades ainda protegem operações estruturais de projeto, seção e etiqueta. A recorrência confirma a ocorrência específica e usa a data civil do instante da ação no fuso da conta para calcular a próxima.
+Edições de tarefa e preferências recebem ordenação por campo ou grupo de campos. Em um empate de milissegundo, as gravações diretas na API prevalecem sobre as operações sincronizadas. Entre operações sincronizadas, a ordem usa o UUID da operação. Horários mais de cinco minutos adiantados são recusados. Exclusões não são revertidas por edições pendentes. Revisões das entidades ainda protegem operações estruturais de projeto, seção e etiqueta e as edições e exclusões de comentários. A recorrência confirma a ocorrência específica e usa a data civil do instante da ação no fuso da conta para calcular a próxima.
 
 ### 3.13 Avisos de revisão
 
@@ -571,7 +596,7 @@ Senhas nunca entram em argumentos, histórico de shell, logs ou arquivos.
 | Caixa de entrada | `GET /me` e `GET /projects/{inboxProjectId}` | `POST /tasks`, `move`, `complete`, `reopen`, `PATCH /projects/{id}/view` |
 | Projeto em Lista ou Painel | `GET /projects/{id}` | `move`, `PATCH /projects/{id}/view`, seções, `complete`, `reopen`, `POST /tasks` |
 | Menu de visualização | estado de `project.view` | `PATCH /projects/{id}/view` e nova leitura do projeto |
-| Detalhe da tarefa | `GET /tasks/{id}`, `GET /labels` | `PATCH /tasks/{id}`, `recurrence`, `move`, `POST /tasks` com `parentId`, `DELETE` |
+| Detalhe da tarefa | `GET /tasks/{id}`, `GET /labels`, `GET /tasks/{id}/comments` | `PATCH /tasks/{id}`, `recurrence`, `move`, `POST /tasks` com `parentId`, `DELETE`, `POST /tasks/{id}/comments`, `PATCH` e `DELETE /comments/{id}` |
 | Criação rápida | `GET /navigation`, `GET /labels` | `POST /tasks` |
 | Busca e filtros | `GET /navigation` para os seletores | `POST /search` |
 | Ajustes e dados | `GET /me`, `GET /projects?status=archived` | `PATCH /preferences`, `unarchive`, `GET /export`, `import/preview`, `import/confirm`, `POST /auth/password`, `POST /auth/logout` |
