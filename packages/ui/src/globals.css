@@ -304,16 +304,17 @@ button.t-origin:hover{background:var(--hover)}
 .ins{position:relative;height:2px;background:var(--brand);margin-block:-1px;border-radius:2px;z-index:2}
 .ins::before{content:"";position:absolute;left:-6px;top:-4px;width:10px;height:10px;border-radius:50%;border:2px solid var(--brand);background:var(--bg)}
 /* Arraste de tarefas: o ramo arrastado sai do fluxo e os vizinhos se afastam para abrir o espaço onde ele vai cair.
-   A barra no meio do espaço mostra o nível; arrastar para a direita a recua, tornando a tarefa subtarefa da de cima. */
+   A barra na borda inferior da linha de cima mostra o nível; arrastar para a direita a recua, tornando a tarefa subtarefa da de cima. */
 .drag-hidden{display:none!important}
 .drop-gap{position:relative;height:0;transition:height var(--dur-base) var(--ease-out)}
 .drop-gap[data-open]{height:var(--drop-gap)}
-.drop-gap>.ins{position:absolute;inset-inline:0;top:50%;opacity:0;transition:opacity var(--dur-fast) var(--ease-out),margin-inline-start var(--dur-fast) var(--ease-out)}
+.drop-gap>.ins{position:absolute;inset-inline:0;top:0;opacity:0;transition:opacity var(--dur-fast) var(--ease-out),margin-inline-start var(--dur-fast) var(--ease-out)}
 .drop-gap[data-open]>.ins{opacity:1}
-.column .drop-gap>.ins{top:calc(50% - 4px);inset-inline:2px}
+.column .drop-gap>.ins{top:-4px;inset-inline:2px}
+.column .drop-gap>.bad-tag{top:-4px}
 .drop-gap>.ins.bad{background:var(--late)}
 .drop-gap>.ins.bad::before{border-color:var(--late)}
-.drop-gap>.bad-tag{position:absolute;inset-inline-end:0;top:50%;transform:translateY(-50%);z-index:3}
+.drop-gap>.bad-tag{position:absolute;inset-inline-end:0;top:0;transform:translateY(-50%);z-index:3}
 .bad-tag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:6px;background:var(--late);color:var(--bg);font-size:12px;font-weight:600}
 .bad-tag svg{width:13px;height:13px}
 .landed{animation:none;box-shadow:0 0 0 2px var(--brand-soft),inset 0 0 0 1px var(--brand);border-radius:10px}
