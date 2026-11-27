@@ -402,7 +402,7 @@ html:has(.dialog-wrap) .tb-app {
   }
 
   .desktop-overlay .side {
-    padding-top: calc(var(--desktop-titlebar-height) + 6px);
+    padding-top: calc(var(--desktop-titlebar-height) + var(--tb-fade) + 2px);
     overflow-x: hidden;
   }
 
