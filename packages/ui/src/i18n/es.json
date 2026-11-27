@@ -23,7 +23,6 @@
   "Salvar conexão": "Guardar conexión",
   "Preparando os arquivos para abrir o Feito sem conexão…": "Preparando los archivos para abrir Feito sin conexión…",
   "Pronto para uso offline neste navegador.": "Listo para usar sin conexión en este navegador.",
-  "Atualização disponível. Salve suas edições e feche todas as abas do Feito para usar a nova versão ao reabrir.": "Actualización disponible. Guarda tus cambios y cierra todas las pestañas de Feito para usar la nueva versión al volver a abrirlo.",
   "Não foi possível preparar o acesso offline. Verifique a conexão e o espaço disponível no navegador.": "No se pudo preparar el acceso sin conexión. Revisa la conexión y el espacio disponible en el navegador.",
   "O acesso offline está indisponível neste navegador.": "El acceso sin conexión no está disponible en este navegador.",
   "A preparação offline está disponível no build de produção.": "La preparación sin conexión está disponible en el build de producción.",
@@ -978,5 +977,14 @@
   "Tirar de “{0}”": "Sacar de «{0}»",
   "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.": "Para reordenar sin arrastrar, usa Alt y las flechas. Alt y las flechas izquierda y derecha cambian el proyecto principal.",
   "Escolha outro projeto principal.": "Elige otro proyecto principal.",
-  "O projeto principal precisa ser outro projeto comum do documento.": "El proyecto principal debe ser otro proyecto común del documento."
+  "O projeto principal precisa ser outro projeto comum do documento.": "El proyecto principal debe ser otro proyecto común del documento.",
+  "Atualizar o Feito": "Actualizar Feito",
+  "Atualizar": "Actualizar",
+  "Agora não": "Ahora no",
+  "Nova versão disponível": "Nueva versión disponible",
+  "Atualização disponível.": "Actualización disponible.",
+  "Feche outras abas do Feito antes de prosseguir.": "Cierra las otras pestañas de Feito antes de continuar.",
+  "Salve o que estiver editando: a página será recarregada.": "Guarda lo que estés editando: la página se recargará.",
+  "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "Todavía hay otras pestañas o ventanas de Feito abiertas. Ciérralas e inténtalo de nuevo.",
+  "Não foi possível atualizar. Tente de novo.": "No se pudo actualizar. Inténtalo de nuevo."
 }

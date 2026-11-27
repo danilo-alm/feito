@@ -1036,6 +1036,33 @@ svg.ic-repeat{color:var(--brand-text)}
   }
 }
 
+/* Aviso de versão nova no navegador, acima do indicador de sincronização. */
+.update-notice {
+  position: fixed;
+  z-index: 7;
+  inset-inline-end: 12px;
+  inset-block-end: 40px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 24px);
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--lift);
+  font-size: 13.5px;
+}
+
+@media (max-width: 899px) {
+  /* À esquerda do botão de adicionar e acima do indicador de sincronização. */
+  .update-notice {
+    inset-inline: 12px 84px;
+    inset-block-end: calc(var(--mobile-tabbar-height) + 40px);
+    justify-content: space-between;
+  }
+}
+
 /* ---------- Calendário do projeto ---------- */
 .pcal{display:flex;flex-direction:column;gap:12px}
 .pcal-bar,.ptable-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:8px}

@@ -23,7 +23,6 @@
   "Salvar conexão": "Guardar ligação",
   "Preparando os arquivos para abrir o Feito sem conexão…": "A preparar os ficheiros para abrir o Feito sem ligação…",
   "Pronto para uso offline neste navegador.": "Pronto para utilização offline neste navegador.",
-  "Atualização disponível. Salve suas edições e feche todas as abas do Feito para usar a nova versão ao reabrir.": "Atualização disponível. Guarde as suas edições e feche todos os separadores do Feito para utilizar a nova versão quando voltar a abrir.",
   "Não foi possível preparar o acesso offline. Verifique a conexão e o espaço disponível no navegador.": "Não foi possível preparar o acesso offline. Verifique a ligação e o espaço disponível no navegador.",
   "O acesso offline está indisponível neste navegador.": "O acesso offline não está disponível neste navegador.",
   "A preparação offline está disponível no build de produção.": "A preparação offline está disponível na build de produção.",
@@ -978,5 +977,14 @@
   "Tirar de “{0}”": "Tirar de “{0}”",
   "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.": "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.",
   "Escolha outro projeto principal.": "Escolha outro projeto principal.",
-  "O projeto principal precisa ser outro projeto comum do documento.": "O projeto principal tem de ser outro projeto comum do documento."
+  "O projeto principal precisa ser outro projeto comum do documento.": "O projeto principal tem de ser outro projeto comum do documento.",
+  "Atualizar o Feito": "Atualizar o Feito",
+  "Atualizar": "Atualizar",
+  "Agora não": "Agora não",
+  "Nova versão disponível": "Nova versão disponível",
+  "Atualização disponível.": "Atualização disponível.",
+  "Feche outras abas do Feito antes de prosseguir.": "Feche os outros separadores do Feito antes de prosseguir.",
+  "Salve o que estiver editando: a página será recarregada.": "Guarde o que estiver a editar: a página será recarregada.",
+  "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "Ainda há outros separadores ou janelas do Feito abertos. Feche-os e tente novamente.",
+  "Não foi possível atualizar. Tente de novo.": "Não foi possível atualizar. Tente novamente."
 }

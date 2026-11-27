@@ -23,7 +23,6 @@
   "Salvar conexão": "Salva connessione",
   "Preparando os arquivos para abrir o Feito sem conexão…": "Preparazione dei file per aprire Feito offline…",
   "Pronto para uso offline neste navegador.": "Pronto per l’uso offline in questo browser.",
-  "Atualização disponível. Salve suas edições e feche todas as abas do Feito para usar a nova versão ao reabrir.": "Aggiornamento disponibile. Salva le modifiche e chiudi tutte le schede di Feito per usare la nuova versione alla riapertura.",
   "Não foi possível preparar o acesso offline. Verifique a conexão e o espaço disponível no navegador.": "Impossibile preparare l’accesso offline. Controlla la connessione e lo spazio disponibile nel browser.",
   "O acesso offline está indisponível neste navegador.": "L’accesso offline non è disponibile in questo browser.",
   "A preparação offline está disponível no build de produção.": "La preparazione offline è disponibile nella build di produzione.",
@@ -978,5 +977,14 @@
   "Tirar de “{0}”": "Togli da “{0}”",
   "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.": "Per riordinare senza trascinare, usa Alt e le frecce. Alt e le frecce sinistra e destra cambiano il progetto principale.",
   "Escolha outro projeto principal.": "Scegli un altro progetto principale.",
-  "O projeto principal precisa ser outro projeto comum do documento.": "Il progetto principale deve essere un altro progetto normale del documento."
+  "O projeto principal precisa ser outro projeto comum do documento.": "Il progetto principale deve essere un altro progetto normale del documento.",
+  "Atualizar o Feito": "Aggiorna Feito",
+  "Atualizar": "Aggiorna",
+  "Agora não": "Non ora",
+  "Nova versão disponível": "Nuova versione disponibile",
+  "Atualização disponível.": "Aggiornamento disponibile.",
+  "Feche outras abas do Feito antes de prosseguir.": "Chiudi le altre schede di Feito prima di continuare.",
+  "Salve o que estiver editando: a página será recarregada.": "Salva ciò che stai modificando: la pagina verrà ricaricata.",
+  "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "Ci sono ancora altre schede o finestre di Feito aperte. Chiudile e riprova.",
+  "Não foi possível atualizar. Tente de novo.": "Impossibile aggiornare. Riprova."
 }

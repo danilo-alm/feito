@@ -23,7 +23,6 @@
   "Salvar conexão": "Save connection",
   "Preparando os arquivos para abrir o Feito sem conexão…": "Preparing files to open Feito offline…",
   "Pronto para uso offline neste navegador.": "Ready for offline use in this browser.",
-  "Atualização disponível. Salve suas edições e feche todas as abas do Feito para usar a nova versão ao reabrir.": "Update available. Save your edits and close all Feito tabs to use the new version when you reopen.",
   "Não foi possível preparar o acesso offline. Verifique a conexão e o espaço disponível no navegador.": "Could not prepare offline access. Check your connection and the browser’s available storage.",
   "O acesso offline está indisponível neste navegador.": "Offline access is unavailable in this browser.",
   "A preparação offline está disponível no build de produção.": "Offline setup is available in the production build.",
@@ -978,5 +977,14 @@
   "Tirar de “{0}”": "Move out of “{0}”",
   "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.": "To reorder without dragging, use Alt with the arrow keys. Alt with the left and right arrows changes the parent project.",
   "Escolha outro projeto principal.": "Choose another parent project.",
-  "O projeto principal precisa ser outro projeto comum do documento.": "The parent project must be another regular project in the document."
+  "O projeto principal precisa ser outro projeto comum do documento.": "The parent project must be another regular project in the document.",
+  "Atualizar o Feito": "Update Feito",
+  "Atualizar": "Update",
+  "Agora não": "Not now",
+  "Nova versão disponível": "New version available",
+  "Atualização disponível.": "Update available.",
+  "Feche outras abas do Feito antes de prosseguir.": "Close other Feito tabs before continuing.",
+  "Salve o que estiver editando: a página será recarregada.": "Save anything you are editing: the page will reload.",
+  "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "Other Feito tabs or windows are still open. Close them and try again.",
+  "Não foi possível atualizar. Tente de novo.": "Could not update. Try again."
 }

@@ -23,7 +23,6 @@
   "Salvar conexão": "Enregistrer la connexion",
   "Preparando os arquivos para abrir o Feito sem conexão…": "Préparation des fichiers pour ouvrir Feito hors ligne…",
   "Pronto para uso offline neste navegador.": "Prêt à être utilisé hors ligne dans ce navigateur.",
-  "Atualização disponível. Salve suas edições e feche todas as abas do Feito para usar a nova versão ao reabrir.": "Mise à jour disponible. Enregistrez vos modifications et fermez tous les onglets Feito pour utiliser la nouvelle version à la réouverture.",
   "Não foi possível preparar o acesso offline. Verifique a conexão e o espaço disponível no navegador.": "Impossible de préparer l’accès hors ligne. Vérifiez la connexion et l’espace disponible dans le navigateur.",
   "O acesso offline está indisponível neste navegador.": "L’accès hors ligne n’est pas disponible dans ce navigateur.",
   "A preparação offline está disponível no build de produção.": "La préparation hors ligne est disponible dans le build de production.",
@@ -978,5 +977,14 @@
   "Tirar de “{0}”": "Sortir de « {0} »",
   "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.": "Pour réordonner sans glisser, utilisez Alt et les flèches. Alt et les flèches gauche et droite changent le projet parent.",
   "Escolha outro projeto principal.": "Choisissez un autre projet parent.",
-  "O projeto principal precisa ser outro projeto comum do documento.": "Le projet parent doit être un autre projet ordinaire du document."
+  "O projeto principal precisa ser outro projeto comum do documento.": "Le projet parent doit être un autre projet ordinaire du document.",
+  "Atualizar o Feito": "Mettre à jour Feito",
+  "Atualizar": "Mettre à jour",
+  "Agora não": "Pas maintenant",
+  "Nova versão disponível": "Nouvelle version disponible",
+  "Atualização disponível.": "Mise à jour disponible.",
+  "Feche outras abas do Feito antes de prosseguir.": "Fermez les autres onglets Feito avant de continuer.",
+  "Salve o que estiver editando: a página será recarregada.": "Enregistrez ce que vous modifiez : la page sera rechargée.",
+  "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "D’autres onglets ou fenêtres Feito sont encore ouverts. Fermez-les et réessayez.",
+  "Não foi possível atualizar. Tente de novo.": "Impossible de mettre à jour. Réessayez."
 }

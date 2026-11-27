@@ -11,7 +11,7 @@ export default function config(phase: string): NextConfig {
     ? "/sqlite-dev/worker.mjs" : `/_next/static/${buildId}/sqlite/worker.mjs`;
   return {
     generateBuildId: () => buildId,
-    env: { FEITO_SQLITE_WORKER: workerUrl },
+    env: { FEITO_BUILD: buildId, FEITO_SQLITE_WORKER: workerUrl },
     // Servidor autocontido usado pela imagem de produção (Dockerfile, stage prod).
     output: "standalone",
     outputFileTracingRoot: root,

@@ -1,5 +1,5 @@
 import { openPortugueseLocalWorkspace } from "./fixtures";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 test("reabre e grava no espaço sem conta sem rede depois da preparação", async ({ page, context, isMobile }) => {
   await page.goto("/entrar");
@@ -66,7 +66,7 @@ test("reabre e grava no espaço sem conta sem rede depois da preparação", asyn
   await expect(deepLink.getByRole("heading", { name: "Planejamento offline", level: 1 })).toBeVisible();
 });
 
-test("aguarda as abas abertas para atualizar e preserva edições locais", async ({ page, context, request, isMobile }) => {
+test("atualiza só quando a pessoa pede, com uma única aba, e preserva os dados locais", async ({ page, context, request, isMobile }) => {
   test.skip(!process.env.FEITO_E2E_KEY && process.env.FEITO_E2E_LOCAL_SERVER !== "1", "A troca de versão usa o servidor HTTPS local dos testes.");
   await page.goto("/entrar");
   await openPortugueseLocalWorkspace(page);
@@ -81,26 +81,45 @@ test("aguarda as abas abertas para atualizar e preserva edições locais", async
   await settings.goto("/ajustes");
   const offline = settings.getByRole("region", { name: "Acesso offline" });
   await expect(offline.getByRole("status")).toHaveText("Pronto para uso offline neste navegador.", { timeout: 25_000 });
+  const cached = (tab: Page) => tab.evaluate(async () => (await caches.keys()).filter((key) => key.startsWith("feito:static:")).sort());
+  const [accepted] = await cached(settings);
   expect((await request.post("/__e2e/worker-update?active=1")).status()).toBe(204);
   try {
     await offline.getByRole("button", { name: "Verificar atualização" }).click();
-    await expect(offline.getByRole("status")).toHaveText(/Atualização disponível/, { timeout: 25_000 });
+    await expect(offline.getByRole("status")).toHaveText("Atualização disponível.", { timeout: 25_000 });
     await expect(title).toHaveValue("Salvar antes de atualizar");
     await title.press("Enter");
     await expect(page.getByText(/Tarefa adicionada/)).toBeVisible();
     await page.close();
     await settings.close();
 
-    await expect.poll(async () => {
-      const worker = context.serviceWorkers().at(-1);
-      if (!worker) return [];
-      return await worker.evaluate(async () => (await caches.keys()).filter((key) => key.startsWith("feito:static:"))).catch(() => []);
-    }).toEqual([expect.stringMatching(/-e2e$/)]);
-
-    await context.setOffline(true);
+    // Fechar todas as abas não troca a versão.
     const reopened = await context.newPage();
     await reopened.goto("/entrada");
-    await expect(reopened.getByRole("button", { name: /^Concluir “Salvar antes de atualizar”/ })).toBeVisible();
+    const notice = reopened.locator(".update-notice");
+    await expect(notice).toContainText("Nova versão disponível", { timeout: 25_000 });
+    await expect.poll(() => cached(reopened)).toEqual([accepted, `${accepted}-e2e`]);
+
+    const other = await context.newPage();
+    await other.goto("/hoje");
+    await notice.getByRole("button", { name: "Atualizar" }).click();
+    const dialog = reopened.getByRole("dialog", { name: "Atualizar o Feito" });
+    await expect(dialog).toContainText("Feche outras abas do Feito antes de prosseguir.");
+    const confirm = dialog.getByRole("button", { name: "Atualizar", exact: true });
+    await confirm.click();
+    await expect(dialog.getByRole("alert")).toContainText("Ainda há outras abas ou janelas do Feito abertas.");
+    await expect.poll(() => cached(reopened)).toEqual([accepted, `${accepted}-e2e`]);
+
+    await other.close();
+    await Promise.all([reopened.waitForEvent("load"), confirm.click()]);
+    await expect.poll(() => cached(reopened)).toEqual([`${accepted}-e2e`]);
+    const complete = reopened.getByRole("button", { name: /^Concluir “Salvar antes de atualizar”/ });
+    await expect(complete).toBeVisible();
+    await expect(notice).toBeHidden();
+
+    await context.setOffline(true);
+    await reopened.reload();
+    await expect(complete).toBeVisible();
   } finally {
     expect((await request.post("/__e2e/worker-update?active=0")).status()).toBe(204);
   }

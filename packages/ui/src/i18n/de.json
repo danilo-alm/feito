@@ -23,7 +23,6 @@
   "Salvar conexão": "Verbindung speichern",
   "Preparando os arquivos para abrir o Feito sem conexão…": "Dateien werden vorbereitet, um Feito offline zu öffnen…",
   "Pronto para uso offline neste navegador.": "Bereit für die Offlinenutzung in diesem Browser.",
-  "Atualização disponível. Salve suas edições e feche todas as abas do Feito para usar a nova versão ao reabrir.": "Update verfügbar. Speichere deine Änderungen und schließe alle Feito-Tabs, um beim erneuten Öffnen die neue Version zu verwenden.",
   "Não foi possível preparar o acesso offline. Verifique a conexão e o espaço disponível no navegador.": "Offlinezugriff konnte nicht vorbereitet werden. Prüfe die Verbindung und den verfügbaren Speicher im Browser.",
   "O acesso offline está indisponível neste navegador.": "Offlinezugriff ist in diesem Browser nicht verfügbar.",
   "A preparação offline está disponível no build de produção.": "Die Offlinevorbereitung ist im Produktions-Build verfügbar.",
@@ -978,5 +977,14 @@
   "Tirar de “{0}”": "Aus „{0}“ herausnehmen",
   "Para reordenar sem arrastar, use Alt e as setas. Alt e as setas para os lados mudam o projeto principal.": "Zum Umsortieren ohne Ziehen Alt und die Pfeiltasten verwenden. Alt mit den Pfeiltasten nach links und rechts ändert das übergeordnete Projekt.",
   "Escolha outro projeto principal.": "Wähle ein anderes übergeordnetes Projekt.",
-  "O projeto principal precisa ser outro projeto comum do documento.": "Das übergeordnete Projekt muss ein anderes normales Projekt im Dokument sein."
+  "O projeto principal precisa ser outro projeto comum do documento.": "Das übergeordnete Projekt muss ein anderes normales Projekt im Dokument sein.",
+  "Atualizar o Feito": "Feito aktualisieren",
+  "Atualizar": "Aktualisieren",
+  "Agora não": "Nicht jetzt",
+  "Nova versão disponível": "Neue Version verfügbar",
+  "Atualização disponível.": "Update verfügbar.",
+  "Feche outras abas do Feito antes de prosseguir.": "Schließe andere Feito-Tabs, bevor du fortfährst.",
+  "Salve o que estiver editando: a página será recarregada.": "Speichere, was du gerade bearbeitest: Die Seite wird neu geladen.",
+  "Ainda há outras abas ou janelas do Feito abertas. Feche-as e tente de novo.": "Es sind noch andere Feito-Tabs oder -Fenster geöffnet. Schließe sie und versuche es erneut.",
+  "Não foi possível atualizar. Tente de novo.": "Aktualisierung nicht möglich. Versuche es erneut."
 }

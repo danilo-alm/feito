@@ -13,6 +13,7 @@ import { Browse, Inbox, Label, ProjectView, Search, Today, Upcoming } from "@fei
 import { startBrowserWorkspace, useBrowserStatus, workspace } from "@/browser/client";
 import { BrowserLink, browserRouter, safeNext, useBrowserRoute } from "@/browser/navigation";
 import { ChangePasswordForm, LoginForm } from "./auth-forms";
+import { UpdateNotice } from "./offline-status";
 import { syncLabels, pendingLabel } from "./sync-labels";
 import { SyncStatus } from "@feito/ui/components/sync-status";
 
@@ -131,6 +132,7 @@ function BrowserContent() {
 
   return <NavigationProvider pathname={pathname} router={browserRouter} Link={BrowserLink}>
     <AppProviders key={status.epoch} contextMenus>{page}</AppProviders>
+    <UpdateNotice />
   </NavigationProvider>;
 }
 
