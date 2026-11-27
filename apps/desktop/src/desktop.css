@@ -437,27 +437,6 @@ html:has(.dialog-wrap) .tb-app {
     display: none;
   }
 
-  /* Menu recolhido: a área principal ganha a largura; a lista mantém seu limite e fica centrada. */
-  .desktop-overlay .app > .side {
-    transition: flex-basis var(--dur-slow) var(--ease-out), padding var(--dur-slow) var(--ease-out), visibility 0s;
-  }
-
-  html.desktop-overlay.sidebar-resizing .app > .side {
-    transition: none;
-  }
-
-  /* O conteúdo do menu mantém a largura enquanto ele recolhe, em vez de se espremer. */
-  .desktop-overlay .app > .side > * {
-    min-width: calc(var(--sidebar-width) - 37px);
-  }
-
-  .desktop-overlay[data-sidebar="collapsed"] .app > .side {
-    flex-basis: 0;
-    padding-inline: 0;
-    border-right-width: 0;
-    visibility: hidden;
-    transition: flex-basis var(--dur-slow) var(--ease-out), padding var(--dur-slow) var(--ease-out), visibility 0s linear var(--dur-slow);
-  }
 }
 
 .desktop-inline {

@@ -14,6 +14,7 @@ import { isTemporaryTask, type MutationContext } from "../client/task-mutations"
 import type { Me, Navigation, Preferences, Theme } from "@feito/core/types";
 import { motionMs, useFlip } from "./motion";
 import { TooltipLayer } from "./tooltip";
+import { useWebSidebarRoot } from "./sidebar-toggle";
 import { ContextMenusProvider, Dialog, Spinner, ToastProvider, useToast, type ToastAction } from "./ui";
 
 // ---------- Tema ----------
@@ -166,6 +167,7 @@ export function AppShell({
   const nav = useQuery<Navigation>(me.data ? "nav" : null, api.navigation);
   if (nav.data) registerTagOrder(nav.data.projects, nav.data.labels.map((label) => label.id));
   useThemeSync(me.data?.preferences, persistTheme);
+  useWebSidebarRoot();
   const locale = useLocale();
   const workspaceLocale = me.data?.preferences.locale ?? defaultLocale;
   const languageInitialized = useRef(false);

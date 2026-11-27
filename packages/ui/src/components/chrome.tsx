@@ -24,6 +24,7 @@ import { useFlip } from "./motion";
 import { ReorderList, type ReorderHandle } from "./reorder";
 import { MenuButton, useContextMenu, useToast, type MenuItem } from "./ui";
 import { SidebarName, useSidebarResize } from "./sidebar-resize";
+import { SidebarToggle } from "./sidebar-toggle";
 
 export function PageTaskCount({ count, more = false }: { count: number; more?: boolean }) {
   const t = useT();
@@ -116,9 +117,12 @@ export function Sidebar({ nav }: { nav: Navigation | undefined }) {
 
   return (
     <><nav ref={sidebar} className="side" aria-label={t("Navegação principal")}>
-      <button type="button" className="side-add" onClick={() => app.openQuickAdd()}>
-        <span className="plus"><IconPlus /></span><span className="side-add-label">{t("Adicionar tarefa")}</span><span className="kbd" style={{ marginLeft: "auto" }}>Q</span>
-      </button>
+      <div className="side-top">
+        <button type="button" className="side-add" onClick={() => app.openQuickAdd()}>
+          <span className="plus"><IconPlus /></span><span className="side-add-label">{t("Adicionar tarefa")}</span><span className="kbd" style={{ marginLeft: "auto" }}>Q</span>
+        </button>
+        <SidebarToggle place="sidebar" />
+      </div>
       <Link href="/busca" className={`nav nav-search${is("/busca") ? " on" : ""}`} aria-current={is("/busca") ? "page" : undefined}>
         <IconSearch /><SidebarName>{t("Buscar")}</SidebarName><span className="kbd" style={{ marginLeft: "auto" }}>/</span>
       </Link>
@@ -424,6 +428,7 @@ export function PageHeader({
   return (
     <>
       <div className="topbar">
+        <SidebarToggle place="page" />
         <div className="crumb">{crumb}</div>
         {compactTitle}
         <div className="tools">{tools}</div>
