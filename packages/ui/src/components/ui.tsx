@@ -150,7 +150,8 @@ const SHEET_SNAP = 48;
 
 /**
  * Folha inferior em dois tamanhos: abre pela metade e ocupa a tela ao arrastar a alça para cima ou rolar o conteúdo.
- * Arrastar para baixo reduz a folha cheia e fecha a folha pela metade. Tocar na alça alterna os tamanhos (teclado também).
+ * Arrastar a alça para baixo reduz a folha cheia e fecha a folha pela metade. A folha cheia também reduz ao puxar o
+ * conteúdo para baixo a partir do topo. Tocar na alça alterna os tamanhos (teclado também).
  */
 function useExpandableSheet(ref: RefObject<HTMLDivElement | null>, active: boolean, onClose: () => void) {
   const [expanded, setExpanded] = useState(false);
@@ -161,11 +162,16 @@ function useExpandableSheet(ref: RefObject<HTMLDivElement | null>, active: boole
   }
   const drag = useRef<{ id: number; y: number; height: number; moved: boolean } | null>(null);
   const dragged = useRef(false);
-  const reset = (node: HTMLElement) => {
-    node.classList.remove("dragging");
-    node.style.removeProperty("transform");
-    node.style.removeProperty("min-height");
+  // Volta ao topo antes de reduzir: com o conteúdo rolado, o próximo evento de rolagem ocuparia a tela de novo.
+  const collapse = () => {
+    if (ref.current) ref.current.scrollTop = 0;
+    setExpanded(false);
   };
+  const pulledDown = useEffectEvent(collapse);
+  useEffect(() => {
+    const node = ref.current;
+    if (node && active && expanded) return watchPullDown(node, () => pulledDown());
+  }, [ref, active, expanded]);
   const grabProps = {
     onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
       const node = ref.current;
@@ -196,29 +202,101 @@ function useExpandableSheet(ref: RefObject<HTMLDivElement | null>, active: boole
       if (!node || !current || current.id !== event.pointerId) return;
       drag.current = null;
       const dy = event.clientY - current.y;
-      reset(node);
+      resetSheet(node);
       if (!current.moved) return;
       // O clique que segue um arraste não deve alternar o tamanho de novo.
       dragged.current = true;
       if (dy < -SHEET_SNAP) setExpanded(true);
       else if (dy > SHEET_SNAP) {
-        if (expanded) setExpanded(false);
+        if (expanded) collapse();
         else onClose();
       }
     },
     onPointerCancel: () => {
-      if (ref.current) reset(ref.current);
+      if (ref.current) resetSheet(ref.current);
       drag.current = null;
     },
     onClick: () => {
       if (dragged.current) dragged.current = false;
-      else setExpanded((value) => !value);
+      else if (expanded) collapse();
+      else setExpanded(true);
     },
   };
   const onScroll = active && !expanded
     ? (event: React.UIEvent<HTMLDivElement>) => { if (event.currentTarget.scrollTop > 8) setExpanded(true); }
     : undefined;
   return { active, expanded: active && expanded, grabProps, onScroll };
+}
+
+function resetSheet(node: HTMLElement) {
+  node.classList.remove("dragging");
+  node.style.removeProperty("transform");
+  node.style.removeProperty("min-height");
+}
+
+/** Há algo rolado entre o ponto tocado e a folha? Então puxar para baixo é rolagem, não gesto da folha. */
+function scrolledWithin(target: Element, sheet: Element) {
+  for (let node: Element | null = target; node; node = node.parentElement) {
+    if (node.scrollTop > 0) return true;
+    if (node === sheet) break;
+  }
+  return false;
+}
+
+/**
+ * Puxar o conteúdo da folha cheia para baixo, com a rolagem no topo. Usa eventos de toque porque o navegador
+ * cancela os eventos de ponteiro quando assume a rolagem; a alça tem o próprio arraste.
+ */
+function watchPullDown(sheet: HTMLElement, onPull: () => void) {
+  let start: { id: number; x: number; y: number; pulling: boolean } | null = null;
+  const cancel = () => {
+    if (start?.pulling) resetSheet(sheet);
+    start = null;
+  };
+  const onStart = (event: TouchEvent) => {
+    cancel();
+    const target = event.target;
+    if (event.touches.length !== 1 || !(target instanceof Element) || target.closest(".sheet-grab")) return;
+    // Num campo em edição, o gesto pertence ao cursor e à seleção de texto.
+    if (target === document.activeElement && target.matches("input,textarea,[contenteditable=true]")) return;
+    if (scrolledWithin(target, sheet)) return;
+    const { identifier: id, clientX: x, clientY: y } = event.touches[0];
+    start = { id, x, y, pulling: false };
+  };
+  const onMove = (event: TouchEvent) => {
+    const touch = start && Array.from(event.touches).find((item) => item.identifier === start?.id);
+    if (!start || !touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (!start.pulling) {
+      if (!dx && !dy) return;
+      // Só o primeiro movimento decide: depois que a rolagem nativa começa, não dá mais para impedi-la.
+      if (dy <= Math.abs(dx) || !event.cancelable) { start = null; return; }
+      start.pulling = true;
+    }
+    if (event.cancelable) event.preventDefault();
+    if (dy < 6) return;
+    sheet.classList.add("dragging");
+    sheet.style.transform = `translateY(${dy}px)`;
+  };
+  const onEnd = (event: TouchEvent) => {
+    const touch = start && Array.from(event.changedTouches).find((item) => item.identifier === start?.id);
+    if (!start || !touch) return;
+    const pulled = start.pulling && touch.clientY - start.y > SHEET_SNAP;
+    cancel();
+    if (pulled) onPull();
+  };
+  sheet.addEventListener("touchstart", onStart, { passive: true });
+  sheet.addEventListener("touchmove", onMove, { passive: false });
+  sheet.addEventListener("touchend", onEnd);
+  sheet.addEventListener("touchcancel", cancel);
+  return () => {
+    cancel();
+    sheet.removeEventListener("touchstart", onStart);
+    sheet.removeEventListener("touchmove", onMove);
+    sheet.removeEventListener("touchend", onEnd);
+    sheet.removeEventListener("touchcancel", cancel);
+  };
 }
 
 // ---------- Popover ancorado ----------

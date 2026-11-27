@@ -356,6 +356,18 @@ html:has(.dialog-wrap) .tb-app {
   opacity: .45;
 }
 
+/* Em janelas estreitas, a folha cheia para abaixo da faixa: a alça continua visível e arrastável. */
+@media (max-width: 899px) {
+  .desktop-overlay .dialog-wrap:has(> .dialog.sheet-x) {
+    padding-top: calc(var(--desktop-titlebar-height) + 8px);
+  }
+
+  .desktop-overlay .dialog-wrap .dialog.sheet-x.full {
+    max-height: calc(100dvh - var(--desktop-titlebar-height) - 8px);
+    min-height: calc(100dvh - var(--desktop-titlebar-height) - 8px);
+  }
+}
+
 /* O conteúdo rola desde o topo da janela e passa por baixo da faixa. */
 .desktop-overlay .main > :is(.content, .project-content) {
   padding-top: calc(var(--desktop-titlebar-height) + 8px);

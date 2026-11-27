@@ -48,7 +48,9 @@ A saída é mais curta que a entrada em elementos que o usuário fecha. O títul
 
 ### Gestos
 
-Hoje não há gaveta lateral nem folha com arrastar para fechar; o celular usa a aba Navegar. Quando um desses for criado:
+A folha expansível (`Dialog` com `expandable`, usada no detalhe da tarefa no celular) abre pela metade. Arrastar a alça para cima ou rolar o conteúdo ocupa a tela; a alça continua visível. Arrastar a alça para baixo reduz a folha cheia e fecha a folha pela metade. Na folha cheia, puxar o conteúdo para baixo a partir do topo também a reduz, com eventos de toque, porque o navegador cancela os eventos de ponteiro quando assume a rolagem. Coberto por `tests/desktop/task-sheet.spec.ts`.
+
+Não há gaveta lateral; o celular usa a aba Navegar. Para ela e para novos gestos:
 
 - Use pointer events. O painel segue o dedo sem transição enquanto arrasta, e o scrim acompanha o progresso (opacidade proporcional ao deslocamento).
 - Ao soltar, confirme se passou do limiar (por exemplo, 40% da largura ou velocidade alta) e anime até o fim com os tokens; caso contrário, volte à posição.
@@ -124,7 +126,7 @@ function Painel({ open, children }: { open: boolean; children: ReactNode }) {
 ## 7. Fora do escopo atual
 
 - **Saída da rota anterior.** A rota nova entra em fade, mas a anterior some na hora. Animar as duas exige a View Transitions API, ainda experimental no Next.js.
-- **Arrastar para fechar a folha** e **drawer lateral** não existem; as regras da seção 3 valem quando forem criados.
+- **Drawer lateral** não existe; as regras da seção 3 valem quando for criado.
 
 ## 8. Checklist de revisão
 
