@@ -82,7 +82,8 @@ test.describe("recuperação e concorrência na interface", () => {
     await page.goto("/entrada");
     await row(page, task.title).getByRole("button", { name: task.title, exact: true }).click();
     const detail = page.getByRole("dialog", { name: task.title, exact: true });
-    const trigger = detail.getByRole("button", { name: "Etiquetas: adicionar etiqueta" });
+    // No celular o nome do botão passa a listar as etiquetas aplicadas.
+    const trigger = detail.getByRole("button", { name: /^Etiquetas: / });
     await trigger.click();
     await expect(page.getByRole("textbox", { name: "Buscar ou criar etiqueta" })).toBeFocused();
     const options = page.getByRole("listbox", { name: "Etiquetas" });
