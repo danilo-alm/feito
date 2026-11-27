@@ -43,8 +43,8 @@ const groupKey = (sectionId: string | null) => sectionId ?? "none";
 const GROUP = (sectionId: string | null) => `group:${groupKey(sectionId)}`;
 const groupNode = (sectionId: string | null) => document.querySelector<HTMLElement>(`[data-drop-group="${groupKey(sectionId)}"]`);
 
-/** Deslocamento horizontal que muda um nível durante o arraste (o mesmo dos subprojetos na barra lateral). */
-const INDENT_STEP = 20;
+/** Deslocamento horizontal que muda um nível durante o arraste: com o arredondamento, a metade (20px) já pede o nível seguinte. */
+const INDENT_STEP = 40;
 
 const collision: CollisionDetection = (args) => {
   const hits = pointerWithin(args);

@@ -59,7 +59,7 @@ test.describe("organizar um projeto", () => {
     await expect(gap).toHaveCount(1);
     // Logo abaixo de “Pedir amostras”, dois níveis à direita: subtarefa dela.
     const below = (await samples.boundingBox())!;
-    await page.mouse.move(start.x + 45, below.y + below.height + 4, { steps: 6 });
+    await page.mouse.move(start.x + 90, below.y + below.height + 4, { steps: 6 });
     await expect(page.getByRole("region", { name: "Planejar" }).locator(".drop-gap[data-open] .ins"))
       .toHaveAttribute("style", /--task-depth: ?2/);
     await page.mouse.up();
