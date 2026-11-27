@@ -214,7 +214,7 @@ Em push na `main` ou na `dev`, com os testes aprovados, o workflow publica no Gi
 
 ### Releases
 
-Uma tag `vX.Y.Z` dispara os workflows de web e desktop a partir do mesmo commit. Antes de criar a tag, atualize e faça commit do campo `version` em [tauri.conf.json](../apps/desktop/src-tauri/tauri.conf.json). Por exemplo, para a versão `0.2.0`:
+Uma tag `vX.Y.Z` ou `vX.Y.Z-beta` dispara os workflows de web e desktop a partir do mesmo commit. Antes de criar a tag, alinhe a versão nos dois `package.json`, no manifesto e lockfile do Cargo e em [tauri.conf.json](../apps/desktop/src-tauri/tauri.conf.json). Para uma beta, configure `bundle.windows.wix.version` com a versão numérica `X.Y.Z`. Por exemplo, para a versão estável `0.2.0`:
 
 ```sh
 git tag -a v0.2.0 -m "Feito 0.2.0"

@@ -4,12 +4,12 @@ name: Desktop CI and Release
 on:
   push:
     branches: [main, dev]
-    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+', 'v[0-9]+.[0-9]+.[0-9]+-beta']
   pull_request:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Tag existente para publicar os instaladores, por exemplo v1.0.0
+        description: Tag existente para publicar os instaladores, por exemplo v1.0.0 ou v1.0.0-beta
         required: false
         type: string
 
@@ -230,12 +230,17 @@ jobs:
           collect x86_64-apple-darwin dmg
           collect aarch64-apple-darwin dmg
 
+          release_flags=()
+          if [[ "$RELEASE_TAG" == *-beta ]]; then
+            release_flags=(--prerelease)
+          fi
+
           if status="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"; then
             gh release upload "$RELEASE_TAG" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" --clobber
             if [[ "$status" == true ]]; then
-              gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+              gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false "${release_flags[@]}"
             fi
           else
             gh release create "$RELEASE_TAG" "${artifacts[@]}" --repo "$GITHUB_REPOSITORY" \
-              --verify-tag --title "Feito $RELEASE_TAG" --generate-notes
+              --verify-tag --title "Feito $RELEASE_TAG" --generate-notes "${release_flags[@]}"
           fi
