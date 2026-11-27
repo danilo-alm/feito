@@ -159,7 +159,7 @@ export function TaskTable({ groups, tasks: list, actions, archived, label, empty
         <td>
           <div className="ptable-task" style={{ "--task-depth": depth } as CSSProperties}>
             <Checkbox task={task} disabled={archived} onToggle={() => actions.toggle(task)} />
-            <button type="button" className="ptable-title t-click" onClick={() => app.openTask(task.id)}>{task.title}</button>
+            <button type="button" className="ptable-title t-click" onClick={() => app.openTask(task.id)}><span>{task.title}</span></button>
             {task.recurrence && <IconRepeat className="sm" label={t("Recorrente")} style={{ color: "var(--muted)" }} />}
           </div>
         </td>

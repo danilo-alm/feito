@@ -1166,6 +1166,14 @@ svg.ic-repeat{color:var(--brand-text)}
 .ptable-desc{display:block;max-width:280px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
 .ptable-add td{height:auto;padding:0 8px;background:var(--surface)}
 .ptable-add .t-editor.te-inline{margin:8px 0;white-space:normal}
+/* Toque ou janela estreita: sem largura mínima, título em até duas linhas e células mais justas, para caber em tablets. */
+@media (pointer:coarse),(max-width:899px){
+  .ptable-grid{min-width:0}
+  .ptable-grid th,.ptable-grid td{padding-inline:8px}
+  .ptable-task{min-width:220px}
+  .ptable-title{white-space:normal;line-height:1.3}
+  .ptable-title>span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+}
 
 /* ---------- Movimento do Calendário e da Tabela (docs/04-motion-and-interaction.md) ---------- */
 /* Cada mês ou semana é uma página nova: entra deslizando do lado para onde se navegou. */

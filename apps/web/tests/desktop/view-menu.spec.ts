@@ -2,12 +2,18 @@ import { expect, type Page } from "@playwright/test";
 import { handleLocal } from "../../../desktop/src/data/local";
 import { mockDesktop, newPortugueseWorkspace, test } from "./fixtures";
 
+const LONG_TITLE = "Pedir orçamento para a pintura da sala e do corredor, comparar três fornecedores e confirmar o prazo de entrega";
+
 async function openTableProject(page: Page) {
   const created = await handleLocal(newPortugueseWorkspace(), {
     method: "POST", path: "/projects", body: { name: "Reforma da sala" },
   });
   const project = created.body as { id: string };
-  const viewed = await handleLocal(created.workspace, {
+  const captured = await handleLocal(created.workspace, {
+    method: "POST", path: "/tasks", body: { projectId: project.id, title: LONG_TITLE },
+  });
+  expect(captured.status).toBeLessThan(400);
+  const viewed = await handleLocal(captured.workspace, {
     method: "PATCH", path: `/projects/${project.id}/view`, body: { layout: "table" },
   });
   expect(viewed.status).toBeLessThan(400);
@@ -77,6 +83,12 @@ for (const [device, width, height] of [["iPad mini em pé", 744, 1133], ["iPad e
     test("mostra a Tabela e a opção no menu", async ({ page }) => {
       await openTableProject(page);
       await expect(page.locator(".ptable")).toBeVisible();
+      // As colunas padrão cabem sem rolagem lateral, e o título longo usa uma segunda linha.
+      await expect.poll(() => page.locator(".ptable-scroll").evaluate((node) => node.scrollWidth - node.clientWidth)).toBe(0);
+      expect(await page.getByRole("button", { name: LONG_TITLE, exact: true }).evaluate((node) => {
+        const text = node.firstElementChild as HTMLElement;
+        return Math.round(text.getBoundingClientRect().height / parseFloat(getComputedStyle(text).lineHeight));
+      })).toBe(2);
       await page.getByRole("button", { name: "Mostrar: Tabela" }).click();
       const sheet = page.getByRole("dialog", { name: "Visualização" });
       await expect(sheet.getByRole("radio", { name: "Tabela" })).toBeChecked();
