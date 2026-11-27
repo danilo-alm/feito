@@ -32,7 +32,9 @@ for (const narrow of [false, true]) {
     await preview.click();
     await description.fill("Texto **novo**");
     await description.press("Escape");
-    await expect(preview).toBeFocused();
+    // A descrição não fica com aparência de selecionada: o foco sai dela.
+    await expect(detail).toBeFocused();
+    await expect(preview).toHaveCSS("outline-style", "none");
     await expect(preview.locator("strong")).toHaveText("novo");
     await expect(row.locator(".t-desc strong")).toHaveText("novo");
 
@@ -42,8 +44,8 @@ for (const narrow of [false, true]) {
     const italic = detail.getByRole("button", { name: "Itálico", exact: true });
     await italic.focus();
     await page.keyboard.press("Escape");
-    await expect(preview).toBeFocused();
-    await expect(detail).toBeVisible();
+    await expect(detail).toBeFocused();
+    await expect(preview).toHaveCSS("outline-style", "none");
 
     // Sem campo em edição, Esc fecha.
     await page.keyboard.press("Escape");

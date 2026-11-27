@@ -30,8 +30,6 @@ export function TaskDescription({ value, defaultPreview = false, toolbar = false
   const id = props.id ?? generatedId;
   const [preview, setPreview] = useState(defaultPreview && !!value);
   const focusEditor = useRef(false);
-  const focusPreview = useRef(false);
-  const previewNode = useRef<HTMLDivElement>(null);
   const editor = useRef<HTMLTextAreaElement | null>(null);
   const input = useAutoGrow(value);
   const showingPreview = readOnly || preview;
@@ -107,22 +105,15 @@ export function TaskDescription({ value, defaultPreview = false, toolbar = false
     }
   }, [showingPreview, input]);
 
-  useEffect(() => {
-    if (showingPreview && focusPreview.current) {
-      previewNode.current?.focus();
-      focusPreview.current = false;
-    }
-  }, [showingPreview]);
-
   return (
     <div className="task-description" onFocus={() => { previewPending.current = false; }} onKeyDown={(event) => {
       // Onde a edição é salva ao sair, Esc salva e volta à prévia sem fechar o diálogo em volta.
+      // O foco vai para o diálogo, para a prévia não ficar com aparência de selecionada.
       if (event.key !== "Escape" || !onCommit || showingPreview) return;
       event.preventDefault();
       event.stopPropagation();
       if (event.nativeEvent.isComposing) return;
-      focusPreview.current = true;
-      (event.target as HTMLElement).blur();
+      event.currentTarget.closest<HTMLElement>('[role="dialog"]')?.focus();
     }} onBlur={(event) => {
       if (event.currentTarget.contains(event.relatedTarget)) return;
       if (!showingPreview) {
@@ -132,7 +123,7 @@ export function TaskDescription({ value, defaultPreview = false, toolbar = false
         else setPreview(true);
       }
     }}>
-      {showingPreview ? <div ref={previewNode} role="region" aria-label={t("Descrição")}
+      {showingPreview ? <div role="region" aria-label={t("Descrição")}
         className={[!readOnly && "task-description-preview", !value && "task-description-empty"].filter(Boolean).join(" ") || undefined}
         tabIndex={readOnly ? undefined : 0}
         // Sem texto não há o que selecionar. O CSS não basta no WebKit, que deixa o arraste começar aqui e marcar o título.
