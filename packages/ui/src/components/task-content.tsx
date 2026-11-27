@@ -26,8 +26,10 @@ const FIELD_LABELS = {
 type Field = keyof typeof FIELD_LABELS;
 type OpenField = { key: string; field: Field; anchor: HTMLButtonElement };
 
-export function TaskContent({ task, actions, showOrigin, timeOnly, preview, showDescription = true, showMoreSubtasks, onOpen }: {
+export function TaskContent({ task, actions, showOrigin, timeOnly, preview, showDescription = true, showParent = true, showMoreSubtasks, onOpen }: {
   task: TaskItem; actions: Actions; showOrigin?: boolean; timeOnly?: boolean; preview?: boolean; showDescription?: boolean;
+  /** Na lista de subtarefas do detalhe a tarefa-pai é a própria tarefa aberta. */
+  showParent?: boolean;
   showMoreSubtasks?: boolean; onOpen?: (id: string) => void;
 }) {
   const t = useT();
@@ -87,7 +89,7 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
       {task.recurrence && item("repeat", <><IconRepeat className="ic-repeat" />{t(FREQUENCY_LABEL[task.recurrence.frequency])}</>, {
         field: editable ? "repeat" : undefined, label: t("Repetir: {0}", [t(FREQUENCY_LABEL[task.recurrence.frequency])]),
       })}
-      {parentId && origin?.parentTitle && item("parent", <><IconSub />{t("em")}{" "}{origin.parentTitle}</>, {
+      {showParent && parentId && origin?.parentTitle && item("parent", <><IconSub />{t("em")}{" "}{origin.parentTitle}</>, {
         label: desktop ? t("Tarefa-pai: {0}", [origin.parentTitle]) : undefined,
         action: () => app.openTask(parentId),
       })}

@@ -211,7 +211,7 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
       {current.children.map((child) => (
         <div key={child.id} className={`task${child.status === "completed" ? " done-t" : ""}`} style={{ background: "transparent" }}>
           <Checkbox task={child} onToggle={() => actions.toggle(child)} />
-          <TaskContent task={child} actions={actions} showDescription={false}
+          <TaskContent task={child} actions={actions} showParent={false}
             onOpen={(id) => openRelatedTask(id, current.children.map((item) => item.id))} />
         </div>
       ))}
@@ -320,17 +320,10 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
           {menu}
         </div>
       ) : (
-      <div className="dialog-h task-detail-head" onContextMenu={contextMenu.onContextMenu}>
+        <div className="dialog-h task-detail-head" onContextMenu={contextMenu.onContextMenu}>
         <div className="crumb">
           {project?.inbox ? <IconInbox className="sm" /> : <ProjectGlyph id={task?.projectId} className="sm" />}
           <span>{project?.name}</span>
-          {task?.parentId && task.origin?.parentTitle && (
-            <>
-              <span aria-hidden="true">/</span>
-              <button type="button" className="task-parent-link" onClick={() => openRelatedTask(task.parentId!)}
-                aria-label={t("Tarefa-pai: {0}", [task.origin.parentTitle])}>{task.origin.parentTitle}</button>
-            </>
-          )}
         </div>
         <div className="task-detail-tools">
           <button type="button" className="icon-btn" aria-label={t("Mostrar tarefa anterior")} data-tooltip={t("Mostrar tarefa anterior")}
@@ -344,36 +337,47 @@ export function TaskDetailDialog({ selection, onClose }: { selection: TaskSelect
       )}
       {!task ? <ReadFallback error={query.error} loading={query.loading} onRetry={query.reload} /> : mobile ? mobileBody(task) : (
         <div style={{ display: "flex", flexWrap: "wrap" }}>
-          <div style={{ flex: "999 1 420px", minWidth: 0, padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="td-main">
             {completedBanner(task)}
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-              <div style={{ marginTop: 2 }}>
-                <Checkbox task={task} onToggle={() => actions.toggle(task)} />
-              </div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-                {titleInput}
-                {descriptionField(task)}
-              </div>
-            </div>
-            {(!completed || task.children.length > 0) && (
-              <div style={{ marginLeft: 34, display: "flex", flexDirection: "column" }}>
-                <div className="lbl" style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 6, borderBottom: "1px solid var(--border)" }}>
-                  {t("Subtarefas")}{" "}{task.subtasks.total > 0 && <span className="sub">{task.subtasks.completed}/{task.subtasks.total}</span>}
-                </div>
-                {subtaskRows(task)}
-                <p className="hint" style={{ marginTop: 4 }}>
-                  {task.recurrence ? t("Tarefas recorrentes não recebem subtarefas.")
-                    : t("Subtarefas ficam no mesmo projeto e seção e têm data, prioridade e etiquetas próprias.")}
-                </p>
-              </div>
+            {task.parentId && task.origin?.parentTitle && (
+              <button type="button" className="td-parent" onClick={() => openRelatedTask(task.parentId!)}
+                aria-label={t("Tarefa-pai: {0}", [task.origin.parentTitle])}>
+                <span className="td-ring" aria-hidden="true" />
+                <span className="d-text">{task.origin.parentTitle}</span>
+                <IconChevronRight aria-hidden="true" />
+              </button>
             )}
+            <div className="td-title">
+              <Checkbox task={task} onToggle={() => actions.toggle(task)} />
+              <div className="md-grow">{titleInput}</div>
+            </div>
+            <div className="td-desc">
+              {!description && <IconMenu className="md-ic" aria-hidden="true" />}
+              <div className="md-grow">{descriptionField(task)}</div>
+            </div>
+            {task.children.length > 0 ? (
+              <section className="td-subs" aria-label={t("Subtarefas")}>
+                <button type="button" className="td-sec-h" aria-expanded={subtasksOpen} onClick={() => setSubtasksOpen((value) => !value)}
+                  aria-label={subtasksOpen ? t("Recolher subtarefas de “{0}”", [task.title]) : t("Mostrar subtarefas de “{0}”", [task.title])}>
+                  <IconChevronDown className={subtasksOpen ? undefined : "md-rot"} aria-hidden="true" />
+                  <span className="td-sec-t">{t("Subtarefas")}</span>
+                  <span className="sub">{task.subtasks.completed}/{task.subtasks.total}</span>
+                </button>
+                <Collapse open={subtasksOpen} appear={false}>
+                  <div className="td-list">{subtaskRows(task)}</div>
+                </Collapse>
+              </section>
+            ) : !completed && !task.recurrence && (
+              <div className="td-list td-list-empty">{subtaskRows(task)}</div>
+            )}
+            {task.recurrence && <p className="hint td-hint">{t("Tarefas recorrentes não recebem subtarefas.")}</p>}
           </div>
           <aside className="d-side" aria-label={t("Detalhes da tarefa")}>
             <Section title={t("Projeto")}>
               <button type="button" className="d-val" disabled={completed} onClick={() => actions.openMove(task)}
                 aria-label={t("Projeto: {0}. Mover para…", [project?.name ?? ""])}>
                 {project?.inbox ? <IconInbox className="ic-inbox" /> : <ProjectGlyph id={task.projectId} />}
-                <span className="d-text">{project?.name}{task.parentId && task.origin?.parentTitle ? ` / ${task.origin.parentTitle}` : ""}</span>
+                <span className="d-text">{project?.name}</span>
               </button>
             </Section>
 

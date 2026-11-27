@@ -119,8 +119,6 @@ h1,h2,h3,p{margin:0}
 .main{flex:999 1 560px;min-width:0;height:100%;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 24px 0 32px;min-height:56px;flex-wrap:wrap}
 .crumb{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
-.task-parent-link{min-width:0;padding:4px 0;border:0;background:none;color:var(--brand-text);font:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.task-parent-link:hover{text-decoration:underline}
 .tools{display:flex;gap:4px;align-items:center}
 .content{flex:1;overflow:hidden;padding:4px 32px 48px}
 .col{max-width:780px;margin:0 auto}
@@ -369,6 +367,25 @@ button.t-origin:hover{background:var(--hover)}
 .d-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .d-chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:4px}
 @media (max-width: 899px){.d-side{border-left:0;border-top:1px solid var(--border);padding:4px 16px 24px}}
+/* Detalhe da tarefa no computador: coluna principal com tarefa-pai, título, descrição e subtarefas recolhíveis. */
+.td-main{flex:999 1 420px;min-width:0;padding:20px 24px 24px;display:flex;flex-direction:column;gap:10px}
+.td-parent{align-self:flex-start;display:flex;align-items:center;gap:10px;max-width:100%;height:34px;padding:0 10px 0 12px;border:1px solid var(--border-strong);border-radius:10px;background:none;color:var(--text);font:inherit;font-size:14px}
+.td-parent:hover{background:var(--hover)}
+.td-parent>svg{width:16px;height:16px;flex:none;color:var(--muted)}
+.td-ring{width:14px;height:14px;flex:none;border:1.5px solid var(--muted);border-radius:50%}
+.td-title{display:flex;gap:12px;align-items:flex-start}
+.td-title .chk{margin-top:2px}
+.td-desc{display:flex;gap:8px;align-items:flex-start;padding-left:34px}
+.td-desc .md-ic{width:18px;height:18px;margin-top:5px}
+.td-subs{display:flex;flex-direction:column;margin-top:8px}
+.td-sec-h{display:flex;align-items:center;gap:8px;height:40px;margin-left:-6px;padding:0 6px;border:0;border-bottom:1px solid var(--border);border-radius:0;background:none;color:var(--text);font:inherit;text-align:left}
+.td-sec-h svg{width:18px;height:18px;flex:none;color:var(--muted);transition:transform var(--dur-base) var(--ease-in-out)}
+.td-sec-h .md-rot{transform:rotate(-90deg)}
+.td-sec-t{font-size:14px;font-weight:700}
+.td-list{display:flex;flex-direction:column;padding-left:34px}
+.td-list>.task{border-bottom:1px solid var(--border)}
+.td-list-empty{margin-top:8px}
+.td-hint{padding-left:34px}
 /* Detalhe da tarefa no celular: cartão principal, faixa de campos rolável na horizontal e subtarefas abaixo. */
 .task-detail-head-m{display:flex;align-items:center;justify-content:space-between;padding:6px 16px 10px}
 .task-detail-head-m .icon-btn{width:44px;height:44px;border-radius:50%;background:var(--hover);color:var(--text)}
