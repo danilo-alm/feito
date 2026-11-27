@@ -5,6 +5,7 @@ import { createDesktop, type Bridge } from "./desktop";
 const nativeBridge: Bridge = {
   read: () => invoke("read_workspace"),
   write: (generation, value) => invoke("write_workspace", { generation, value }),
+  reset: () => invoke("reset_workspace"),
   readContext: (selection, kind, id) => invoke("read_workspace_context", { selection, kind, id }),
   writeTitle: (edit) => invoke("write_workspace_title", { edit }),
   request: (origin, method, path, body) => invoke("server_request", { origin, method, path, body }),

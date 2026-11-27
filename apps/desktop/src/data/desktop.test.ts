@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Me, TaskComment, TaskComments, TaskDetail } from "@feito/core/types";
 import type { Task } from "@feito/core/domain/product";
-import { createDesktop, type Bridge } from "./desktop";
+import { createDesktop, openFailure, type Bridge } from "./desktop";
 import { handleLocal, newWorkspace, type LocalRequest } from "./local";
 
 const origin = "https://feito.example";
@@ -634,4 +634,70 @@ it("commits a title through the bounded native command before publishing the upd
   const reply = await change;
   expect(await reply.json()).toMatchObject({ title: "Depois", revision: task.revision + 1 });
   expect(await (await readTask(client, task.id)).json()).toMatchObject({ title: "Depois" });
+});
+
+describe("dados locais que não abrem", () => {
+  const missingKey = { code: "key-missing", message: "A chave do Feito não foi encontrada no cofre do sistema." };
+
+  function brokenBridge(failure: { code: string; message: string }) {
+    const healthy = testBridge().bridge;
+    let broken = true;
+    const reset = vi.fn(async () => { broken = false; });
+    const bridge: Bridge = {
+      ...healthy,
+      async read() {
+        if (broken) throw failure;
+        return healthy.read();
+      },
+      reset,
+    };
+    return { bridge, reset, repair: () => { broken = false; } };
+  }
+
+  it("começa do zero com um espaço local novo depois de perder a chave", async () => {
+    const { bridge, reset } = brokenBridge(missingKey);
+    const client = createDesktop(bridge, vi.fn());
+    await expect(client.initialize()).rejects.toBe(missingKey);
+    expect(client.getStatus().ready).toBe(false);
+    expect(reset).not.toHaveBeenCalled();
+    await client.startOver();
+    expect(reset).toHaveBeenCalledOnce();
+    expect(client.getStatus()).toMatchObject({ ready: true, active: "local", hasLocal: true, servers: [] });
+  });
+
+  it("não separa dados que já voltaram a abrir", async () => {
+    const { bridge, reset, repair } = brokenBridge(missingKey);
+    const client = createDesktop(bridge, vi.fn());
+    await expect(client.initialize()).rejects.toBe(missingKey);
+    repair();
+    await client.initialize();
+    await client.startOver();
+    expect(reset).not.toHaveBeenCalled();
+  });
+
+  it("mantém a tela de erro quando o armazenamento recusa começar do zero", async () => {
+    const refusal = { code: "vault-unavailable", message: "Não foi possível acessar a chave do Feito no cofre do sistema." };
+    const { bridge, reset } = brokenBridge(missingKey);
+    reset.mockRejectedValueOnce(refusal);
+    const write = vi.spyOn(bridge, "write");
+    const client = createDesktop(bridge, vi.fn());
+    await expect(client.startOver()).rejects.toBe(refusal);
+    expect(write).not.toHaveBeenCalled();
+    expect(client.getStatus().ready).toBe(false);
+  });
+
+  it("identifica o motivo informado pelo armazenamento", async () => {
+    for (const code of ["key-missing", "vault-unavailable", "unreadable", "newer-version", "storage"]) {
+      expect(openFailure({ code })).toBe(code);
+    }
+    for (const unknown of [new Error("falha"), "falha", { code: "outro" }, null, undefined]) {
+      expect(openFailure(unknown)).toBe("storage");
+    }
+    const bridge: Bridge = {
+      ...testBridge().bridge,
+      read: async () => ({ generation: 1, value: { version: 2 as 1, active: "none" } }),
+    };
+    const failure = await createDesktop(bridge, vi.fn()).initialize().catch(openFailure);
+    expect(failure).toBe("newer-version");
+  });
 });

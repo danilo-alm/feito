@@ -23,6 +23,16 @@ function workspaceIdentity(value: Document) {
   if (value.active === "local") return value.local?.projects.find((project) => project.isInbox)?.id;
 }
 type Record = { generation: number; value: Document };
+
+const openFailures = ["key-missing", "vault-unavailable", "unreadable", "newer-version", "storage"] as const;
+/** Motivo pelo qual os dados locais não abriram; o código vem do armazenamento nativo. */
+export type OpenFailure = (typeof openFailures)[number];
+
+export function openFailure(error: unknown): OpenFailure {
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  return openFailures.find((failure) => failure === code) ?? "storage";
+}
+
 type SyncState = "local" | "login" | "offline" | "syncing" | "current" | "error";
 
 type ServerStatus = { origin: string; email: string; pending: number; notice?: string };
@@ -45,6 +55,7 @@ export type DesktopStatus = {
 export type Bridge = {
   read(): Promise<Record | null>;
   write(generation: number | null, value: Document): Promise<Record>;
+  reset?(): Promise<void>;
   readContext?(selection: SQLiteSelection, kind: "task" | "project", id: string): Promise<Workspace | null>;
   writeTitle?(edit: SQLiteTitleEdit): Promise<number>;
   request(origin: string, method: string, path: string, body?: unknown): Promise<SyncReply>;
@@ -116,11 +127,19 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
     if (saved) return saved;
     const existing = await bridge.read();
     if (existing && existing.value.version !== 1) {
-      throw new Error("Os dados locais foram gravados por outra versão do Feito.");
+      throw Object.assign(new Error("Os dados locais foram gravados por outra versão do Feito."), { code: "newer-version" });
     }
     saved = existing ?? await bridge.write(null, { version: 1, active: "local", local: newWorkspace() });
     publish(saved.value.active === "server" ? "syncing" : "local");
     return saved;
+  }
+
+  /** Separa dados que não abrem mais e cria um espaço vazio. O nativo recusa os que ainda podem abrir. */
+  function startOver(): Promise<void> {
+    return locked(async () => {
+      if (!saved) await bridge.reset?.();
+      await init();
+    });
   }
 
   async function commit(value: Document) {
@@ -500,6 +519,7 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
   return {
     fetch, sync, syncForRevision, connect, updateConnection, signOut, switchSpace, openServer, createLocal, deleteLocal, discardRejected,
     initialize: () => locked(init).then(() => undefined),
+    startOver,
     getStatus: () => status,
     subscribe(listener: () => void) {
       listeners.add(listener);

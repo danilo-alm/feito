@@ -466,3 +466,12 @@ html:has(.dialog-wrap) .tb-app {
   margin: 32px auto;
   padding: 0 16px;
 }
+
+.desktop-error-message {
+  display: grid;
+  gap: 8px;
+}
+
+.desktop-error-details {
+  color: var(--muted);
+}

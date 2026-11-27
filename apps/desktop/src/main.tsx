@@ -10,11 +10,13 @@ import { Spinner } from "@feito/ui/components/ui";
 import { TaskDetailDialog } from "@feito/ui/components/task-detail";
 import { Browse, Inbox, Label, ProjectView, Search, Today, Upcoming } from "@feito/ui/screens/deferred";
 import { lazyScreen } from "@feito/ui/components/lazy-screen";
+import { openFailure, type OpenFailure } from "./data/desktop";
 import { desktop, openPublicProject, watchServer } from "./data/native";
 import { usePathname, useRoute, useRouter } from "./platform/navigation";
 import Link from "./platform/link";
 import { SyncStatus } from "@feito/ui/components/sync-status";
 import { SpaceManager } from "./spaces";
+import { StorageError } from "./storage-error";
 import { detectTitlebar, Titlebar } from "./titlebar";
 import "@feito/ui/globals.css";
 import "@fontsource-variable/inter/wght.css";
@@ -47,11 +49,12 @@ function WorkspaceScreen() {
   const remoteOrigin = status.active === "server" && status.sync !== "login" ? status.server?.origin : undefined;
   const syncState = status.sync === "current" ? (status.server?.pending ? "syncing" : "current")
     : status.sync === "syncing" ? "syncing" : "disconnected";
-  const [storageError, setStorageError] = useState(false);
-  const initializeWorkspace = () => {
-    setStorageError(false);
-    void desktop.initialize().then(() => desktop.sync(), () => setStorageError(true));
+  const [storageError, setStorageError] = useState<OpenFailure>();
+  const openStorage = (open: () => Promise<void>) => {
+    setStorageError(undefined);
+    void open().then(() => desktop.sync(), (error: unknown) => setStorageError(openFailure(error)));
   };
+  const initializeWorkspace = () => openStorage(desktop.initialize);
   const id = /^\/(projetos|etiquetas)\/([0-9a-f-]+)$/i.exec(route.pathname);
   const linked = route.searchParams.get("tarefa");
   let page = routes[route.pathname];
@@ -95,10 +98,9 @@ function WorkspaceScreen() {
   }, [remoteOrigin]);
 
   if (!status.ready) {
-    return storageError ? <main id="conteudo" className="desktop-space-start">
-      <p role="alert">{t("Não foi possível abrir os dados do Feito neste computador.")}</p>
-      <button type="button" className="btn" onClick={initializeWorkspace}>{t("Tentar de novo")}</button>
-    </main> : <Spinner label={t("Carregando o Feito")} />;
+    return storageError
+      ? <StorageError failure={storageError} onRetry={initializeWorkspace} onStartOver={() => openStorage(desktop.startOver)} />
+      : <Spinner label={t("Carregando o Feito")} />;
   }
   if (status.active === "none") return (
     <main id="conteudo" className="desktop-space-start">
