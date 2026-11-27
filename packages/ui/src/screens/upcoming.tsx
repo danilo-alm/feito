@@ -12,7 +12,7 @@ import { FlatGroup } from "../components/flat-list";
 import { CreateSlot, useStartCreate } from "../components/task-editor";
 import { IconChevronLeft, IconChevronRight, IconPlus } from "../components/icons";
 import { useTaskActions } from "../components/task-actions";
-import { ReadFallback, useIsMobile } from "../components/ui";
+import { ReadFallback, useIsMobile, useIsPhone } from "../components/ui";
 import { AgendaLayout, AgendaViewMenu, isWideAgenda, useAgendaLayout } from "../components/agenda-view";
 
 export default function UpcomingPage() {
@@ -28,7 +28,8 @@ export default function UpcomingPage() {
   const last = addDays(first, 6);
   const mobile = useIsMobile();
   const [layout, setLayout] = useAgendaLayout("upcomingLayout");
-  const wide = isWideAgenda(layout, mobile);
+  const phone = useIsPhone();
+  const wide = isWideAgenda(layout, phone);
   const viewMenu = <AgendaViewMenu layout={layout} onChange={setLayout} />;
   const dayTitle = (date: string) =>
     dateLabel(date, app.reference) === t("Amanhã") ? t("Amanhã · {0}", [shortDate(date)]) : shortDate(date);

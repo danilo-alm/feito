@@ -31,7 +31,7 @@ import { colorValue, Glyph } from "./project-style";
 import { useTaskActions } from "./task-actions";
 import { AddTaskSlot, CreateSlot, useStartCreate } from "./task-editor";
 import { TaskRow, type ArrangeItem, type InsertSide } from "./task-row";
-import { Dialog, MenuButton, ReadFallback, useAutoGrow, useContextMenu, useIsMobile, useToast, type MenuItem } from "./ui";
+import { Dialog, MenuButton, ReadFallback, useAutoGrow, useContextMenu, useIsMobile, useIsPhone, useToast, type MenuItem } from "./ui";
 import { ShareMenu, useProjectShare, type ProjectSharing } from "./share-menu";
 import { SORT_LABEL, ViewMenu } from "./view-menu";
 import { CalendarLayout } from "./project-calendar";
@@ -56,6 +56,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
   const toast = useToast();
   const router = useRouter();
   const mobile = useIsMobile();
+  const phone = useIsPhone();
   const actions = useTaskActions();
   const startCreate = useStartCreate();
   const key = `project:${projectId}`;
@@ -161,7 +162,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
   const board = view.layout === "board" && !project.isInbox;
   const calendar = view.layout === "calendar";
   // No celular a Tabela vira Lista, como no Todoist: as colunas não cabem na largura.
-  const table = view.layout === "table" && !mobile;
+  const table = view.layout === "table" && !phone;
   const wide = board || calendar || table;
   const manual = view.sortMode === "manual";
   const canDrag = manual || board;

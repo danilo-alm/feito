@@ -1,6 +1,19 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { handleLocal } from "../../../desktop/src/data/local";
 import { mockDesktop, newPortugueseWorkspace, test } from "./fixtures";
+
+async function openTableProject(page: Page) {
+  const created = await handleLocal(newPortugueseWorkspace(), {
+    method: "POST", path: "/projects", body: { name: "Reforma da sala" },
+  });
+  const project = created.body as { id: string };
+  const viewed = await handleLocal(created.workspace, {
+    method: "PATCH", path: `/projects/${project.id}/view`, body: { layout: "table" },
+  });
+  expect(viewed.status).toBeLessThan(400);
+  await mockDesktop(page, { generation: 1, value: { version: 1, active: "local", local: viewed.workspace } });
+  await page.goto(`/#/projetos/${project.id}`);
+}
 
 test("trocar o layout não mostra aviso", async ({ page }) => {
   const created = await handleLocal(newPortugueseWorkspace(), {
@@ -28,16 +41,7 @@ test.describe("no celular", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
   test("um projeto salvo em Tabela abre em Lista e continua salvo assim", async ({ page }) => {
-    const created = await handleLocal(newPortugueseWorkspace(), {
-      method: "POST", path: "/projects", body: { name: "Reforma da sala" },
-    });
-    const project = created.body as { id: string };
-    const viewed = await handleLocal(created.workspace, {
-      method: "PATCH", path: `/projects/${project.id}/view`, body: { layout: "table" },
-    });
-    expect(viewed.status).toBeLessThan(400);
-    await mockDesktop(page, { generation: 1, value: { version: 1, active: "local", local: viewed.workspace } });
-    await page.goto(`/#/projetos/${project.id}`);
+    await openTableProject(page);
 
     await page.getByRole("button", { name: "Mostrar: Lista" }).click();
     const sheet = page.getByRole("dialog", { name: "Visualização" });
@@ -54,3 +58,33 @@ test.describe("no celular", () => {
     await expect(page.locator(".ptable")).toBeVisible();
   });
 });
+
+test.describe("no celular deitado", () => {
+  test.use({ viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true });
+
+  test("continua sem Tabela, mesmo com a tela larga", async ({ page }) => {
+    await openTableProject(page);
+    await page.getByRole("button", { name: "Mostrar: Lista" }).click();
+    await expect(page.getByRole("dialog", { name: "Visualização" }).getByRole("radio")).toHaveText(["Lista", "Painel", "Calendário"]);
+    await expect(page.locator(".ptable")).toHaveCount(0);
+  });
+});
+
+for (const [device, width, height] of [["iPad mini em pé", 744, 1133], ["iPad em pé", 820, 1180]] as const) {
+  test.describe(`no ${device}`, () => {
+    test.use({ viewport: { width, height }, hasTouch: true, isMobile: true });
+
+    test("mostra a Tabela e a opção no menu", async ({ page }) => {
+      await openTableProject(page);
+      await expect(page.locator(".ptable")).toBeVisible();
+      await page.getByRole("button", { name: "Mostrar: Tabela" }).click();
+      const sheet = page.getByRole("dialog", { name: "Visualização" });
+      await expect(sheet.getByRole("radio", { name: "Tabela" })).toBeChecked();
+      await sheet.getByRole("radio", { name: "Lista" }).click();
+      await expect(page.locator(".ptable")).toHaveCount(0);
+      await sheet.getByRole("radio", { name: "Tabela" }).click();
+      await expect(page.locator(".ptable")).toBeVisible();
+      await page.screenshot({ path: test.info().outputPath("tablet-tabela.png") });
+    });
+  });
+}

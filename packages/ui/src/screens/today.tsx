@@ -11,7 +11,7 @@ import { FlatGroup } from "../components/flat-list";
 import { IconCheck, IconPlus } from "../components/icons";
 import { useTaskActions } from "../components/task-actions";
 import { AddTaskSlot } from "../components/task-editor";
-import { ReadFallback, useIsMobile } from "../components/ui";
+import { ReadFallback, useIsMobile, useIsPhone } from "../components/ui";
 import { AgendaLayout, AgendaViewMenu, isWideAgenda, useAgendaLayout, type AgendaGroup } from "../components/agenda-view";
 
 export default function TodayPage() {
@@ -23,7 +23,8 @@ export default function TodayPage() {
   const total = data ? data.overdue.length + data.today.length : 0;
   const mobile = useIsMobile();
   const [layout, setLayout] = useAgendaLayout("todayLayout");
-  const wide = isWideAgenda(layout, mobile);
+  const phone = useIsPhone();
+  const wide = isWideAgenda(layout, phone);
   const viewMenu = <AgendaViewMenu layout={layout} onChange={setLayout} />;
   const toggle = (
     <button type="button" className={`btn ghost${showDone ? " on" : ""}`} aria-pressed={showDone}

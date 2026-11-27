@@ -70,11 +70,11 @@ function AgendaBoard({ groups, actions }: { groups: AgendaGroup[]; actions: Acti
 }
 
 /** Layouts que ocupam a largura toda; a Lista é a própria tela, e no celular a Tabela vira Lista, como nos projetos. */
-export function isWideAgenda(layout: Layout, mobile: boolean) {
-  return layout === "board" || layout === "calendar" || (layout === "table" && !mobile);
+export function isWideAgenda(layout: Layout, phone: boolean) {
+  return layout === "board" || layout === "calendar" || (layout === "table" && !phone);
 }
 
-/** Hoje e Em breve em Painel, Calendário ou Tabela, com os mesmos grupos da Lista. */
+/** Hoje e Em breve em Painel, Calendário ou Tabela, com os mesmos grupos da Lista. Só é usado quando `isWideAgenda`. */
 export function AgendaLayout({ layout, groups, dates, actions, mobile }: {
   layout: Layout; groups: AgendaGroup[]; dates: string[]; actions: Actions; mobile: boolean;
 }) {
@@ -89,7 +89,7 @@ export function AgendaLayout({ layout, groups, dates, actions, mobile }: {
         onAdd={(date) => app.openQuickAdd({ dueDate: date })} />
     );
   }
-  if (layout === "table" && !mobile) {
+  if (layout === "table") {
     return (
       <TaskTable flat label={t("Tarefas")} actions={actions} archived={false} tasks={groups.flatMap((group) => group.tasks)}
         groups={groups.map((group) => ({

@@ -25,6 +25,8 @@ export function useMediaQuery(query: string) {
 }
 
 export const useIsMobile = () => useMediaQuery("(max-width: 899px)");
+/** Só celulares: tela estreita ou, deitados, toque com pouca altura. Tablets usam o layout móvel abaixo de 900px, mas ficam de fora. */
+export const useIsPhone = () => useMediaQuery("(max-width: 599px), (pointer: coarse) and (max-height: 499px)");
 /** Ponteiro principal por toque (celulares e tablets): focar um campo abre o teclado na tela. */
 export const useIsTouch = () => useMediaQuery("(pointer: coarse)");
 

@@ -142,3 +142,18 @@ test.describe("agendas no celular", () => {
     await expect(page.getByRole("button", { name: "Mostrar: Tabela" })).toBeVisible();
   });
 });
+
+test.describe("agendas no tablet", () => {
+  test.use({ viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true });
+
+  test("Hoje e Em breve mostram a Tabela", async ({ page }) => {
+    await openAgenda(page, "/#/hoje", { todayLayout: "table" });
+    await expect(page.getByRole("table", { name: "Tarefas" })).toContainText("Regar as plantas");
+    await page.goto("/#/em-breve");
+    await page.getByRole("button", { name: "Mostrar: Lista" }).click();
+    await page.getByRole("dialog", { name: "Visualização" }).getByRole("radio", { name: "Tabela" }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("table", { name: "Tarefas" })).toContainText("Comprar tinta");
+  });
+});
+

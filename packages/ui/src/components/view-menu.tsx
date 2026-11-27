@@ -5,7 +5,7 @@ import { useT } from "./language";
 import { useRef, useState } from "react";
 import type { Layout, ProjectView, SortMode } from "@feito/core/types";
 import { IconBoard, IconCalendar, IconCheck, IconChevronDown, IconHelp, IconList, IconTable } from "./icons";
-import { Dialog, Popover, useIsMobile } from "./ui";
+import { Dialog, Popover, useIsMobile, useIsPhone } from "./ui";
 
 export const SORT_LABEL: Record<SortMode, string> = { manual: "Manual", date: "Data planejada", priority: "Prioridade" };
 export const LAYOUT_LABEL: Record<Layout, string> = { list: "Lista", board: "Painel", calendar: "Calendário", table: "Tabela" };
@@ -27,10 +27,11 @@ export function ViewMenu({ view, scope, onChange }: {
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLButtonElement>(null);
   const mobile = useIsMobile();
+  const phone = useIsPhone();
   const isInbox = scope === "inbox";
   const agenda = scope === "agenda";
   // No celular não há Tabela: uma visão salva assim aparece como Lista, sem alterar o que está gravado.
-  const layout: Layout = mobile && view.layout === "table" ? "list" : view.layout;
+  const layout: Layout = phone && view.layout === "table" ? "list" : view.layout;
   const label = t("Mostrar: {0}", [t(LAYOUT_LABEL[layout])]);
   const LayoutIcon = LAYOUT_ICON[layout];
   const close = () => { setOpen(false); setSortOpen(false); };
@@ -49,7 +50,7 @@ export function ViewMenu({ view, scope, onChange }: {
       )}
       <div className="lbl" style={{ color: "var(--muted)", fontSize: 12 }}>Layout</div>
       <div className="seg" role="radiogroup" aria-label={agenda ? t("Layout") : t("Layout do projeto")}
-        style={mobile ? { gridTemplateColumns: "repeat(3,minmax(0,1fr))" } : undefined}>
+        style={phone ? { gridTemplateColumns: "repeat(3,minmax(0,1fr))" } : undefined}>
         <button type="button" className={`seg-o${layout === "list" ? " on" : ""}`} role="radio" aria-checked={layout === "list"}
           onClick={() => layout !== "list" && onChange({ layout: "list" })}><IconList />{t("Lista")}</button>
         <button type="button" className={`seg-o${layout === "board" ? " on" : ""}`} role="radio" aria-checked={layout === "board"}
@@ -57,7 +58,7 @@ export function ViewMenu({ view, scope, onChange }: {
           onClick={() => layout !== "board" && onChange({ layout: "board" })}><IconBoard />{t("Painel")}</button>
         <button type="button" className={`seg-o${layout === "calendar" ? " on" : ""}`} role="radio" aria-checked={layout === "calendar"}
           onClick={() => layout !== "calendar" && onChange({ layout: "calendar" })}><IconCalendar />{t("Calendário")}</button>
-        {!mobile && <button type="button" className={`seg-o${layout === "table" ? " on" : ""}`} role="radio" aria-checked={layout === "table"}
+        {!phone && <button type="button" className={`seg-o${layout === "table" ? " on" : ""}`} role="radio" aria-checked={layout === "table"}
           onClick={() => layout !== "table" && onChange({ layout: "table" })}><IconTable />{t("Tabela")}</button>}
       </div>
       {!agenda && <div className="row">
