@@ -112,6 +112,21 @@ describe("drop slots", () => {
     expect(resolveSlot(fixture(), "e", "plan", 3, -2)?.plan).toBeNull();
   });
 
+  it("keeps a drop above the first row of its own section at the top, never at the end", () => {
+    // Regressão: soltar logo acima do topo da própria seção mirava a seção inteira e levava a tarefa para o fim.
+    const page = fixture();
+    page.groups[0].rootIds = ["s", "t", "u"];
+    page.tasks.push(task("t", null), task("u", null));
+    for (const [id, sectionId, first] of [["u", null, "s"], ["e", "plan", "a"]] as const) {
+      const result = resolveSlot(page, id, sectionId, 0, -3);
+      expect(result).toMatchObject({
+        slot: { sectionId, afterId: null, depth: 0 },
+        plan: { valid: true, indicator: { type: "slot" }, steps: [{ type: "position", sectionId, parentId: null, beforeId: first }] },
+      });
+      expect(result!.plan!.valid && result!.plan!.steps[0]).not.toHaveProperty("afterId");
+    }
+  });
+
   it("nests under the row above when dragged to the right", () => {
     expect(resolveSlot(fixture(), "e", "plan", 1, 1)).toMatchObject({
       slot: { afterId: "a", depth: 1 },
