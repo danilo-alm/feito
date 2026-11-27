@@ -165,15 +165,21 @@ function PublicBoard({ page, tasks, onOpen }: LayoutProps) {
 }
 
 function Ring({ task }: { task: PublicTask }) {
+  const t = useT();
   const done = task.status === "completed";
+  // A cor é o único sinal visível da prioridade na lista; leitores de tela recebem o nome.
+  const priority = task.priority < 4 ? t("Prioridade {0}", [task.priority]) : undefined;
   return (
-    <span className={`chk p${task.priority}${done ? " done" : ""}`} aria-hidden="true">
+    <span className={`chk p${task.priority}${done ? " done" : ""}`} role={priority ? "img" : undefined}
+      aria-label={priority} aria-hidden={priority ? undefined : true}>
       <span className="ring"><IconCheck /></span>
     </span>
   );
 }
 
-function PublicMeta({ task, reference, showMoreSubtasks }: { task: PublicTask; reference: string; showMoreSubtasks?: boolean }) {
+function PublicMeta({ task, reference, showMoreSubtasks, showPriority }: {
+  task: PublicTask; reference: string; showMoreSubtasks?: boolean; showPriority?: boolean;
+}) {
   const t = useT();
   const due = dueLabel(task.dueDate, task.dueTime, reference);
   return (
@@ -191,7 +197,7 @@ function PublicMeta({ task, reference, showMoreSubtasks }: { task: PublicTask; r
           <IconSub />{task.subtasks.completed}/{task.subtasks.total}
         </span>
       )}
-      {task.priority < 4 && <span className="m-prio"><IconFlag />P{task.priority}</span>}
+      {showPriority && task.priority < 4 && <span className="m-prio"><IconFlag />P{task.priority}</span>}
       {task.labels.map((label) => <span key={label.id}><IconTag style={{ color: tagColor(label.id) }} />{label.name}</span>)}
     </span>
   );
@@ -230,7 +236,7 @@ function PublicTaskDetail({ task, tasks, reference, onOpen }: {
           <IconSub />{t("em")}{" "}{parent.title}
         </button>
       )}
-      <div className="public-meta"><PublicMeta task={task} reference={reference} /></div>
+      <div className="public-meta"><PublicMeta task={task} reference={reference} showPriority /></div>
       {task.description
         ? <TaskMarkdown>{task.description}</TaskMarkdown>
         : <p className="hint">{t("Sem descrição.")}</p>}

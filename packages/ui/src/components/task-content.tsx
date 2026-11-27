@@ -12,15 +12,15 @@ import { editTask, isTemporaryTask } from "../client/task-mutations";
 import { useQuery } from "../client/store";
 import type { TaskDetail, TaskItem } from "@feito/core/types";
 import { useApp } from "./app";
-import { DueIcon, IconCheck, IconInbox, IconClock, IconFlag, IconRepeat, IconSub, IconTag } from "./icons";
+import { DueIcon, IconCheck, IconInbox, IconClock, IconRepeat, IconSub, IconTag } from "./icons";
 import { ProjectGlyph } from "./project-style";
-import { DatePicker, LabelPicker, PRIORITY_NAMES, PriorityMenu, RepeatMenu, TimePicker } from "./pickers";
+import { DatePicker, LabelPicker, RepeatMenu, TimePicker } from "./pickers";
 import type { useTaskActions } from "./task-actions";
 import { Popover, Spinner, useMediaQuery } from "./ui";
 
 type Actions = ReturnType<typeof useTaskActions>;
 const FIELD_LABELS = {
-  date: "Data", time: "Horário", priority: "Prioridade", repeat: "Repetir",
+  date: "Data", time: "Horário", repeat: "Repetir",
   labels: "Etiquetas", subtasks: "Subtarefas",
 };
 type Field = keyof typeof FIELD_LABELS;
@@ -96,10 +96,6 @@ export function TaskContent({ task, actions, showOrigin, timeOnly, preview, show
       }) : item("subtasks", <><IconSub />{task.subtasks.completed}/{task.subtasks.total}</>, {
         field: "subtasks", label: t("{0} de {1} subtarefas concluídas", [task.subtasks.completed, task.subtasks.total]),
       }))}
-      {task.priority < 4 && item("priority", <><IconFlag />P{task.priority}</>, {
-        className: "m-prio", field: editable ? "priority" : undefined,
-        label: editable ? t(PRIORITY_NAMES[task.priority]) : undefined,
-      })}
       {task.labels.map((label) => item(`label:${label.id}`, <><IconTag style={{ color: tagColor(label.id) }} />{label.name}</>, {
         field: editable ? "labels" : undefined, label: editable ? t("Etiqueta: {0}", [label.name]) : undefined,
       }))}
@@ -166,8 +162,6 @@ function TaskFieldPicker({ field, task, actions, close }: {
         allowClear={!task.recurrence} onPick={(date) => void actions.reschedule(task, date)} />;
     case "time":
       return <TimePicker value={task.dueTime} onPick={(time) => { close(); void actions.reschedule(task, task.dueDate, time); }} />;
-    case "priority":
-      return <PriorityMenu value={task.priority} onPick={(priority) => { close(); void actions.setPriority(task, priority); }} />;
     case "repeat":
       return <RepeatMenu value={task.recurrence?.frequency ?? null} onPick={(frequency) => {
         close();

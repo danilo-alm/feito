@@ -247,7 +247,9 @@ test.describe("telas do dia a dia", () => {
     await page.getByRole("dialog", { name: "Data" }).getByRole("button", { name: /Amanhã/ }).click();
     await expect(detail.getByRole("button", { name: "Amanhã" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(row(page, "Definir orçamento final")).toContainText("P2");
+    const updated = row(page, "Definir orçamento final");
+    await expect(updated.getByRole("button", { name: /prioridade 2$/ })).toBeVisible();
+    await expect(updated).not.toContainText("P2");
 
     await page.goto("/busca");
     await page.getByLabel("Buscar tarefas por título ou descrição").fill("orcamento final");
@@ -266,6 +268,9 @@ test.describe("telas do dia a dia", () => {
       await page.goto(`/projetos/${project.id}`);
       const task = row(page, title);
       await expect(task).toHaveClass(layout === "board" ? /\bcard\b/ : /\btask\b/);
+      // A prioridade aparece só pela cor do círculo, sem o nome escrito na tarefa.
+      await expect(task.locator(".chk")).toHaveClass(/\bp2\b/);
+      await expect(task).not.toContainText("P2");
       const detail = page.getByRole("dialog", { name: title, exact: true });
       const date = page.getByRole("dialog", { name: "Data", exact: true });
       if (isMobile) {
@@ -280,10 +285,6 @@ test.describe("telas do dia a dia", () => {
       await expect(detail).toHaveCount(0);
       await page.keyboard.press("Escape");
       await expect(dateButton).toBeFocused();
-      await task.getByRole("button", { name: "Prioridade 2", exact: true }).click();
-      await expect(page.getByRole("listbox", { name: "Prioridade" })
-        .getByRole("option", { name: /Prioridade 2/, selected: true })).toBeVisible();
-      await expect(detail).toHaveCount(0);
     }
   });
 
