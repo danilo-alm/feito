@@ -145,7 +145,9 @@ impl WorkspaceStore {
         match self.open_locked(load_key) {
             // The data opens again, for instance after the key was restored. Keep it in place.
             Ok(_) => Ok(()),
-            Err(KEY_MISSING_ERROR | DECRYPTION_ERROR) => self.archive_databases(),
+            Err(KEY_MISSING_ERROR | DEV_KEY_MISSING_ERROR | DECRYPTION_ERROR) => {
+                self.archive_databases()
+            }
             Err(error) => Err(error),
         }
     }
@@ -369,7 +371,7 @@ impl WorkspaceStore {
         &self,
         origin: &str,
     ) -> StoreResult<Option<Zeroizing<Vec<u8>>>> {
-        let db = self.open_relational(|can_create| self.system_key(can_create))?;
+        let db = self.open_relational(|can_create| self.storage_key(can_create))?;
         db.query_row(
             "SELECT cookie FROM native_sessions WHERE origin = ?1",
             [origin],
@@ -385,7 +387,7 @@ impl WorkspaceStore {
         origin: &str,
         value: Option<&[u8]>,
     ) -> StoreResult<()> {
-        let db = self.open_relational(|can_create| self.system_key(can_create))?;
+        let db = self.open_relational(|can_create| self.storage_key(can_create))?;
         if let Some(value) = value {
             db.execute(
                 "INSERT INTO native_sessions (origin, cookie) VALUES (?1, ?2)
@@ -404,6 +406,40 @@ impl WorkspaceStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dev_store_reopens_with_its_file_key_and_refuses_to_replace_a_lost_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let open_store = || WorkspaceStore::new_dev(dir.path().into());
+        let store = open_store();
+        store
+            .open_relational(|can_create| store.storage_key(can_create))
+            .unwrap();
+
+        let key = dir.path().join("workspace.key");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(&key).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        let store = open_store();
+        store
+            .open_relational(|can_create| store.storage_key(can_create))
+            .unwrap();
+
+        fs::remove_file(&key).unwrap();
+        let store = open_store();
+        assert_eq!(
+            store
+                .open_relational(|can_create| store.storage_key(can_create))
+                .err(),
+            Some(DEV_KEY_MISSING_ERROR)
+        );
+        assert!(!key.exists());
+    }
 
     fn key(_: bool) -> StoreResult<StoreKey> {
         Ok(Zeroizing::new([7; 32]))

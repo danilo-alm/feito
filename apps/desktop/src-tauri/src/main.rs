@@ -10,9 +10,19 @@ fn main() {
         .setup(|app| {
             let directory = app.path().app_local_data_dir()?;
             let service = app.config().identifier.clone();
-            let store = workspace::WorkspaceStore::new(directory, service.clone());
+            let store = if cfg!(dev) {
+                // The raw `tauri dev` command can also run without the dev config overlay.
+                let directory = if service == "app.feito.desktop" {
+                    directory.with_file_name("app.feito.desktop.dev")
+                } else {
+                    directory
+                };
+                workspace::WorkspaceStore::new_dev(directory)
+            } else {
+                workspace::WorkspaceStore::new(directory, service)
+            };
             app.manage(store.clone());
-            app.manage(server::ServerSessions::new(service, store));
+            app.manage(server::ServerSessions::new(store));
 
             let window = &app.config().app.windows[0];
             WebviewWindowBuilder::from_config(app, window)?

@@ -48,6 +48,8 @@ pnpm install --frozen-lockfile
 pnpm dev:desktop
 ```
 
+Feito Dev uses a separate profile (`app.feito.desktop.dev`) and starts with an empty workspace. Its SQLite encryption key is stored in `workspace.key` next to the database, so hot reloads and restarts can reopen it without accessing the system vault. Use test data and test accounts in this profile. Packaged builds use the system vault.
+
 In `apps/desktop`, use `pnpm tauri build` to build the app. To validate without generating an installer, use `pnpm tauri build --debug --no-bundle`. The commands `pnpm typecheck`, `pnpm test`, `cargo fmt --check --manifest-path src-tauri/Cargo.toml`, and `cargo test --locked --manifest-path src-tauri/Cargo.toml` check both layers.
 
 From the root, run `pnpm --filter @feito/web exec playwright test -c playwright.desktop.config.ts` to check opening the local workspace and using context menus with Chromium and a simulated Tauri bridge. To check production assets and on-demand screen loading, first run `pnpm --filter @feito/desktop build` and run the suite with `FEITO_DESKTOP_PREVIEW=1`. The suite covers Linux, Windows, and macOS title bars, as well as a narrow window in dark mode, and fails on unhandled JavaScript errors. The bridge is in `apps/web/tests/desktop/fixtures.ts`; when changing the native API, update this simulation too. Failure traces are stored in `apps/web/test-results/desktop/`, separate from web tests in `apps/web/test-results/web/`.

@@ -1,6 +1,7 @@
 use std::{
     fs,
-    path::PathBuf,
+    io::{ErrorKind, Write},
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -27,6 +28,7 @@ mod title;
 const STORE_ERROR: &str = "Não foi possível acessar os dados locais.";
 const KEY_ERROR: &str = "Não foi possível acessar a chave do Feito no cofre do sistema.";
 const KEY_MISSING_ERROR: &str = "A chave do Feito não foi encontrada no cofre do sistema.";
+const DEV_KEY_MISSING_ERROR: &str = "O arquivo da chave do Feito Dev não foi encontrado.";
 const DECRYPTION_ERROR: &str = "Não foi possível desbloquear os dados locais do Feito.";
 const NEWER_VERSION_ERROR: &str = "Os dados locais foram gravados por outra versão do Feito.";
 const SAVE_CONFLICT: &str = "Os dados locais mudaram em outra janela. Recarregue e tente de novo.";
@@ -47,7 +49,7 @@ pub struct OpenFailure {
 impl From<&'static str> for OpenFailure {
     fn from(message: &'static str) -> Self {
         let code = match message {
-            KEY_MISSING_ERROR => "key-missing",
+            KEY_MISSING_ERROR | DEV_KEY_MISSING_ERROR => "key-missing",
             KEY_ERROR => "vault-unavailable",
             DECRYPTION_ERROR => "unreadable",
             NEWER_VERSION_ERROR => "newer-version",
@@ -60,9 +62,8 @@ impl From<&'static str> for OpenFailure {
 #[derive(Clone)]
 pub struct WorkspaceStore {
     directory: PathBuf,
-    credential_service: String,
-    // The vault key never changes while the app runs. Reading it once per process means a single
-    // system prompt per launch, however many reads and writes follow.
+    credential_service: Option<String>,
+    // Reuse the key across reads and writes to avoid repeated system prompts in packaged builds.
     key_cache: Arc<Mutex<Option<StoreKey>>>,
 }
 
@@ -74,6 +75,14 @@ pub struct VersionedWorkspace {
 
 impl WorkspaceStore {
     pub fn new(directory: PathBuf, credential_service: String) -> Self {
+        Self::with_credential_service(directory, Some(credential_service))
+    }
+
+    pub fn new_dev(directory: PathBuf) -> Self {
+        Self::with_credential_service(directory, None)
+    }
+
+    fn with_credential_service(directory: PathBuf, credential_service: Option<String>) -> Self {
         Self {
             directory,
             credential_service,
@@ -81,12 +90,19 @@ impl WorkspaceStore {
         }
     }
 
-    fn system_key(&self, can_create: bool) -> StoreResult<StoreKey> {
+    pub fn credential_service(&self) -> Option<&str> {
+        self.credential_service.as_deref()
+    }
+
+    fn storage_key(&self, can_create: bool) -> StoreResult<StoreKey> {
         let mut cached = self.key_cache.lock().map_err(|_| KEY_ERROR)?;
         if let Some(key) = cached.as_ref() {
             return Ok(key.clone());
         }
-        let key = system_key(&self.credential_service, can_create)?;
+        let key = match self.credential_service() {
+            Some(service) => system_key(service, can_create)?,
+            None => dev_key(&self.directory, can_create)?,
+        };
         *cached = Some(key.clone());
         Ok(key)
     }
@@ -342,13 +358,44 @@ fn system_key(service: &str, can_create: bool) -> StoreResult<StoreKey> {
     Ok(key)
 }
 
+fn dev_key(directory: &Path, can_create: bool) -> StoreResult<StoreKey> {
+    let path = directory.join("workspace.key");
+    match fs::read(&path) {
+        Ok(bytes) => {
+            let bytes = Zeroizing::new(bytes);
+            let mut key = Zeroizing::new([0; 32]);
+            if bytes.len() != key.len() {
+                return Err(STORE_ERROR);
+            }
+            key.copy_from_slice(&bytes);
+            Ok(key)
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            if !can_create {
+                return Err(DEV_KEY_MISSING_ERROR);
+            }
+            let mut key = Zeroizing::new([0; 32]);
+            OsRng
+                .try_fill_bytes(&mut key[..])
+                .map_err(|_| STORE_ERROR)?;
+            // The initialization lock serializes creation. Publish only a complete key file.
+            let mut file = tempfile::NamedTempFile::new_in(directory).map_err(|_| STORE_ERROR)?;
+            file.write_all(&key[..]).map_err(|_| STORE_ERROR)?;
+            file.as_file().sync_all().map_err(|_| STORE_ERROR)?;
+            file.persist_noclobber(path).map_err(|_| STORE_ERROR)?;
+            Ok(key)
+        }
+        Err(_) => Err(STORE_ERROR),
+    }
+}
+
 #[tauri::command]
 pub async fn read_workspace(
     store: State<'_, WorkspaceStore>,
 ) -> Result<Option<VersionedWorkspace>, OpenFailure> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let result = store.read_relational(|can_create| store.system_key(can_create));
+        let result = store.read_relational(|can_create| store.storage_key(can_create));
         if matches!(result, Err(DECRYPTION_ERROR)) {
             // The vault item may be fixed while the app is open: read it again on the next try.
             store.forget_key()?;
@@ -366,7 +413,7 @@ pub async fn reset_workspace(store: State<'_, WorkspaceStore>) -> Result<(), Ope
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         store.forget_key()?;
-        store.archive_unreadable(|can_create| store.system_key(can_create))
+        store.archive_unreadable(|can_create| store.storage_key(can_create))
     })
     .await
     .map_err(|_| STORE_ERROR)?
@@ -381,7 +428,9 @@ pub async fn write_workspace(
 ) -> Result<VersionedWorkspace, String> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        store.write_relational(generation, value, |can_create| store.system_key(can_create))
+        store.write_relational(generation, value, |can_create| {
+            store.storage_key(can_create)
+        })
     })
     .await
     .map_err(|_| STORE_ERROR)?
@@ -405,7 +454,7 @@ pub async fn read_workspace_context(
         _ => return Err(STORE_ERROR.into()),
     };
     tauri::async_runtime::spawn_blocking(move || -> StoreResult<Option<Value>> {
-        let mut db = store.open_relational(|can_create| store.system_key(can_create))?;
+        let mut db = store.open_relational(|can_create| store.storage_key(can_create))?;
         let tx = db.transaction().map_err(|_| STORE_ERROR)?;
         if title::generation(&tx, &selection).map_err(|_| STORE_ERROR)?
             != Some(selection.generation)
@@ -438,7 +487,7 @@ pub async fn write_workspace_title(
         return Err(STORE_ERROR.into());
     }
     tauri::async_runtime::spawn_blocking(move || {
-        let mut db = store.open_relational(|can_create| store.system_key(can_create))?;
+        let mut db = store.open_relational(|can_create| store.storage_key(can_create))?;
         match title::commit_title(&mut db, edit).map_err(|_| STORE_ERROR)? {
             title::Commit::Applied { generation, .. } => Ok(generation),
             _ => Err(SAVE_CONFLICT),
@@ -594,8 +643,8 @@ mod tests {
         );
         *store.key_cache.lock().unwrap() = Some(Zeroizing::new([9; 32]));
         // Would fail against a real vault; the cached key is returned instead.
-        assert_eq!(&store.system_key(false).unwrap()[..], &[9; 32]);
-        assert_eq!(&store.clone().system_key(false).unwrap()[..], &[9; 32]);
+        assert_eq!(&store.storage_key(false).unwrap()[..], &[9; 32]);
+        assert_eq!(&store.clone().storage_key(false).unwrap()[..], &[9; 32]);
     }
 }
 

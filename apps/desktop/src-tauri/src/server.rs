@@ -31,8 +31,6 @@ const CONNECTION_ERROR: &str = "Não foi possível conectar ao servidor Feito po
 const RESPONSE_ERROR: &str = "O servidor não retornou uma resposta válida do Feito.";
 
 pub struct ServerSessions {
-    // Only used to find and retire sessions older versions kept in individual vault items.
-    service: String,
     store: WorkspaceStore,
     state: Mutex<SessionState>,
     event_stream: Mutex<Option<(u32, JoinHandle<()>)>>,
@@ -45,9 +43,8 @@ struct SessionState {
 }
 
 impl ServerSessions {
-    pub fn new(service: String, store: WorkspaceStore) -> Self {
+    pub fn new(store: WorkspaceStore) -> Self {
         Self {
-            service,
             store,
             state: Mutex::new(SessionState::default()),
             event_stream: Mutex::new(None),
@@ -64,7 +61,6 @@ impl ServerSessions {
             Some(value) => Some(cookie_header(value)?),
             None => None,
         };
-        let service = self.service.clone();
         let store = self.store.clone();
         let credential_origin = origin.clone();
         // Disable a signed-out or expired cookie for this process even if the vault is unavailable.
@@ -75,7 +71,9 @@ impl ServerSessions {
             store
                 .write_session(&credential_origin, value.as_ref().map(|value| &value[..]))
                 .map_err(|_| SESSION_VAULT_ERROR)?;
-            remove_legacy_session(&service, &credential_origin);
+            if let Some(service) = store.credential_service() {
+                remove_legacy_session(service, &credential_origin);
+            }
             Ok::<(), &'static str>(())
         })
         .await
@@ -92,7 +90,6 @@ impl ServerSessions {
         if let Some(cookie) = state.cookies.get(origin) {
             return Ok(cookie.clone());
         }
-        let service = self.service.clone();
         let store = self.store.clone();
         let credential_origin = origin.to_owned();
         let cookie = tauri::async_runtime::spawn_blocking(move || {
@@ -101,7 +98,10 @@ impl ServerSessions {
                 .map_err(|_| SESSION_VAULT_ERROR)?
             {
                 Some(secret) => cookie_header(&secret).map(Some),
-                None => migrate_legacy_session(&store, &service, &credential_origin),
+                None => match store.credential_service() {
+                    Some(service) => migrate_legacy_session(&store, service, &credential_origin),
+                    None => Ok(None),
+                },
             }
         })
         .await
@@ -550,6 +550,44 @@ pub async fn stop_product_events(app: AppHandle, subscription: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dev_sessions_reopen_and_sign_out_without_the_system_vault() {
+        let dir = tempfile::tempdir().unwrap();
+        let origin = "https://feito.example.com";
+        let open_sessions = || ServerSessions::new(WorkspaceStore::new_dev(dir.path().into()));
+
+        tauri::async_runtime::block_on(async {
+            {
+                let sessions = open_sessions();
+                let mut state = sessions.state.lock().await;
+                assert!(sessions.cookie(&mut state, origin).await.unwrap().is_none());
+                sessions
+                    .update_cookie(
+                        &mut state,
+                        origin.into(),
+                        Some(Zeroizing::new(b"test-token".to_vec())),
+                    )
+                    .await
+                    .unwrap();
+            }
+            {
+                let sessions = open_sessions();
+                let mut state = sessions.state.lock().await;
+                assert_eq!(
+                    sessions.cookie(&mut state, origin).await.unwrap(),
+                    Some(cookie_header(b"test-token").unwrap())
+                );
+                sessions
+                    .update_cookie(&mut state, origin.into(), None)
+                    .await
+                    .unwrap();
+            }
+            let sessions = open_sessions();
+            let mut state = sessions.state.lock().await;
+            assert!(sessions.cookie(&mut state, origin).await.unwrap().is_none());
+        });
+    }
 
     #[test]
     fn reads_revision_events_across_chunks_and_keeps_heartbeats_out_of_ipc() {
