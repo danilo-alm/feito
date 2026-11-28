@@ -675,11 +675,27 @@ export function Spinner({ label }: { label?: string }) {
   return <div className="loading" role="status" aria-label={label ?? t("Carregando")}><div className="spinner" /></div>;
 }
 
+/** Lista carregando: linhas-fantasma no lugar das tarefas. Só aparecem após um instante, para leituras rápidas não piscarem. */
+export function ListSkeleton({ rows = 4 }: { rows?: number }) {
+  const t = useT();
+  return (
+    <div className="skeleton" role="status" aria-label={t("Carregando")}>
+      <span className="sk-title" />
+      {Array.from({ length: rows }, (_, index) => (
+        <span key={index} className="sk-row"><i /><b style={{ width: `${[78, 62, 70, 48, 66, 54][index % 6]}%` }} /></span>
+      ))}
+    </div>
+  );
+}
+
 export function ReadFallback({ error, loading, onRetry }: { error: unknown; loading: boolean; onRetry: () => void }) {
   const t = useT();
-  if (!error) return <Spinner />;
+  if (!error) return <ListSkeleton />;
   return (
-    <div className="empty">
+    <div className="empty read-error">
+      <span className="read-error-ic" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
+      </span>
       <strong role="alert">{errorMessage(error)}</strong>
       <button type="button" className="btn" disabled={loading} onClick={onRetry}>{t("Tentar de novo")}</button>
     </div>

@@ -105,7 +105,9 @@ const fold = (text: string) => text.normalize("NFD").replace(/\p{Mark}/gu, "").t
 
 /** Setas percorrem a grade; Tab entra e sai dela por uma única opção. */
 function moveInGrid(event: KeyboardEvent<HTMLDivElement>) {
-  const steps: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -PICKER_COLUMNS, ArrowDown: PICKER_COLUMNS };
+  // A grade em linha das cores tem outra largura: as colunas vêm do próprio CSS.
+  const columns = getComputedStyle(event.currentTarget).gridTemplateColumns.split(" ").length || PICKER_COLUMNS;
+  const steps: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns };
   const step = steps[event.key];
   if (!step) return;
   event.preventDefault();
@@ -192,33 +194,22 @@ export function ProjectStyleButton({ projectId, color, icon, onChange }: {
   );
 }
 
-/** Campos Cor e Ícone do formulário de projeto: cada um abre uma lista rolável (sem barra visível). */
+/** Campos Ícone e Cor do formulário de projeto: o ícone abre uma grade; as cores ficam à vista, em grade navegável pelas setas. */
 export function ProjectStyleFields({ projectId, color, icon, disabled, onColor, onIcon }: {
   projectId?: string; color: ProjectColor | null; icon: ProjectIcon; disabled?: boolean;
   onColor: (color: ProjectColor | null) => void; onIcon: (icon: ProjectIcon) => void;
 }) {
   const t = useT();
   const id = useId();
-  const [open, setOpen] = useState<"color" | "icon" | null>(null);
-  const colorRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState<"icon" | null>(null);
   const iconRef = useRef<HTMLButtonElement>(null);
   const auto = projectId ? tagColor(projectId) : "var(--text-3)";
   const current = color ? colorValue(color) : auto;
-  const colorName = color ? COLOR_OPTIONS.find((option) => option.value === color)?.label : t("Automática");
+  const colorName = t(color ? COLOR_OPTIONS.find((option) => option.value === color)?.label ?? "" : "Automática");
   const close = () => setOpen(null);
 
   return (
     <div className="ps-fields">
-      <div className="ps-field">
-        <span className="lbl" id={`${id}-color`}>{t("Cor")}</span>
-        <button ref={colorRef} type="button" className="inline-input ps-select" disabled={disabled}
-          aria-haspopup="listbox" aria-expanded={open === "color"} aria-labelledby={`${id}-color ${id}-color-value`}
-          onClick={() => setOpen(open === "color" ? null : "color")}>
-          <span className={`ps-dot${color ? "" : " auto"}`} style={{ background: color ? current : undefined }} />
-          <span id={`${id}-color-value`} className="ps-value">{colorName}</span>
-          <IconChevronDown className="sm" />
-        </button>
-      </div>
       <div className="ps-field">
         <span className="lbl" id={`${id}-icon`}>{t("Ícone")}</span>
         <button ref={iconRef} type="button" className="inline-input ps-select ps-icon-btn" disabled={disabled}
@@ -230,22 +221,14 @@ export function ProjectStyleFields({ projectId, color, icon, disabled, onColor, 
         </button>
       </div>
 
-      <Popover anchor={colorRef.current} open={open === "color"} onClose={close} label={t("Cor do projeto")} role="listbox" width={260}>
-        <div className="ps-list" role="presentation">
-          {[{ value: null, label: t("Automática") } as { value: ProjectColor | null; label: string }, ...COLOR_OPTIONS].map((option) => {
-            const selected = option.value === color;
-            return (
-              <button key={option.value ?? "auto"} type="button" role="option" aria-selected={selected}
-                className={`mi ps-option${selected ? " on" : ""}`} data-autofocus={selected || undefined}
-                onClick={() => { onColor(option.value); close(); }}>
-                <span className="ps-check">{selected && <IconCheck />}</span>
-                <span className={`ps-dot${option.value ? "" : " auto"}`} style={{ background: option.value ? colorValue(option.value) : undefined }} />
-                <span>{t(option.label)}</span>
-              </button>
-            );
-          })}
-        </div>
-      </Popover>
+      <div className="ps-field ps-color-field">
+        <span className="lbl" id={`${id}-color`}>{t("Cor")}<span className="ps-color-name">{colorName}</span></span>
+        <PickerGrid<ProjectColor | null> className="ps-colors ps-colors-inline" label={t("Cor")} selected={color}
+          onSelect={(value) => !disabled && onColor(value)}
+          options={[{ value: null, label: "Automática" }, ...COLOR_OPTIONS]}>
+          {(value) => <span className={`ps-swatch${value ? "" : " auto"}`} style={value ? { background: colorValue(value) } : undefined} />}
+        </PickerGrid>
+      </div>
 
       <Popover anchor={iconRef.current} open={open === "icon"} onClose={close} label={t("Ícone do projeto")} role="listbox" width={316} align="end">
         <div className="ps-grid" role="presentation">
