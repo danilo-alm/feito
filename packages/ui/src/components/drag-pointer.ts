@@ -1,6 +1,14 @@
 "use client";
 import { useEffect } from "react";
-import type { DragMoveEvent } from "@dnd-kit/core";
+import { useDroppable, type DragMoveEvent } from "@dnd-kit/core";
+
+export const groupKey = (sectionId: string | null) => sectionId ?? "none";
+
+export function useTaskGroupDrop(sectionId: string | null, disabled = false) {
+  const key = groupKey(sectionId);
+  const { setNodeRef } = useDroppable({ id: `group:${key}`, disabled });
+  return { ref: setNodeRef, "data-drop-group": key };
+}
 
 // Posição real do ponteiro durante o arraste (o delta da biblioteca inclui a rolagem automática).
 let lastPointerY: number | null = null;

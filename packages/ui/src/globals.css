@@ -419,7 +419,7 @@ button.t-origin:hover{background:var(--hover)}
 .t-origin-sec{flex:0 100 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--text-3)}
 .done-t .t-origin{opacity:.8}
 .t-acts{display:flex;gap:2px;opacity:0;margin:-6px 0}
-.task:hover .t-acts,.task:focus-within .t-acts,.card .t-acts,.t-acts:has([aria-expanded=true]){opacity:1}
+:is(.task,.ptable-row):is(:hover,:focus-within) .t-acts,.card .t-acts,.t-acts:has([aria-expanded=true]){opacity:1}
 .t-acts .icon-btn{width:30px;height:30px}
 /* Com a origem na linha do título, as ações ocultas não reservam espaço: o projeto fica na borda direita
    e desliza para a esquerda quando as ações aparecem (hover, foco ou menu aberto). */
@@ -1653,7 +1653,7 @@ body:has(.sync-status) .update-notice {
 }
 
 /* ---------- Tabela do projeto ---------- */
-.ptable{display:flex;flex-direction:column;gap:10px}
+.ptable{display:flex;flex-direction:column;gap:10px;--task-indent-step:22px}
 .ptable-bar{justify-content:flex-end}
 .ptable-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
 .ptable-grid{width:100%;min-width:860px;border-collapse:separate;border-spacing:0;font-size:13.5px}
@@ -1669,11 +1669,22 @@ body:has(.sync-status) .update-notice {
 .ptable-group .count{margin-left:8px;font-weight:500;font-size:13px;color:var(--text-2)}
 .ptable-done-h th{font-size:13px;color:var(--text-2)}
 .ptable-row:hover{background:color-mix(in srgb,var(--surface) 55%,var(--hover))}
-.ptable-task{display:flex;align-items:center;gap:8px;min-width:0;padding-inline-start:calc(var(--task-depth,0) * 22px)}
+.ptable-task{display:flex;align-items:center;gap:8px;min-width:0;padding-inline-start:calc(var(--task-depth,0) * var(--task-indent-step))}
+.ptable-task,.ptable-title{-webkit-user-select:none;user-select:none}
+.ptable-row[data-draggable]{touch-action:manipulation;-webkit-touch-callout:none}
+@media (hover:hover) and (pointer:fine){
+  .ptable-row[data-draggable],.ptable-row[data-draggable] .ptable-title{cursor:grab}
+}
+.ptable-grid .ptable-gap td{height:0;padding-block:0;border:0}
+.ptable-gap .drop-gap>.ins{inset-inline-start:6px}
 .ptable-task .chk{margin:-4px -2px -4px -4px}
 .ptable-title{min-width:0;max-width:420px;overflow:hidden;text-overflow:ellipsis;border:0;background:none;padding:4px;margin:-4px 0;border-radius:6px;text-align:left;font-size:13.5px;color:var(--text)}
-.ptable-title:hover{text-decoration:underline;text-underline-offset:3px}
 .done-t .ptable-title{color:var(--text-2);text-decoration:line-through}
+.ptable-task .t-acts{flex:none;margin-inline-start:auto}
+@media (pointer:coarse){
+  .ptable-task .t-acts{opacity:1}
+  .ptable-task .t-acts .icon-btn{width:40px;min-height:40px}
+}
 .ptable-cell{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:4px 6px;margin:0 -6px;border-radius:6px;font-size:13px;color:var(--text);text-align:left}
 .ptable-cell.m-date{color:var(--tc,var(--text))}
 .ptable-cell:not(:disabled):hover{background:var(--hover)}

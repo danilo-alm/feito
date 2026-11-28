@@ -23,6 +23,13 @@ import { MenuButton, Popover, useContextMenu, useIsMobile, type MenuItem } from 
 
 export type TaskActions = ReturnType<typeof useTaskActions>;
 
+export function clearTaskSelection(target: HTMLElement) {
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed && selection.rangeCount > 0 && selection.getRangeAt(0).intersectsNode(target)) {
+    selection.removeAllRanges();
+  }
+}
+
 export function priorityAria(task: Pick<TaskItem, "priority" | "title" | "status">) {
   const level = task.priority < 4 ? t("prioridade {0}", [task.priority]) : t("sem prioridade");
   return `${task.status === "completed" ? t("Reabrir") : t("Concluir")} “${task.title}”, ${level}`;
@@ -238,10 +245,7 @@ export const TaskRow = forwardRef<HTMLDivElement, RowProps>(function TaskRow({
       event.preventDefault();
       return;
     }
-    const selection = window.getSelection();
-    if (selection && !selection.isCollapsed && selection.rangeCount > 0 && selection.getRangeAt(0).intersectsNode(event.currentTarget)) {
-      selection.removeAllRanges();
-    }
+    clearTaskSelection(event.currentTarget);
     (onContextMenu ?? contextMenu.onContextMenu)?.(event);
   };
   return (

@@ -4,7 +4,7 @@ import { inSentence } from "../client/locale";
 
 import {
   DndContext, DragOverlay, MeasuringStrategy, MouseSensor, TouchSensor, pointerWithin, rectIntersection, useDraggable,
-  useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragMoveEvent, type DragStartEvent,
+  useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragMoveEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { useRouter } from "../navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
@@ -24,7 +24,7 @@ import type { NamedDetails, ProjectDetails, ProjectPage, ProjectStyle, Section, 
 import { taskAncestors } from "@feito/core/domain/task-tree";
 import { refreshProjects, useApp } from "./app";
 import { PageHeader, PageTaskCount } from "./chrome";
-import { LONG_PRESS_TOLERANCE, listenPointer, pointerX, pointerY, startX, swallowReleaseClick, useTouchScrollGuard } from "./drag-pointer";
+import { groupKey, LONG_PRESS_TOLERANCE, listenPointer, pointerX, pointerY, startX, swallowReleaseClick, useTaskGroupDrop, useTouchScrollGuard } from "./drag-pointer";
 import { Collapse, flipFrom, motionMs, refreshFlip } from "./motion";
 import { IconArchive, IconArrowDown, IconArrowUp, IconBan, IconEdit, IconGlobe, IconInbox, IconMore, IconPlus, IconDownload, IconTrash, IconUpload } from "./icons";
 import { useExportDialog, useImportDialog } from "./import-export-dialogs";
@@ -39,9 +39,8 @@ import { SORT_LABEL, ViewMenu } from "./view-menu";
 import { CalendarLayout } from "./project-calendar";
 import { TableLayout } from "./project-table";
 
-const groupKey = (sectionId: string | null) => sectionId ?? "none";
-const GROUP = (sectionId: string | null) => `group:${groupKey(sectionId)}`;
 const groupNode = (sectionId: string | null) => document.querySelector<HTMLElement>(`[data-drop-group="${groupKey(sectionId)}"]`);
+const noCollapsedTasks: ReadonlySet<string> = new Set();
 
 /** Deslocamento horizontal que muda um nível durante o arraste: com o arredondamento, a metade (20px) já pede o nível seguinte. */
 const INDENT_STEP = 40;
@@ -154,7 +153,7 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     if (plan) void execute(taskId, plan, true);
   }, [page, execute]);
 
-  const onKeyArrange = useCallback((task: TaskItem) => (event: KeyboardEvent<HTMLDivElement>) => {
+  const onKeyArrange = useCallback((task: TaskItem) => (event: KeyboardEvent<HTMLElement>) => {
     if (!event.altKey || !page) return;
     const board = page.project.view.layout === "board";
     let action: KeyAction | null = null;
@@ -193,17 +192,18 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
   const activeTasks = page.tasks.filter((task) => task.status === "active").length;
   const archived = project.status === "archived";
   const dragActive = drag ? tasks.get(drag.activeId) : undefined;
+  const collapsedDuringDrag = table ? noCollapsedTasks : collapsed;
 
   const onDragStart = (event: DragStartEvent) => {
     listenPointer(true);
     const id = String(event.active.id);
     const task = tasks.get(id);
-    const origin = originSlot(page, id, tasks, collapsed);
+    const origin = originSlot(page, id, tasks, collapsedDuringDrag);
     if (!task || !origin) return;
     const node = groupNode(task.sectionId)?.querySelector<HTMLElement>(`[data-task-id="${id}"]`);
     const height = node ? node.getBoundingClientRect().height + (parseFloat(getComputedStyle(node).marginBottom) || 0) : 0;
     const left = groupNode(task.sectionId)?.getBoundingClientRect().left ?? 0;
-    const result = resolveSlot(page, id, origin.sectionId, origin.index, origin.depth, collapsed);
+    const result = resolveSlot(page, id, origin.sectionId, origin.index, origin.depth, collapsedDuringDrag);
     setDrag({
       activeId: id, depth: origin.depth, offset: startX(event) - left, gap: height,
       slot: result?.slot ?? null, plan: result?.plan ?? null, live: false,
@@ -219,13 +219,13 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
     // Mede as linhas no DOM agora: o espaço aberto e a rolagem automática mudam as posições a cada passo.
     const y = pointerY(event);
     let index = 0;
-    for (const row of slotRows(page, sectionId, drag.activeId, tasks, collapsed)) {
+    for (const row of slotRows(page, sectionId, drag.activeId, tasks, collapsedDuringDrag)) {
       const rect = group.querySelector(`[data-task-id="${row.id}"]`)?.getBoundingClientRect();
       if (rect && rect.top + rect.height / 2 < y) index++;
     }
     // Arrastar para a direita, a partir de onde começou, pede um nível a mais: subtarefa da linha de cima.
     const shift = Math.round((pointerX(event) - group.getBoundingClientRect().left - drag.offset) / INDENT_STEP);
-    const result = resolveSlot(page, drag.activeId, sectionId, index, drag.depth + shift, collapsed);
+    const result = resolveSlot(page, drag.activeId, sectionId, index, drag.depth + shift, collapsedDuringDrag);
     if (!result) return;
     setDrag((current) => {
       if (!current) return current;
@@ -442,20 +442,24 @@ export function ProjectView({ projectId, sharing }: { projectId: string; sharing
           </div>
         </div>
         {calendar && <CalendarLayout page={page} actions={actions} archived={archived} mobile={mobile} />}
-        {table && <TableLayout page={page} actions={actions} archived={archived} />}
-        {!calendar && !table && <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragMove={onDragMove}
+        {!calendar && <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragMove={onDragMove}
           autoScroll={{ threshold: { x: 0.1, y: 0.1 }, acceleration: 8, layoutShiftCompensation: false }}
           measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
           onDragEnd={onDragEnd} onDragCancel={onDragCancel}
           accessibility={{ screenReaderInstructions: { draggable: t("Para mover sem arrastar, use Alt e as setas ou o menu de ações da tarefa.") } }}>
-          {board
+          {table ? (
+            <TableLayout page={page} actions={actions} archived={archived} arrangement={manual && !archived ? {
+              sourceId: drag?.activeId, moving, dropGap, onKeyArrange, onArrange: arrange,
+              menuItems: (task) => menuActions(page, task.id, tasks),
+            } : undefined} />
+          ) : board
             ? <BoardLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator} targetSection={targetSection}
               dropGap={dropGap} mobile={mobile} sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />
             : <ListLayout page={page} tasks={tasks} renderTask={renderTask} indicator={indicator} targetSection={targetSection}
               dropGap={dropGap} dragging={!!drag} sectionMenu={sectionMenu} renameSection={renameSection} archived={archived} />}
           <DragOverlay dropAnimation={null}>
             {dragActive && (
-              <div className="drag-overlay" style={{ width: board ? 280 : undefined }}>
+              <div className="drag-overlay" style={{ width: board ? 280 : table ? 320 : undefined }}>
                 <TaskRow task={dragActive} actions={actions} variant={board ? "card" : "row"} noMenu extraClass="is-dragging" style={{ paddingLeft: 10 }} />
               </div>
             )}
@@ -567,9 +571,9 @@ function DropGap({ open, height, depth, message }: { open: boolean; height: numb
 function GroupDrop({ sectionId, className, children, label, as = "section", id }: {
   sectionId: string | null; className: string; children: ReactNode; label: string; as?: "section" | "div"; id?: string;
 }) {
-  const { setNodeRef } = useDroppable({ id: GROUP(sectionId) });
+  const drop = useTaskGroupDrop(sectionId);
   const Tag = as;
-  return <Tag ref={setNodeRef} id={id} className={className} aria-label={label} data-drop-group={groupKey(sectionId)}>{children}</Tag>;
+  return <Tag {...drop} id={id} className={className} aria-label={label}>{children}</Tag>;
 }
 
 type LayoutProps = {
