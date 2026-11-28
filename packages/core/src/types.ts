@@ -13,8 +13,15 @@ export const DARK_THEMES = [
 export type LightTheme = typeof LIGHT_THEMES[number];
 export type DarkTheme = typeof DARK_THEMES[number];
 /** Cores de destaque dos temas do Feito; verde é o padrão. */
-export const ACCENTS = ["green", "teal", "cyan", "blue", "indigo", "violet", "purple", "magenta", "pink", "red", "orange", "amber"] as const;
-export type Accent = (typeof ACCENTS)[number];
+export const ACCENTS = [
+  "green", "teal", "mint", "lime", "cyan", "sky", "blue", "indigo", "violet", "lavender",
+  "purple", "magenta", "pink", "red", "coral", "orange", "terracotta", "amber", "yellow", "graphite",
+] as const;
+export type PresetAccent = (typeof ACCENTS)[number];
+export type HexAccent = `#${string}`;
+export type Accent = PresetAccent | HexAccent;
+export const isHexAccent = (value: unknown): value is HexAccent =>
+  typeof value === "string" && value.length === 7 && /^#[0-9a-f]{6}$/i.test(value);
 export type Layout = "list" | "board" | "calendar" | "table";
 export type SortMode = "manual" | "date" | "priority";
 

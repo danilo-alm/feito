@@ -9,15 +9,16 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore, type Keyboard
 import { api } from "../client/api";
 import { cacheScope, setQueryData, useQuery } from "../client/store";
 import { setSyncIndicatorHidden, useSyncIndicatorHidden } from "../client/sync-indicator";
-import { ACCENTS, type Accent, type DarkTheme, type LightTheme, type Me, type ProjectSummary, type Preferences } from "@feito/core/types";
+import { ACCENTS, isHexAccent, type Accent, type DarkTheme, type HexAccent, type LightTheme, type Me, type PresetAccent, type ProjectSummary, type Preferences } from "@feito/core/types";
 import { chosenAccent, chosenDark, chosenLight, darkThemes, isFeitoTheme, isLightTheme, lightThemes, systemColorScheme, themeName, type ThemeName } from "../client/themes";
 import { refreshProjects, useApp } from "./app";
+import { AccentColorEditor } from "./accent-color-editor";
 import {
-  IconCheck, IconChevronDown, IconChevronRight, IconClock, IconHash, IconLock, IconMonitor, IconMoon, IconRepeat, IconSun,
+  IconCheck, IconChevronDown, IconChevronRight, IconClock, IconHash, IconLock, IconMonitor, IconMoon, IconPlus, IconRepeat, IconSun,
 } from "./icons";
 import { PickerGrid } from "./project-style";
 import { TimezonePicker } from "./timezone-picker";
-import { Popover, ReadFallback } from "./ui";
+import { Dialog, Popover, ReadFallback } from "./ui";
 
 // Ajustes em grupos de linhas: ícone, nome e explicação à esquerda, controle à direita.
 // O web e o desktop montam a página com os mesmos grupos; o desktop acrescenta os espaços de trabalho.
@@ -167,36 +168,59 @@ function ThemeGrid({ label, themes, value, onPick }: {
   );
 }
 
-const accentNames: Record<Accent, string> = {
+const accentNames: Record<PresetAccent, string> = {
   green: "Verde",
   teal: "Verde-azulado",
+  mint: "Verde menta",
+  lime: "Verde limão",
   cyan: "Ciano",
+  sky: "Azul céu",
   blue: "Azul",
   indigo: "Índigo",
   violet: "Violeta",
+  lavender: "Lavanda",
   purple: "Roxo",
   magenta: "Magenta",
   pink: "Rosa",
   red: "Vermelho",
+  coral: "Coral",
   orange: "Laranja",
+  terracotta: "Terracota",
   amber: "Âmbar",
+  yellow: "Amarelo",
+  graphite: "Grafite",
 };
-const accentOptions = ACCENTS.map((value) => ({ value, label: accentNames[value] }));
+const accentOptions = [
+  ...ACCENTS.filter((value) => value !== "graphite").map((value) => ({ value, label: accentNames[value] })),
+  { value: "custom" as const, label: "Cor personalizada" },
+];
 
 function AccentPicker({ theme, value, onPick }: { theme: ThemeName; value: Accent; onPick: (accent: Accent) => void }) {
   const t = useT();
   const id = useId();
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [customStart, setCustomStart] = useState<HexAccent | null>(null);
   const enabled = isFeitoTheme(theme);
+  const custom = isHexAccent(value);
+  const selected = custom ? "custom" : value;
   useEffect(() => {
-    if (!enabled) setOpen(false);
+    if (!enabled) {
+      setOpen(false);
+      setCustomStart(null);
+    }
   }, [enabled]);
 
   const pick = (accent: Accent) => {
     setOpen(false);
     anchor?.focus();
     if (accent !== value) onPick(accent);
+  };
+  const openCustom = () => {
+    const current = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    setOpen(false);
+    anchor?.focus();
+    setCustomStart(custom ? value : isHexAccent(current) ? current : "#0b7a54");
   };
   return (
     <SettingsRow icon={<IconMonitor />} label={<span id={id}>{t("Cor de destaque")}</span>}
@@ -208,20 +232,30 @@ function AccentPicker({ theme, value, onPick }: { theme: ThemeName; value: Accen
           <button ref={setAnchor} type="button" className="select accent-trigger" disabled={!enabled}
             aria-labelledby={enabled ? `${id} ${id}-value` : id} aria-describedby={`${id}-hint`}
             aria-haspopup="dialog" aria-expanded={enabled && open} onClick={() => setOpen(!open)}>
-            <span className="accent-swatch" data-theme={theme} data-accent={enabled ? value : undefined} aria-hidden="true" />
-            {enabled ? <><span id={`${id}-value`}>{t(accentNames[value])}</span><IconChevronDown /></> : <IconLock />}
+            <span className="accent-swatch" data-theme={theme} data-accent={enabled && !custom ? value : undefined}
+              style={enabled && custom ? { backgroundColor: value } : undefined} aria-hidden="true" />
+            {enabled ? <><span id={`${id}-value`}>{custom ? value.toUpperCase() : t(accentNames[value])}</span><IconChevronDown /></> : <IconLock />}
           </button>
           <Popover anchor={anchor} open={enabled && open} onClose={() => setOpen(false)}
-            label={t("Cor de destaque")} align="end" width={216}>
-            <PickerGrid className="accent-picker" label={t("Cor de destaque")} options={accentOptions} selected={value}
-              onSelect={pick} autoFocus showTooltips={false}>
+            label={t("Cor de destaque")} align="end" width={264}>
+            <PickerGrid className="accent-picker" label={t("Cor de destaque")} options={accentOptions} selected={selected}
+              onSelect={(accent) => accent === "custom" ? openCustom() : pick(accent)} autoFocus showTooltips={false}>
               {(accent) => (
-                <span className="accent-swatch" data-theme={theme} data-accent={accent} aria-hidden="true">
-                  {accent === value && <IconCheck />}
-                </span>
+                accent === "custom"
+                  ? <span className="accent-custom-option" aria-hidden="true">{custom ? <IconCheck /> : <IconPlus />}</span>
+                  : <span className="accent-swatch" data-theme={theme} data-accent={accent} aria-hidden="true">
+                    {accent === value && <IconCheck />}
+                  </span>
               )}
             </PickerGrid>
           </Popover>
+          <Dialog open={enabled && customStart !== null} onClose={() => setCustomStart(null)} title={t("Cor personalizada")} width={360}>
+            {customStart !== null && <AccentColorEditor initial={customStart} onClose={() => setCustomStart(null)}
+              onSave={(accent) => {
+                setCustomStart(null);
+                if (accent !== value) onPick(accent);
+              }} />}
+          </Dialog>
         </>
       } />
   );

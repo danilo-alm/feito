@@ -20,6 +20,8 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../../../../packages/core/sqlite/migrations/008-task-comments.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/009-appearance.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/010-accent-colors.sql"),
+    include_str!("../../../../../packages/core/sqlite/migrations/011-more-accent-colors.sql"),
+    include_str!("../../../../../packages/core/sqlite/migrations/012-custom-accent.sql"),
 ];
 const LEGACY_DATABASE: &str = "feito.sqlite3";
 const DATABASE: &str = "feito-relational.sqlite3";

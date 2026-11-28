@@ -17,6 +17,8 @@ const migrations = [
   readSql("migrations/008-task-comments.sql"),
   readSql("migrations/009-appearance.sql"),
   readSql("migrations/010-accent-colors.sql"),
+  readSql("migrations/011-more-accent-colors.sql"),
+  readSql("migrations/012-custom-accent.sql"),
 ];
 const fixture = readFileSync(new URL("../../../../scripts/sqlite-proof/relational-fixture.sql", import.meta.url), "utf8");
 const queries = Object.fromEntries(
@@ -64,22 +66,23 @@ describe("shared offline SQLite workspace", () => {
     }
   });
 
-  it("preserves a saved accent when upgrading from the two-color palette", () => {
+  it.each([[9, "violet"], [10, "cyan"], [11, "graphite"]] as const)("preserves the saved accent from schema %i", (version, accent) => {
     const previous = new sqlite.oo1.DB();
     try {
-      migrateSqlite(previous, sqlite.version.libVersionNumber, migrations.slice(0, -1));
+      migrateSqlite(previous, sqlite.version.libVersionNumber, migrations.slice(0, version));
       previous.exec(fixture);
-      previous.exec("UPDATE preferences SET accent = 'violet' WHERE space_id = 'remote' AND layer = 'working'");
+      previous.exec({ sql: "UPDATE preferences SET accent = ? WHERE space_id = 'remote' AND layer = 'working'", bind: [accent] });
 
       migrateSqlite(previous, sqlite.version.libVersionNumber, migrations);
       const readAccent = () => previous.selectValue(
         "SELECT json_extract(workspace, '$.preferences.accent') FROM workspace_layers WHERE space_id = 'remote' AND layer = 'working'",
       );
-      expect(readAccent()).toBe("violet");
+      expect(readAccent()).toBe(accent);
       previous.exec(`INSERT INTO save_workspace_layer (space_id, layer, document)
-        SELECT space_id, layer, json_set(workspace, '$.preferences.accent', 'cyan')
+        SELECT space_id, layer, json_set(workspace, '$.preferences.accent', '#123abc')
         FROM workspace_layers WHERE space_id = 'remote' AND layer = 'working'`);
-      expect(readAccent()).toBe("cyan");
+      expect(readAccent()).toBe("#123abc");
+      expect(() => previous.exec("UPDATE preferences SET accent = '#123abz'")).toThrow();
     } finally {
       previous.close();
     }

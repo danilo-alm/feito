@@ -10,9 +10,10 @@ import { registerTagOrder } from "../client/colors";
 import { dismissFailedDrafts, useFailedDrafts, type FailedDraft } from "../client/composer";
 import { closeEditor, type InsertDefaults } from "../client/editor-store";
 import { cacheScope, clearCache, invalidate, useQuery } from "../client/store";
-import { systemColorScheme } from "../client/themes";
+import { customAccentTokens } from "../client/accent-colors";
+import { isFeitoTheme, systemColorScheme } from "../client/themes";
 import { isTemporaryTask, type MutationContext } from "../client/task-mutations";
-import type { Me, Navigation, Preferences, Theme } from "@feito/core/types";
+import { isHexAccent, type Me, type Navigation, type Preferences, type Theme } from "@feito/core/types";
 import { motionMs, useFlip } from "./motion";
 import { TooltipLayer } from "./tooltip";
 import { useWebSidebarRoot } from "./sidebar-toggle";
@@ -34,9 +35,21 @@ export function applyTheme(appearance: Appearance | Theme, persist = true) {
   const dark = value.theme === "dark" || (value.theme === "system" && systemColorScheme().matches);
   const root = document.documentElement;
   root.classList.toggle("dark", dark);
-  root.dataset.theme = dark ? value.darkTheme ?? "feito-dark" : value.lightTheme ?? "feito-light";
-  if (value.accent && value.accent !== "green") root.dataset.accent = value.accent;
-  else delete root.dataset.accent;
+  const theme = dark ? value.darkTheme ?? "feito-dark" : value.lightTheme ?? "feito-light";
+  root.dataset.theme = theme;
+  if (isHexAccent(value.accent) && isFeitoTheme(theme)) {
+    const { accent, hover, foreground } = customAccentTokens(value.accent, dark);
+    root.dataset.accent = "custom";
+    root.style.setProperty("--custom-accent", accent);
+    root.style.setProperty("--custom-accent-hover", hover);
+    root.style.setProperty("--custom-on-accent", foreground);
+  } else {
+    root.style.removeProperty("--custom-accent");
+    root.style.removeProperty("--custom-accent-hover");
+    root.style.removeProperty("--custom-on-accent");
+    if (value.accent && value.accent !== "green" && !isHexAccent(value.accent)) root.dataset.accent = value.accent;
+    else delete root.dataset.accent;
+  }
 }
 
 /** Aparência guardada neste aparelho, para pintar o tema certo antes de as preferências chegarem. */

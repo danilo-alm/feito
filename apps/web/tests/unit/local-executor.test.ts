@@ -53,7 +53,10 @@ describe("executor local: rotas gerais", () => {
     for (const accent of ACCENTS) {
       expect((await call("PATCH", "/preferences", { accent })).body).toMatchObject({ accent });
     }
-    expect(code(await call("PATCH", "/preferences", { accent: "#ff0000" }))).toBe("VALIDATION_FAILED");
+    expect((await call("PATCH", "/preferences", { accent: "#A0B1C2" })).body).toMatchObject({ accent: "#a0b1c2" });
+    for (const accent of ["#abc", "#ff000080", "#12345g", "#123456\n"]) {
+      expect(code(await call("PATCH", "/preferences", { accent }))).toBe("VALIDATION_FAILED");
+    }
     expect((await call("PATCH", "/preferences", { todayTimeline: false })).body).toMatchObject({ todayTimeline: false });
   });
 
