@@ -22,6 +22,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../../../../packages/core/sqlite/migrations/010-accent-colors.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/011-more-accent-colors.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/012-custom-accent.sql"),
+    include_str!("../../../../../packages/core/sqlite/migrations/013-sync-pause.sql"),
 ];
 const LEGACY_DATABASE: &str = "feito.sqlite3";
 const DATABASE: &str = "feito-relational.sqlite3";
@@ -366,6 +367,15 @@ impl WorkspaceStore {
         }
         tx.execute(SAVE_PROFILE, [serialized.as_str()])
             .map_err(|_| STORE_ERROR)?;
+        tx.execute(
+            "UPDATE replica_state
+             SET sync_paused = coalesce(remote.value ->> '$.syncPaused', 0)
+             FROM json_each(?1, '$.remotes') AS remote
+             WHERE space_id = remote.value ->> '$.id'
+               AND sync_paused <> coalesce(remote.value ->> '$.syncPaused', 0)",
+            [serialized.as_str()],
+        )
+        .map_err(|_| STORE_ERROR)?;
         tx.commit().map_err(|_| STORE_ERROR)?;
         Ok(VersionedWorkspace { generation, value })
     }
@@ -707,6 +717,7 @@ mod tests {
         let initial = store.read_relational(key).unwrap().unwrap();
         assert_eq!(initial.generation, 1);
         assert_eq!(initial.value["server"]["pending"][0]["id"], "operation");
+        assert!(initial.value["server"].get("syncPaused").is_none());
         let db = store.open_relational(key).unwrap();
         let cookie: Vec<u8> = db
             .query_row(
@@ -720,6 +731,7 @@ mod tests {
         assert_eq!(fs::read(&source).unwrap(), before);
 
         let mut next = initial.value;
+        next["server"]["syncPaused"] = json!(true);
         next["server"]["pending"] = json!([]);
         next["server"]["cursor"] = json!(8);
         assert_eq!(
@@ -731,7 +743,16 @@ mod tests {
         let loaded = store.read_relational(key).unwrap().unwrap();
         assert_eq!(loaded.value["server"]["cursor"], 8);
         assert_eq!(loaded.value["server"]["pending"], json!([]));
+        assert_eq!(loaded.value["server"]["syncPaused"], true);
         assert_eq!(loaded.value["local"]["projects"][0]["id"], "inbox");
+        let mut resumed = loaded.value;
+        resumed["server"]
+            .as_object_mut()
+            .unwrap()
+            .remove("syncPaused");
+        store.write_relational(Some(2), resumed, key).unwrap();
+        let resumed = store.read_relational(key).unwrap().unwrap();
+        assert!(resumed.value["server"].get("syncPaused").is_none());
         assert_eq!(
             store.read_relational(|_| Ok(Zeroizing::new([9; 32]))).err(),
             Some(DECRYPTION_ERROR)

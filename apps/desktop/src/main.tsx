@@ -27,6 +27,7 @@ const DesktopSettings = lazyScreen(async () => ({ default: (await import("./sett
 
 const labels = new Map<string, Promise<{ id: string }>>();
 const syncLabels = {
+  paused: "Sincronização pausada",
   current: "Sincronizado",
   syncing: "Sincronizando",
   disconnected: "Desconectado",
@@ -47,7 +48,8 @@ function WorkspaceScreen() {
   const router = useRouter();
   const status = useSyncExternalStore(desktop.subscribe, desktop.getStatus);
   const remoteOrigin = status.active === "server" && status.sync !== "login" ? status.server?.origin : undefined;
-  const syncState = status.sync === "current" ? (status.server?.pending ? "syncing" : "current")
+  const syncState = status.server?.syncPaused ? "paused"
+    : status.sync === "current" ? (status.server?.pending ? "syncing" : "current")
     : status.sync === "syncing" ? "syncing" : "disconnected";
   const [storageError, setStorageError] = useState<OpenFailure>();
   const openStorage = (open: () => Promise<void>) => {
@@ -84,7 +86,7 @@ function WorkspaceScreen() {
   }, []);
 
   useEffect(() => {
-    if (!remoteOrigin) return;
+    if (!remoteOrigin || status.server?.syncPaused) return;
     const watch = watchServer(remoteOrigin);
     const refresh = window.setInterval(() => {
       if (!watch.connected() || desktop.getStatus().sync !== "current") {
@@ -95,7 +97,7 @@ function WorkspaceScreen() {
       window.clearInterval(refresh);
       watch.close();
     };
-  }, [remoteOrigin]);
+  }, [remoteOrigin, status.server?.syncPaused]);
 
   if (!status.ready) {
     return storageError

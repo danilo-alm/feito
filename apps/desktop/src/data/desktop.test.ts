@@ -263,6 +263,105 @@ describe("sincronização do desktop", () => {
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
+  it("guarda a pausa por espaço, acumula edições locais e sincroniza os dois lados ao retomar", async () => {
+    const server = testBridge();
+    const otherOrigin = "https://other.example";
+    const other = testBridge(otherOrigin);
+    const bridge: Bridge = {
+      ...server.bridge,
+      request: vi.fn((address, method, path, body) =>
+        (address === origin ? server : other).bridge.request(address, method, path, body)),
+    };
+    const first = createDesktop(bridge, vi.fn());
+    await first.connect(origin, owner.email, "senha de teste");
+    await first.sync();
+    await first.setSyncPaused(origin, true);
+    const transport = vi.mocked(bridge.request);
+    transport.mockClear();
+    const task = await (await createTask(first, "Alteração local")).json() as TaskDetail;
+    const website = await server.changeServer({ method: "POST", path: "/tasks", body: { title: "Alteração no site" } });
+
+    const reopened = createDesktop(bridge, vi.fn());
+    await reopened.initialize();
+    await reopened.sync();
+    await reopened.syncForRevision(origin, 1);
+    expect(reopened.getStatus().server).toMatchObject({ syncPaused: true, pending: 1 });
+    expect((await readTask(reopened, task.id)).status).toBe(200);
+    expect((await readTask(reopened, website.id)).status).toBe(404);
+    expect(transport).not.toHaveBeenCalled();
+
+    await reopened.connect(otherOrigin, owner.email, "senha de teste");
+    await reopened.sync();
+    expect(reopened.getStatus().server).toMatchObject({ origin: otherOrigin, syncPaused: false, pending: 0 });
+    transport.mockClear();
+    await reopened.openServer(origin);
+    await reopened.sync();
+    expect(transport).not.toHaveBeenCalled();
+
+    await reopened.setSyncPaused(origin, false);
+    await vi.waitFor(() => expect(reopened.getStatus()).toMatchObject({
+      sync: "current", server: { origin, syncPaused: false, pending: 0 },
+    }));
+    expect((await readTask(reopened, website.id)).status).toBe(200);
+    expect(server.taskRecord(task.id)?.data.title).toBe(task.title);
+    expect(other.taskCount()).toBe(0);
+  });
+
+  it("restabelece a sessão do mesmo espaço sem sincronizar enquanto ele está pausado", async () => {
+    const server = testBridge();
+    const client = createDesktop(server.bridge, vi.fn());
+    await client.connect(origin, owner.email, "senha de teste");
+    await client.sync();
+    await client.setSyncPaused(origin, true);
+    await createTask(client, "Alteração na fila");
+    await client.signOut();
+    const transport = vi.spyOn(server.bridge, "request");
+
+    await client.updateConnection(origin, origin, owner.email, "senha de teste");
+    expect(transport.mock.calls.map(([, method, path]) => [method, path])).toEqual([["POST", "/api/v1/auth/login"]]);
+    expect(client.getStatus().server).toMatchObject({ syncPaused: true, pending: 1 });
+
+    await client.setSyncPaused(origin, false);
+    await client.sync();
+    expect(client.getStatus()).toMatchObject({ sync: "current", server: { syncPaused: false, pending: 0 } });
+    expect(server.attempts).toHaveLength(1);
+  });
+
+  it("confirma o envio em andamento ao pausar e mantém o restante da fila", async () => {
+    const server = testBridge();
+    const client = createDesktop(server.bridge, vi.fn());
+    await client.connect(origin, owner.email, "senha de teste");
+    await client.sync();
+    await client.setSyncPaused(origin, true);
+    await createTask(client, "Primeira tarefa");
+    await createTask(client, "Segunda tarefa");
+
+    const sent = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const request = server.bridge.request;
+    vi.spyOn(server.bridge, "request").mockImplementation(async (...args) => {
+      const reply = await request(...args);
+      if (args[1] === "POST" && args[2] === "/api/v1/desktop-sync") {
+        sent.resolve();
+        await release.promise;
+      }
+      return reply;
+    });
+    await client.setSyncPaused(origin, false);
+    await sent.promise;
+    const inFlight = client.sync();
+    await client.setSyncPaused(origin, true);
+    release.resolve();
+    await inFlight;
+    expect(client.getStatus().server).toMatchObject({ syncPaused: true, pending: 1 });
+    expect(server.attempts).toHaveLength(1);
+
+    await client.setSyncPaused(origin, false);
+    await client.sync();
+    expect(client.getStatus().server).toMatchObject({ syncPaused: false, pending: 0 });
+    expect(server.attempts).toHaveLength(2);
+  });
+
   it("pede login ao reabrir sem sessão, reenvia a mesma operação e recebe uma edição do site", async () => {
     const server = testBridge();
     const first = createDesktop(server.bridge, vi.fn());

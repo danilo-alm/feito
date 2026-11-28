@@ -8,7 +8,7 @@ import {
   type Replica, type ReplicaUpdate, type SyncReply,
 } from "@feito/core/product/replica";
 
-type Connected = Replica & { origin: string };
+type Connected = Replica & { origin: string; syncPaused?: boolean };
 
 type Space = "local" | "server";
 type Document = {
@@ -35,10 +35,13 @@ export function openFailure(error: unknown): OpenFailure {
 
 type SyncState = "local" | "login" | "offline" | "syncing" | "current" | "error";
 
-type ServerStatus = { origin: string; email: string; pending: number; notice?: string };
+type ServerStatus = { origin: string; email: string; pending: number; syncPaused: boolean; notice?: string };
 
 function serverStatus(server: Connected): ServerStatus {
-  return { origin: server.origin, email: server.user.email, pending: server.pending.length, notice: server.notice };
+  return {
+    origin: server.origin, email: server.user.email, pending: server.pending.length,
+    syncPaused: server.syncPaused === true, notice: server.notice,
+  };
 }
 
 export type DesktopStatus = {
@@ -165,7 +168,7 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
   async function runSync() {
     const current = await locked(init);
     const server = current.value.server;
-    if (current.value.active !== "server" || !server || signingIn || needsAuthentication()) return;
+    if (current.value.active !== "server" || !server || server.syncPaused || signingIn || needsAuthentication()) return;
 
     publish("syncing");
     try {
@@ -175,7 +178,7 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
           authentication = "valid";
           await reconcile(update);
         },
-        canPush: () => saved?.value.active === "server" && !signingIn,
+        canPush: () => locked(async () => saved?.value.active === "server" && !saved.value.server?.syncPaused && !signingIn),
       });
       publish("current");
     } catch (error) {
@@ -188,7 +191,7 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
 
   function sync() {
     if (syncing) return syncing;
-    if (signingIn) return Promise.resolve();
+    if (signingIn || (status.active === "server" && status.server?.syncPaused)) return Promise.resolve();
     syncing = runSync().catch(() => {
       publish("error", "Não foi possível carregar os dados para sincronizar.");
     }).finally(() => {
@@ -204,6 +207,25 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
     const value = saved?.value;
     if (value?.active === "server" && value.server?.origin === origin && value.server.cursor !== revision) {
       await sync();
+    }
+  }
+
+  async function setSyncPaused(origin: string, syncPaused: boolean) {
+    const resume = await locked(async () => {
+      const { value } = await init();
+      const server = [value.server, ...(value.previousServers ?? [])].find((space) => space?.origin === origin);
+      if (!server || (server.syncPaused === true) === syncPaused) return false;
+      const next = { ...server, syncPaused: syncPaused || undefined };
+      await commit(server === value.server
+        ? { ...value, server: next }
+        : { ...value, previousServers: value.previousServers?.map((space) => space === server ? next : space) });
+      publish(status.sync, status.error, status.blocked);
+      return !syncPaused && value.active === "server" && server === value.server;
+    });
+    if (resume) {
+      void (syncing ?? Promise.resolve()).then(() => {
+        if (status.active === "server" && status.server?.origin === origin) void sync();
+      });
     }
   }
 
@@ -235,10 +257,14 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
 
       let workspaceSwitched = false;
       try {
-        if ((login.body as { mustChangePassword?: boolean } | null)?.mustChangePassword) {
+        const identity = login.body as Session | null;
+        if (identity?.mustChangePassword) {
           throw new Error("Troque a senha provisória no site e depois entre aqui.");
         }
-        const linked = await downloadReplica((method, path, body) => bridge.request(origin, method, path, body));
+        const previous = [value.server, ...(value.previousServers ?? [])].find((space) => space?.origin === origin);
+        const linked = previous?.syncPaused && previous.user.id === identity?.user?.id
+          ? { ...previous, user: identity.user }
+          : await downloadReplica((method, path, body) => bridge.request(origin, method, path, body));
 
         await locked(async () => {
           const { value: latest } = await init();
@@ -517,7 +543,7 @@ export function createDesktop(bridge: Bridge, onRemoteChange: () => void, onWork
   }
 
   return {
-    fetch, sync, syncForRevision, connect, updateConnection, signOut, switchSpace, openServer, createLocal, deleteLocal, discardRejected,
+    fetch, sync, syncForRevision, setSyncPaused, connect, updateConnection, signOut, switchSpace, openServer, createLocal, deleteLocal, discardRejected,
     initialize: () => locked(init).then(() => undefined),
     startOver,
     getStatus: () => status,

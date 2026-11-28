@@ -19,6 +19,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../../../../packages/core/sqlite/migrations/010-accent-colors.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/011-more-accent-colors.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/012-custom-accent.sql"),
+    include_str!("../../../../../packages/core/sqlite/migrations/013-sync-pause.sql"),
 ];
 macro_rules! query {
     ($name:literal) => {

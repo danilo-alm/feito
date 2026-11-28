@@ -34,6 +34,8 @@ export const IconHash = make(hashIconPath);
 export const IconTag = make(<><path d="M3 12V4h8l10 10-8 8z" /><circle cx="7.5" cy="8.5" r="1" /></>);
 export const IconFlag = make(<path d="M5 21V4h11l-2 4 2 4H5" />);
 export const IconRepeat = make(<><path d="M17 2l3 3-3 3" /><path d="M4 11V9a4 4 0 0 1 4-4h12" /><path d="M7 22l-3-3 3-3" /><path d="M20 13v2a4 4 0 0 1-4 4H4" /></>);
+export const IconPause = make(<path d="M9 5v14m6-14v14" />);
+export const IconPlay = make(<path d="m8 5 12 7-12 7z" />);
 export const IconSub = make(<><path d="M5 4v7a4 4 0 0 0 4 4h10" /><path d="M15 11l4 4-4 4" /></>);
 export const IconClock = make(<><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></>);
 export const IconChevronDown = make(<path d="M6 9l6 6 6-6" />);

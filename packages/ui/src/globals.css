@@ -1502,6 +1502,10 @@ svg.ic-repeat{color:var(--accent-text)}
   --sync-dot: var(--proj-amarelo);
 }
 
+.sync-status[data-sync="paused"] {
+  --sync-dot: var(--text-2);
+}
+
 .sync-status::after {
   content: "";
   width: 8px;

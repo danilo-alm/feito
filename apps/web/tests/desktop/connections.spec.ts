@@ -18,12 +18,25 @@ for (const narrow of [false, true]) {
     const edit = page.getByRole("button", { name: "Editar conexão", exact: true });
     const sync = page.getByRole("button", { name: "Sincronizar agora", exact: true });
     const logout = page.getByRole("button", { name: "Encerrar sessão", exact: true });
+    const pause = page.getByRole("button", { name: "Pausar sincronização", exact: true });
+    const resume = page.getByRole("button", { name: "Retomar sincronização", exact: true });
     await expect(sync).toBeEnabled();
-    for (const button of [edit, sync, logout]) {
+    for (const button of [edit, pause, sync, logout]) {
       await expect(button).toHaveText("");
       await button.focus();
       await expect(page.getByRole("tooltip")).toHaveText((await button.getAttribute("aria-label"))!);
     }
+    await pause.focus();
+    await pause.press("Enter");
+    await expect(resume).toBeFocused();
+    await expect(page.getByRole("status").filter({ hasText: "Sincronização pausada" })).toBeVisible();
+    await expect(page.locator(".sync-status")).toHaveAttribute("data-sync", "paused");
+    await expect(sync).toHaveCount(0);
+    await page.screenshot({ path: `/tmp/feito-sync-paused-${narrow ? "narrow" : "wide"}.png`, fullPage: true });
+    await resume.click();
+    await expect(pause).toBeFocused();
+    await expect(page.locator(".sync-status")).toHaveAttribute("data-sync", "current");
+    await expect(sync).toBeEnabled();
     await edit.click();
     const form = page.getByRole("form", { name: "Editar conexão" });
     await expect(page.getByRole("dialog", { name: "Editar conexão" })).toBeVisible();

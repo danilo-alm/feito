@@ -19,6 +19,7 @@ const migrations = [
   readSql("migrations/010-accent-colors.sql"),
   readSql("migrations/011-more-accent-colors.sql"),
   readSql("migrations/012-custom-accent.sql"),
+  readSql("migrations/013-sync-pause.sql"),
 ];
 const fixture = readFileSync(new URL("../../../../scripts/sqlite-proof/relational-fixture.sql", import.meta.url), "utf8");
 const queries = Object.fromEntries(

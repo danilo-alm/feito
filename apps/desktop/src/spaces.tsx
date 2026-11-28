@@ -3,12 +3,13 @@ import { useT } from "@feito/ui/components/language";
 import { useState, type FormEvent } from "react";
 import { desktop } from "./data/native";
 import type { DesktopStatus } from "./data/desktop";
-import { IconChevronRight, IconEdit, IconGlobe, IconLogout, IconMonitor, IconPlus, IconRepeat, IconTrash } from "@feito/ui/components/icons";
+import { IconChevronRight, IconEdit, IconGlobe, IconLogout, IconMonitor, IconPause, IconPlay, IconPlus, IconRepeat, IconTrash } from "@feito/ui/components/icons";
 import { SettingsGroup, SettingsLinkRow, SettingsRow } from "@feito/ui/components/settings";
 import { Dialog } from "@feito/ui/components/ui";
 
-export function syncLabel(status: DesktopStatus) {
+function syncLabel(status: DesktopStatus) {
   const count = status.server?.pending ?? 0;
+  if (status.server?.syncPaused) return t("Sincronização pausada");
   if (status.sync === "login") return t("Entre para sincronizar");
   if (status.sync === "offline") return count ? t("Sem conexão · {0} na fila", [count]) : t("Sem conexão com o servidor");
   if (status.sync === "syncing") return t("Sincronizando…");
@@ -101,25 +102,37 @@ export function SpaceManager({ status, confirm }: { status: DesktopStatus; confi
           )} />
         {status.servers.map((server) => {
           const active = status.active === "server" && status.server?.origin === server.origin;
-          const queued = server.pending > 0 ? t(" · {0} na fila", [server.pending]) : "";
-          return active ? (
-            <SettingsRow key={server.origin} icon={<IconGlobe />} tone="brand"
-              label={<>{host(server.origin)}<span className="set-pill">{t("Em uso")}</span></>}
-              hint={<>{server.email} · <span role="status">{syncLabel(status)}{status.sync !== "offline" ? queued : ""}</span></>}
+          const summary = active ? syncLabel(status) : server.syncPaused ? t("Sincronização pausada") : "";
+          const queued = server.pending > 0 && (!active || server.syncPaused || status.sync !== "offline")
+            ? t(" · {0} na fila", [server.pending]) : "";
+          const pauseLabel = server.syncPaused ? t("Retomar sincronização") : t("Pausar sincronização");
+          return (
+            <SettingsRow key={server.origin} icon={<IconGlobe />} tone={active ? "brand" : undefined}
+              label={<>{host(server.origin)}{active && <span className="set-pill">{t("Em uso")}</span>}</>}
+              hint={<>{server.email}<span role="status">{summary ? ` · ${summary}` : ""}{queued}</span></>}
               control={<>
                 <button className="icon-btn" type="button" disabled={busy} aria-label={t("Editar conexão")} data-tooltip={t("Editar conexão")}
                   onClick={() => openForm(server)}><IconEdit /></button>
-                {status.sync === "login" ? (
-                <button className="btn" type="button" disabled={busy} onClick={() => openForm(server)}>{t("Entrar novamente")}</button>
-              ) : <>
-                <button className="icon-btn" type="button" disabled={busy || status.sync === "syncing"}
-                  aria-label={t("Sincronizar agora")} data-tooltip={t("Sincronizar agora")}
-                  onClick={() => void perform(desktop.sync)}><IconRepeat /></button>
-                <button className="icon-btn" type="button" disabled={busy} aria-label={t("Encerrar sessão")} data-tooltip={t("Encerrar sessão")}
-                  onClick={() => void perform(desktop.signOut)}><IconLogout /></button>
+                <button className="icon-btn" type="button" aria-disabled={busy} aria-label={pauseLabel} data-tooltip={pauseLabel}
+                  onClick={() => { if (!busy) void perform(() => desktop.setSyncPaused(server.origin, !server.syncPaused)); }}>
+                  {server.syncPaused ? <IconPlay /> : <IconPause />}
+                </button>
+                {!active ? (
+                  <button className="btn" type="button" disabled={busy}
+                    onClick={() => void perform(() => desktop.openServer(server.origin))}>{t("Abrir")}</button>
+                ) : status.sync === "login" ? (
+                  <button className="btn" type="button" disabled={busy} onClick={() => openForm(server)}>{t("Entrar novamente")}</button>
+                ) : <>
+                  {!server.syncPaused && (
+                    <button className="icon-btn" type="button" disabled={busy || status.sync === "syncing"}
+                      aria-label={t("Sincronizar agora")} data-tooltip={t("Sincronizar agora")}
+                      onClick={() => void perform(desktop.sync)}><IconRepeat /></button>
+                  )}
+                  <button className="icon-btn" type="button" disabled={busy} aria-label={t("Encerrar sessão")} data-tooltip={t("Encerrar sessão")}
+                    onClick={() => void perform(desktop.signOut)}><IconLogout /></button>
+                </>}
               </>}
-              </>}
-              extra={(status.blocked || (status.error && status.sync !== "login") || server.notice) && (
+              extra={active && (status.blocked || (status.error && status.sync !== "login") || server.notice) && (
                 <div className="set-status">
                   {status.error && status.sync !== "login" && <span>{status.error && translateMessage(status.error)}</span>}
                   {server.notice && <span role="status">{server.notice && translateMessage(server.notice)}</span>}
@@ -127,14 +140,6 @@ export function SpaceManager({ status, confirm }: { status: DesktopStatus; confi
                     onClick={() => discardRejected(status.blocked!)}>{t("Descartar alteração rejeitada")}</button></div>}
                 </div>
               )} />
-          ) : (
-            <SettingsRow key={server.origin} icon={<IconGlobe />} label={host(server.origin)} hint={`${server.email}${queued}`}
-              control={<>
-                <button className="icon-btn" type="button" disabled={busy} aria-label={t("Editar conexão")} data-tooltip={t("Editar conexão")}
-                  onClick={() => openForm(server)}><IconEdit /></button>
-                <button className="btn" type="button" disabled={busy}
-                  onClick={() => void perform(() => desktop.openServer(server.origin))}>{t("Abrir")}</button>
-              </>} />
           );
         })}
         <SettingsLinkRow onClick={() => { if (!busy) openForm(); }} tone="brand" icon={<IconPlus />}
