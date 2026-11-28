@@ -26,6 +26,7 @@ export const darkThemes: readonly DarkTheme[] = DARK_THEMES;
 
 export const isFeitoTheme = (theme: ThemeName) => theme.startsWith("feito-");
 export const isLightTheme = (theme: ThemeName): theme is LightTheme => (LIGHT_THEMES as readonly string[]).includes(theme);
+export const systemColorScheme = () => window.matchMedia("(prefers-color-scheme: dark)");
 
 /** Nome exibido; os temas do Feito passam pela tradução. */
 export const themeName = (theme: ThemeName, t: (text: string) => string) => isFeitoTheme(theme) ? t(NAMES[theme]) : NAMES[theme];

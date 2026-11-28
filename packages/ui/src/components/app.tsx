@@ -10,6 +10,7 @@ import { registerTagOrder } from "../client/colors";
 import { dismissFailedDrafts, useFailedDrafts, type FailedDraft } from "../client/composer";
 import { closeEditor, type InsertDefaults } from "../client/editor-store";
 import { cacheScope, clearCache, invalidate, useQuery } from "../client/store";
+import { systemColorScheme } from "../client/themes";
 import { isTemporaryTask, type MutationContext } from "../client/task-mutations";
 import type { Me, Navigation, Preferences, Theme } from "@feito/core/types";
 import { motionMs, useFlip } from "./motion";
@@ -30,11 +31,11 @@ export function applyTheme(appearance: Appearance | Theme, persist = true) {
   } catch {
     // Preferência visual opcional; o servidor continua com o valor salvo.
   }
-  const dark = value.theme === "dark" || (value.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const dark = value.theme === "dark" || (value.theme === "system" && systemColorScheme().matches);
   const root = document.documentElement;
   root.classList.toggle("dark", dark);
   root.dataset.theme = dark ? value.darkTheme ?? "feito-dark" : value.lightTheme ?? "feito-light";
-  if (value.accent === "violet") root.dataset.accent = "violet";
+  if (value.accent && value.accent !== "green") root.dataset.accent = value.accent;
   else delete root.dataset.accent;
 }
 
@@ -63,7 +64,7 @@ function useThemeSync(preferences: Preferences | undefined, persist: boolean) {
     const appearance: Appearance = { theme, lightTheme, darkTheme, accent };
     applyTheme(appearance, persist);
     if (theme !== "system") return;
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const media = systemColorScheme();
     const onChange = () => applyTheme(appearance, persist);
     media.addEventListener("change", onChange);
     return () => media.removeEventListener("change", onChange);

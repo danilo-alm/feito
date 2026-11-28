@@ -115,9 +115,9 @@ function moveInGrid(event: KeyboardEvent<HTMLDivElement>) {
   options[options.indexOf(event.target as HTMLButtonElement) + step]?.focus();
 }
 
-function PickerGrid<T extends string | null>({ label, options, selected, onSelect, children, className, autoFocus }: {
+export function PickerGrid<T extends string | null>({ label, options, selected, onSelect, children, className, autoFocus, showTooltips = true }: {
   label: string; options: { value: T; label: string }[]; selected: T; onSelect: (value: T) => void;
-  children: (value: T) => ReactNode; className: string; autoFocus?: boolean;
+  children: (value: T) => ReactNode; className: string; autoFocus?: boolean; showTooltips?: boolean;
 }) {
   const t = useT();
   const [focused, setFocused] = useState<T>();
@@ -127,7 +127,7 @@ function PickerGrid<T extends string | null>({ label, options, selected, onSelec
     <div className={className} role="group" aria-label={label} onKeyDown={moveInGrid}>
       {options.map((option) => (
         <button key={option.value ?? "auto"} type="button" aria-pressed={option.value === selected} aria-label={t(option.label)}
-          data-tooltip={t(option.label)} className="ps-choice" tabIndex={option.value === tabStop ? 0 : -1}
+          data-tooltip={showTooltips ? t(option.label) : undefined} className="ps-choice" tabIndex={option.value === tabStop ? 0 : -1}
           data-autofocus={(autoFocus && option.value === tabStop) || undefined}
           onFocus={() => setFocused(() => option.value)} onClick={() => onSelect(option.value)}>
           {children(option.value)}

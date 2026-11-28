@@ -16,6 +16,7 @@ const migrations = [
   readSql("migrations/007-parent-projects.sql"),
   readSql("migrations/008-task-comments.sql"),
   readSql("migrations/009-appearance.sql"),
+  readSql("migrations/010-accent-colors.sql"),
 ];
 const fixture = readFileSync(new URL("../../../../scripts/sqlite-proof/relational-fixture.sql", import.meta.url), "utf8");
 const queries = Object.fromEntries(
@@ -60,6 +61,27 @@ describe("shared offline SQLite workspace", () => {
       expect(second.selectValue("PRAGMA user_version")).toBe(migrations.length + 1);
     } finally {
       second.close();
+    }
+  });
+
+  it("preserves a saved accent when upgrading from the two-color palette", () => {
+    const previous = new sqlite.oo1.DB();
+    try {
+      migrateSqlite(previous, sqlite.version.libVersionNumber, migrations.slice(0, -1));
+      previous.exec(fixture);
+      previous.exec("UPDATE preferences SET accent = 'violet' WHERE space_id = 'remote' AND layer = 'working'");
+
+      migrateSqlite(previous, sqlite.version.libVersionNumber, migrations);
+      const readAccent = () => previous.selectValue(
+        "SELECT json_extract(workspace, '$.preferences.accent') FROM workspace_layers WHERE space_id = 'remote' AND layer = 'working'",
+      );
+      expect(readAccent()).toBe("violet");
+      previous.exec(`INSERT INTO save_workspace_layer (space_id, layer, document)
+        SELECT space_id, layer, json_set(workspace, '$.preferences.accent', 'cyan')
+        FROM workspace_layers WHERE space_id = 'remote' AND layer = 'working'`);
+      expect(readAccent()).toBe("cyan");
+    } finally {
+      previous.close();
     }
   });
 

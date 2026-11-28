@@ -5,18 +5,19 @@ import { loadLocale } from "../client/locale";
 
 import { LanguagePicker } from "./language-picker";
 import { Link } from "../navigation";
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { api } from "../client/api";
 import { cacheScope, setQueryData, useQuery } from "../client/store";
 import { setSyncIndicatorHidden, useSyncIndicatorHidden } from "../client/sync-indicator";
-import type { DarkTheme, LightTheme, Me, ProjectSummary, Preferences } from "@feito/core/types";
-import { chosenAccent, chosenDark, chosenLight, darkThemes, isLightTheme, lightThemes, themeName, type ThemeName } from "../client/themes";
+import { ACCENTS, type Accent, type DarkTheme, type LightTheme, type Me, type ProjectSummary, type Preferences } from "@feito/core/types";
+import { chosenAccent, chosenDark, chosenLight, darkThemes, isFeitoTheme, isLightTheme, lightThemes, systemColorScheme, themeName, type ThemeName } from "../client/themes";
 import { refreshProjects, useApp } from "./app";
 import {
-  IconChevronRight, IconClock, IconHash, IconMonitor, IconMoon, IconRepeat, IconSun,
+  IconCheck, IconChevronDown, IconChevronRight, IconClock, IconHash, IconLock, IconMonitor, IconMoon, IconRepeat, IconSun,
 } from "./icons";
+import { PickerGrid } from "./project-style";
 import { TimezonePicker } from "./timezone-picker";
-import { ReadFallback } from "./ui";
+import { Popover, ReadFallback } from "./ui";
 
 // Ajustes em grupos de linhas: ícone, nome e explicação à esquerda, controle à direita.
 // O web e o desktop montam a página com os mesmos grupos; o desktop acrescenta os espaços de trabalho.
@@ -166,6 +167,72 @@ function ThemeGrid({ label, themes, value, onPick }: {
   );
 }
 
+const accentNames: Record<Accent, string> = {
+  green: "Verde",
+  teal: "Verde-azulado",
+  cyan: "Ciano",
+  blue: "Azul",
+  indigo: "Índigo",
+  violet: "Violeta",
+  purple: "Roxo",
+  magenta: "Magenta",
+  pink: "Rosa",
+  red: "Vermelho",
+  orange: "Laranja",
+  amber: "Âmbar",
+};
+const accentOptions = ACCENTS.map((value) => ({ value, label: accentNames[value] }));
+
+function AccentPicker({ theme, value, onPick }: { theme: ThemeName; value: Accent; onPick: (accent: Accent) => void }) {
+  const t = useT();
+  const id = useId();
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const enabled = isFeitoTheme(theme);
+  useEffect(() => {
+    if (!enabled) setOpen(false);
+  }, [enabled]);
+
+  const pick = (accent: Accent) => {
+    setOpen(false);
+    anchor?.focus();
+    if (accent !== value) onPick(accent);
+  };
+  return (
+    <SettingsRow icon={<IconMonitor />} label={<span id={id}>{t("Cor de destaque")}</span>}
+      hint={<span id={`${id}-hint`}>{enabled
+        ? t("Personaliza botões, itens ativos e indicadores de foco.")
+        : t("O tema atual usa uma cor de destaque própria.")}</span>}
+      control={
+        <>
+          <button ref={setAnchor} type="button" className="select accent-trigger" disabled={!enabled}
+            aria-labelledby={enabled ? `${id} ${id}-value` : id} aria-describedby={`${id}-hint`}
+            aria-haspopup="dialog" aria-expanded={enabled && open} onClick={() => setOpen(!open)}>
+            <span className="accent-swatch" data-theme={theme} data-accent={enabled ? value : undefined} aria-hidden="true" />
+            {enabled ? <><span id={`${id}-value`}>{t(accentNames[value])}</span><IconChevronDown /></> : <IconLock />}
+          </button>
+          <Popover anchor={anchor} open={enabled && open} onClose={() => setOpen(false)}
+            label={t("Cor de destaque")} align="end" width={216}>
+            <PickerGrid className="accent-picker" label={t("Cor de destaque")} options={accentOptions} selected={value}
+              onSelect={pick} autoFocus showTooltips={false}>
+              {(accent) => (
+                <span className="accent-swatch" data-theme={theme} data-accent={accent} aria-hidden="true">
+                  {accent === value && <IconCheck />}
+                </span>
+              )}
+            </PickerGrid>
+          </Popover>
+        </>
+      } />
+  );
+}
+
+function subscribeSystemColorScheme(onChange: () => void) {
+  const media = systemColorScheme();
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
 /** Tema: segue o sistema com um tema claro e um escuro, ou fica fixo em um tema. */
 function ThemeSettings() {
   const t = useT();
@@ -175,16 +242,15 @@ function ThemeSettings() {
   const follow = preferences.theme === "system";
   const light = chosenLight(preferences);
   const dark = chosenDark(preferences);
-  const accent = chosenAccent(preferences);
-  const systemDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const current = preferences.theme === "dark" ? dark : light;
+  const systemDark = useSyncExternalStore(subscribeSystemColorScheme, () => systemColorScheme().matches, () => false);
+  const current = (follow ? systemDark : preferences.theme === "dark") ? dark : light;
   const pickFixed = (theme: ThemeName) => void save(isLightTheme(theme) ? { theme: "light", lightTheme: theme } : { theme: "dark", darkTheme: theme });
   return (
     <>
       <SettingsRow icon={<IconMonitor />} label={t("Seguir o sistema")} labelFor="theme-follow"
         hint={t("Usa um tema quando o sistema estiver claro e outro quando estiver escuro.")}
         control={<button id="theme-follow" type="button" role="switch" aria-checked={follow} className={`switch${follow ? " on" : ""}`}
-          onClick={() => void save({ theme: follow ? (systemDark() ? "dark" : "light") : "system" })} />}
+          onClick={() => void save({ theme: follow ? (systemDark ? "dark" : "light") : "system" })} />}
         extra={follow ? (
           <div className="theme-groups">
             <div className="theme-group-h"><IconSun />{t("Quando o sistema estiver claro")}</div>
@@ -197,18 +263,7 @@ function ThemeSettings() {
             <ThemeGrid label={t("Tema")} themes={[...lightThemes, ...darkThemes]} value={current} onPick={pickFixed} />
           </div>
         )} />
-      <SettingsRow icon={<IconMonitor />} label={t("Cor de destaque")}
-        hint={t("Botões, item ativo e foco nos temas do Feito. Os temas de editor usam a cor deles.")}
-        control={
-          <div className="seg compact" role="radiogroup" aria-label={t("Cor de destaque")}>
-            {(["green", "violet"] as const).map((value) => (
-              <button key={value} type="button" role="radio" aria-checked={accent === value} className={`seg-o${accent === value ? " on" : ""}`}
-                onClick={() => void save({ accent: value })}>
-                <span className={`accent-dot accent-${value}`} aria-hidden="true" />{t(value === "green" ? "Verde" : "Violeta")}
-              </button>
-            ))}
-          </div>
-        } />
+      <AccentPicker theme={current} value={chosenAccent(preferences)} onPick={(accent) => void save({ accent })} />
     </>
   );
 }

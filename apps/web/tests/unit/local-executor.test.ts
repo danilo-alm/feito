@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { handleLocal, newWorkspace, type LocalRequest, type Workspace } from "@feito/core/product/local-executor";
+import { ACCENTS } from "@feito/core/types";
 
 // Dados sintéticos: o executor local roda sobre um espaço em memória, sem banco.
 const missing = "4d8f3a52-0f9e-4b9c-9d54-2a6d5b0f7e11";
@@ -49,7 +50,10 @@ describe("executor local: rotas gerais", () => {
     expect((await call("PATCH", "/preferences", { lightTheme: "solarized-light", darkTheme: "catppuccin-mocha", accent: "violet" })).body)
       .toMatchObject({ lightTheme: "solarized-light", darkTheme: "catppuccin-mocha", accent: "violet" });
     expect(code(await call("PATCH", "/preferences", { darkTheme: "feito-light" }))).toBe("VALIDATION_FAILED");
-    expect(code(await call("PATCH", "/preferences", { accent: "red" }))).toBe("VALIDATION_FAILED");
+    for (const accent of ACCENTS) {
+      expect((await call("PATCH", "/preferences", { accent })).body).toMatchObject({ accent });
+    }
+    expect(code(await call("PATCH", "/preferences", { accent: "#ff0000" }))).toBe("VALIDATION_FAILED");
     expect((await call("PATCH", "/preferences", { todayTimeline: false })).body).toMatchObject({ todayTimeline: false });
   });
 

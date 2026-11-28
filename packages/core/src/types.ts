@@ -12,7 +12,9 @@ export const DARK_THEMES = [
 ] as const;
 export type LightTheme = typeof LIGHT_THEMES[number];
 export type DarkTheme = typeof DARK_THEMES[number];
-export type Accent = "green" | "violet";
+/** Cores de destaque dos temas do Feito; verde é o padrão. */
+export const ACCENTS = ["green", "teal", "cyan", "blue", "indigo", "violet", "purple", "magenta", "pink", "red", "orange", "amber"] as const;
+export type Accent = (typeof ACCENTS)[number];
 export type Layout = "list" | "board" | "calendar" | "table";
 export type SortMode = "manual" | "date" | "priority";
 

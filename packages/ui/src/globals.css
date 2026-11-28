@@ -150,9 +150,30 @@ html[data-theme="solarized-dark"],[data-theme="solarized-dark"]{
   --proj-cereja:#E5534F;--proj-vermelho:#E5534F;--proj-coral:#E5534F;--proj-salmao:#E0692F;--proj-laranja:#E0692F;--proj-terracota:#E0692F;--proj-ambar:#B58900;--proj-amarelo:#B58900;--proj-oliva:#859900;--proj-limao:#859900;--proj-verde:#859900;--proj-floresta:#859900;--proj-menta:#2AA198;--proj-turquesa:#2AA198;--proj-petroleo:#2AA198;--proj-ceu:#2AA198;--proj-azul:#3A9BE0;--proj-marinho:#3A9BE0;--proj-indigo:#8C90DA;--proj-uva:#8C90DA;--proj-violeta:#8C90DA;--proj-lavanda:#8C90DA;--proj-magenta:#E15A9E;--proj-rosa:#E15A9E;--proj-marrom:#E0692F;--proj-taupe:#839496;--proj-grafite:#839496;--proj-cinza:#839496;
   color-scheme:dark;
 }
-html[data-accent="violet"]:not(.dark):not([data-theme]),html[data-accent="violet"][data-theme="feito-light"]{--accent:#6246EA;--accent-hover:#4E35D1;--accent-text:#5236D8;--on-accent:#FFFFFF;--focus:#5236D8}
-html[data-accent="violet"].dark:not([data-theme]),html[data-accent="violet"][data-theme="feito-dark"]{--accent:#9D8CFF;--accent-hover:#B1A3FF;--accent-text:#B1A3FF;--on-accent:#17102E;--focus:#B1A3FF}
-html[data-accent="violet"][data-theme="feito-black"]{--accent:#B4A6FF;--accent-hover:#C9BFFF;--accent-text:#BEB2FF;--on-accent:#120B2A;--focus:#BEB2FF}
+/* As mesmas cores pintam o tema ativo e as amostras do seletor. */
+[data-accent="violet"][data-theme="feito-light"]{--accent:#6246EA;--accent-hover:#4E35D1;--accent-text:#5236D8;--on-accent:#FFFFFF;--focus:#5236D8}
+[data-accent="violet"][data-theme="feito-dark"]{--accent:#9D8CFF;--accent-hover:#B1A3FF;--accent-text:#B1A3FF;--on-accent:#17102E;--focus:#B1A3FF}
+[data-accent="violet"][data-theme="feito-black"]{--accent:#B4A6FF;--accent-hover:#C9BFFF;--accent-text:#BEB2FF;--on-accent:#120B2A;--focus:#BEB2FF}
+[data-accent="teal"][data-theme="feito-light"]{--accent:#0F766E;--accent-hover:#115E59;--accent-text:#115E59;--on-accent:#FFFFFF;--focus:#115E59}
+[data-accent="teal"]:is([data-theme="feito-dark"],[data-theme="feito-black"]){--accent:#2DD4BF;--accent-hover:#5EEAD4;--accent-text:#5EEAD4;--on-accent:#042F2E;--focus:#5EEAD4}
+[data-accent="cyan"][data-theme="feito-light"]{--accent:#0E7490;--accent-hover:#155E75;--accent-text:#155E75;--on-accent:#FFFFFF;--focus:#155E75}
+[data-accent="cyan"]:is([data-theme="feito-dark"],[data-theme="feito-black"]){--accent:#22D3EE;--accent-hover:#67E8F9;--accent-text:#67E8F9;--on-accent:#083344;--focus:#67E8F9}
+[data-accent="blue"][data-theme="feito-light"]{--accent:#2563EB;--accent-hover:#1D4ED8;--accent-text:#1D4ED8;--on-accent:#FFFFFF;--focus:#1D4ED8}
+[data-accent="blue"]:is([data-theme="feito-dark"],[data-theme="feito-black"]){--accent:#60A5FA;--accent-hover:#93C5FD;--accent-text:#93C5FD;--on-accent:#172554;--focus:#93C5FD}
+[data-accent="indigo"][data-theme="feito-light"]{--accent:#4F46E5;--accent-hover:#4338CA;--accent-text:#4F46E5;--on-accent:#FFFFFF;--focus:#4F46E5}
+[data-accent="indigo"]:is([data-theme="feito-dark"],[data-theme="feito-black"]){--accent:#818CF8;--accent-hover:#A5B4FC;--accent-text:#A5B4FC;--on-accent:#1E1B4B;--focus:#A5B4FC}
+[data-accent="purple"][data-theme="feito-light"]{--accent:#9333EA;--accent-hover:#7E22CE;--accent-text:#7E22CE;--on-accent:#FFFFFF;--focus:#7E22CE}
+[data-accent="purple"]:is([data-theme="feito-dark"],[data-theme="feito-black"]){--accent:#C084FC;--accent-hover:#D8B4FE;--accent-text:#D8B4FE;--on-accent:#3B0764;--focus:#D8B4FE}
+[data-accent="magenta"][data-theme="feito-light"]{--accent:#C026D3;--accent-hover:#A21CAF;--accent-text:#A21CAF;--on-accent:#FFFFFF;--focus:#A21CAF}
+[data-accent="magenta"]:is([data-theme="feito-dark"],[data-theme="feito-black"]){--accent:#E879F9;--accent-hover:#F0ABFC;--accent-text:#F0ABFC;--on-accent:#4A044E;--focus:#F0ABFC}
+[data-accent="pink"][data-theme="feito-light"]{--accent:#DB2777;--accent-hover:#BE185D;--accent-text:#BE185D;--on-accent:#FFFFFF;--focus:#BE185D}
+[data-accent="pink"]:is([data-theme="feito-dark"],[data-theme="feito-black"]){--accent:#F472B6;--accent-hover:#F9A8D4;--accent-text:#F9A8D4;--on-accent:#500724;--focus:#F9A8D4}
+[data-accent="red"][data-theme="feito-light"]{--accent:#E11D48;--accent-hover:#BE123C;--accent-text:#BE123C;--on-accent:#FFFFFF;--focus:#BE123C}
+[data-accent="red"]:is([data-theme="feito-dark"],[data-theme="feito-black"]){--accent:#FB7185;--accent-hover:#FDA4AF;--accent-text:#FDA4AF;--on-accent:#4C0519;--focus:#FDA4AF}
+[data-accent="orange"][data-theme="feito-light"]{--accent:#C2410C;--accent-hover:#9A3412;--accent-text:#9A3412;--on-accent:#FFFFFF;--focus:#9A3412}
+[data-accent="orange"]:is([data-theme="feito-dark"],[data-theme="feito-black"]){--accent:#FB923C;--accent-hover:#FDBA74;--accent-text:#FDBA74;--on-accent:#431407;--focus:#FDBA74}
+[data-accent="amber"][data-theme="feito-light"]{--accent:#B45309;--accent-hover:#92400E;--accent-text:#92400E;--on-accent:#FFFFFF;--focus:#92400E}
+[data-accent="amber"]:is([data-theme="feito-dark"],[data-theme="feito-black"]){--accent:#FBBF24;--accent-hover:#FCD34D;--accent-text:#FCD34D;--on-accent:#451A03;--focus:#FCD34D}
 :root{
   /* Derivados: tintas por alfa a partir da cor de cada tema. */
   --accent-soft:color-mix(in srgb,var(--accent) var(--tint),transparent);
@@ -745,8 +766,14 @@ button.t-origin:hover{background:var(--hover)}
 .tp-row{display:flex;align-items:center;gap:4px}
 .tp-row b{width:7px;height:7px;flex:none;border-radius:50%;border:1.5px solid}
 .tp-row i{flex:1;height:4px;border-radius:2px;background:var(--line)}
-.accent-dot{width:12px;height:12px;border-radius:50%;flex:none}
-.accent-green{background:#3DD68C}.accent-violet{background:#9D8CFF}
+.accent-trigger{min-width:0;min-height:44px;max-width:100%;gap:8px}
+.accent-trigger:not(:disabled):hover,.accent-trigger[aria-expanded=true]{background:var(--hover)}
+.accent-trigger:disabled{background:var(--surface-sunken);cursor:not-allowed}
+.accent-trigger .accent-swatch{width:16px;height:16px}
+.accent-picker{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:10px}
+.accent-swatch{display:grid;place-items:center;width:26px;height:26px;flex:none;border-radius:50%;background:var(--accent);color:var(--on-accent)}
+.accent-swatch svg{width:16px;height:16px;stroke-width:2.5}
+.accent-picker .ps-choice[aria-pressed=true]{background:var(--accent-soft)}
 .seg.compact{display:inline-grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;padding:3px;border-radius:10px}
 .seg.compact .seg-o{flex-direction:row;gap:6px;min-height:34px;padding:0 12px;border-radius:7px;font-weight:600}
 .seg.compact .seg-o svg{width:15px;height:15px;stroke-width:2}

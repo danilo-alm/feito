@@ -19,6 +19,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../../../../packages/core/sqlite/migrations/007-parent-projects.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/008-task-comments.sql"),
     include_str!("../../../../../packages/core/sqlite/migrations/009-appearance.sql"),
+    include_str!("../../../../../packages/core/sqlite/migrations/010-accent-colors.sql"),
 ];
 const LEGACY_DATABASE: &str = "feito.sqlite3";
 const DATABASE: &str = "feito-relational.sqlite3";
