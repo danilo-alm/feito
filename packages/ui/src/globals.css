@@ -320,8 +320,8 @@ h1,h2,h3,p{margin:0}
 /* Seções em cartões: título no topo do cartão, tarefas separadas por linhas finas por dentro. */
 /* A margem esquerda do cartão guarda o puxador de arrastar e a seta das subtarefas, que ficam à esquerda da bolinha;
    o título da seção recua até a margem normal. */
-.task-group,.list-group{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0 14px 0 34px;margin:0 0 16px;box-shadow:var(--shadow)}
-.task-group>.sec-h,.list-group>.sec-h,.list-group+.list-group .sec-h{padding:12px 2px 10px;margin-left:-20px}
+.task-group,.list-group{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0 14px 0 38px;margin:0 0 16px;box-shadow:var(--shadow)}
+.task-group>.sec-h,.list-group>.sec-h,.list-group+.list-group .sec-h{padding:12px 2px 10px;margin-left:-24px}
 /* Sem puxador (toque, celular, coluna estreita da agenda): margem curta dos dois lados. */
 @media (hover:none),(pointer:coarse){.task-group,.list-group{padding-left:14px}.task-group>.sec-h,.list-group>.sec-h,.list-group+.list-group .sec-h{margin-left:0}}
 .tl-side .task-group{padding-left:14px}.tl-side .task-group>.sec-h{margin-left:0}.tl-side .grip{display:none}
@@ -1291,6 +1291,7 @@ html.dark .tooltip{background:var(--surface-raised);color:var(--text)}
 @media (pointer:fine){.tl-untimed .task{cursor:grab}}
 html.tl-dragging,html.tl-dragging *{cursor:grabbing!important;user-select:none}
 .tl-grid.drag-over .tl-block{pointer-events:none}
+.tl-untimed .task.tl-source{opacity:.45}
 .tl-drop{position:absolute;left:var(--tl-gutter);right:4px;z-index:3;display:flex;align-items:center;gap:8px;min-height:40px;box-sizing:border-box;padding:0 10px;
   border-radius:10px;border:1.5px dashed var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));pointer-events:none;--proj:var(--accent-text)}
 .tl-drop-title{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--text)}

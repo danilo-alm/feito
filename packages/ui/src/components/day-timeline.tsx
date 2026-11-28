@@ -132,6 +132,7 @@ function useScheduleDrag({ tasks, grid, range, onDrop }: {
         if (Math.hypot(point.x - start.x, point.y - start.y) < DRAG_THRESHOLD) return;
         active = true;
         document.documentElement.classList.add("tl-dragging");
+        row.classList.add("tl-source");
         getSelection()?.removeAllRanges();
       }
       moveEvent.preventDefault();
@@ -145,6 +146,7 @@ function useScheduleDrag({ tasks, grid, range, onDrop }: {
       window.removeEventListener("keydown", key, true);
       cancelAnimationFrame(frame);
       document.documentElement.classList.remove("tl-dragging");
+      row.classList.remove("tl-source");
       if (!active) return;
       swallowNextClick();
       setDrag(null);

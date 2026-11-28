@@ -60,6 +60,14 @@ for (const [name, viewport] of [["deitado", { width: 1180, height: 820 }], ["em 
 
 test("com mouse, as ações continuam aparecendo ao passar sobre a tarefa", async ({ page }) => {
   await openTasks(page);
+  // Na coluna estreita da Agenda, só o menu aparece.
+  const untimed = page.getByRole("region", { name: "Sem horário" }).locator(".task").filter({ hasText: titles[0] });
+  await untimed.hover();
+  await expect(untimed.getByRole("button", { name: `Ações de “${titles[0]}”` })).toBeVisible();
+  await expect(untimed.getByRole("button", { name: `Editar “${titles[0]}”` })).toBeHidden();
+
+  await page.goto("/#/entrada");
+  await page.mouse.move(0, 0);
   const task = row(page, titles[0]);
   await expect(task.locator(".t-acts")).toHaveCSS("opacity", "0");
   await task.hover();

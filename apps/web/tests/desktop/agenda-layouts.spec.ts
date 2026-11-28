@@ -64,13 +64,12 @@ test("Hoje abre na Agenda, troca entre os layouts e guarda a escolha na conta", 
   await expect.poll(() => savedPreferences(page)).toMatchObject({ todayLayout: "board", todayTimeline: false });
   await page.screenshot({ path: test.info().outputPath("hoje-painel.png") });
 
-  await pickLayout(page, "Painel", "Calendário");
-  await expect(page.locator(".pcal-week[data-days='1']")).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "Atrasadas" })).toContainText("Pagar a conta de luz");
-  await expect(page.locator(".pcal-hours .pcal-chip")).toContainText("Reunião de obra");
-  await page.screenshot({ path: test.info().outputPath("hoje-calendario.png") });
+  // Hoje não tem Calendário: a Agenda já mostra o dia por horário.
+  await page.getByRole("button", { name: "Mostrar: Painel" }).click();
+  await expect(page.getByRole("radiogroup", { name: "Layout" }).getByRole("radio")).toHaveText(["Agenda", "Lista", "Painel", "Tabela"]);
+  await page.keyboard.press("Escape");
 
-  await pickLayout(page, "Calendário", "Tabela");
+  await pickLayout(page, "Painel", "Tabela");
   await expect(page.getByRole("table", { name: "Tarefas" }).getByRole("rowgroup", { name: "Atrasadas" })).toContainText("Pagar a conta de luz");
   await page.screenshot({ path: test.info().outputPath("hoje-tabela.png") });
 
@@ -138,7 +137,7 @@ test.describe("agendas no celular", () => {
 
     await page.getByRole("button", { name: "Mostrar: Lista" }).click();
     const sheet = page.getByRole("dialog", { name: "Visualização" });
-    await expect(sheet.getByRole("radio")).toHaveText(["Agenda", "Lista", "Painel", "Calendário"]);
+    await expect(sheet.getByRole("radio")).toHaveText(["Agenda", "Lista", "Painel"]);
     await expect(sheet.getByRole("radio", { name: "Lista" })).toBeChecked();
     await sheet.getByRole("radio", { name: "Lista" }).click();
     await page.screenshot({ path: test.info().outputPath("celular-tabela-salva.png") });
