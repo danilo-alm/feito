@@ -8,6 +8,7 @@ import { swallowNextClick } from "./drag-pointer";
 import { FlatGroup } from "./flat-list";
 import { IconFlag, IconRepeat } from "./icons";
 import { useT } from "./language";
+import { flipFrom } from "./motion";
 import { ProjectGlyph } from "./project-style";
 import { Checkbox, type TaskActions } from "./task-row";
 
@@ -68,7 +69,9 @@ function place(tasks: TaskItem[]): Placed[] {
   return placed;
 }
 
-type Drag = { task: TaskItem; x: number; y: number; minutes: number | null };
+// A ausência de destino cancela o arraste; "untimed" remove só o horário.
+type DropTarget = number | "untimed" | null;
+type Drag = { task: TaskItem; x: number; y: number; target: DropTarget };
 
 /** Rolagem mais próxima (a página rola dentro do conteúdo, não na janela). */
 function scrollerOf(node: HTMLElement | null) {
@@ -80,40 +83,52 @@ function scrollerOf(node: HTMLElement | null) {
 }
 
 /**
- * Arrastar uma tarefa sem horário até a régua define o horário, de 15 em 15 minutos.
+ * A régua define o horário em passos de 15 minutos. A lista Sem horário o remove.
  * Só com mouse ou caneta: no toque, o toque prolongado abre o menu e o horário fica no detalhe.
  */
-function useScheduleDrag({ tasks, grid, range, onDrop }: {
-  tasks: TaskItem[]; grid: RefObject<HTMLDivElement | null>;
-  range: { first: number; last: number }; onDrop: (task: TaskItem, time: string) => void;
+function useScheduleDrag({ tasks, grid, untimedZone, range, mobile, onDrop }: {
+  tasks: TaskItem[]; grid: RefObject<HTMLDivElement | null>; untimedZone: RefObject<HTMLDivElement | null>;
+  range: { first: number; last: number }; mobile: boolean; onDrop: (task: TaskItem, time: string | null) => void;
 }) {
   const [drag, setDrag] = useState<Drag | null>(null);
+  const cancelDrag = useRef<(() => void) | null>(null);
+  useEffect(() => () => cancelDrag.current?.(), [mobile]);
   const latest = useRef({ tasks, range, onDrop });
   latest.current = { tasks, range, onDrop };
 
-  const minutesAt = (x: number, y: number) => {
+  const targetAt = (x: number, y: number, offset: number, canClearTime: boolean): DropTarget => {
+    const zone = canClearTime ? untimedZone.current?.getBoundingClientRect() : null;
+    if (zone && x >= zone.left && x <= zone.right && y >= zone.top && y <= zone.bottom) return "untimed";
+
     const rect = grid.current?.getBoundingClientRect();
     if (!rect || x < rect.left || x > rect.right || y < rect.top - HOUR / 2 || y > rect.bottom) return null;
     const { first, last } = latest.current.range;
-    const raw = first * 60 + (y - rect.top) / HOUR * 60;
+    const raw = first * 60 + (y - rect.top - offset) / HOUR * 60;
     const snapped = Math.round(raw / SNAP) * SNAP;
     return Math.min(Math.max(snapped, first * 60), Math.min(24 * 60 - SNAP, (last + 1) * 60 - SNAP));
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
-    if (event.button !== 0 || event.pointerType === "touch") return;
+    if (event.button !== 0 || event.pointerType === "touch" || cancelDrag.current) return;
     const target = event.target as Element;
     if (target.closest(".t-acts, .chk, .t-meta button, .t-origin, input, textarea, [contenteditable=true]")) return;
-    const row = target.closest<HTMLElement>(".task[data-task-id]");
+    const row = target.closest<HTMLElement>(".task[data-task-id], .tl-block[data-task-id]");
     const task = row && latest.current.tasks.find((item) => item.id === row.dataset.taskId);
     if (!task || task.status !== "active") return;
     const start = { x: event.clientX, y: event.clientY };
+    const pointerId = event.pointerId;
+    const rect = grid.current?.getBoundingClientRect();
+    if (!rect) return;
+    // Mantém o ponto de pega do bloco em relação à linha do horário original.
+    const offset = task.dueTime ? start.y - rect.top - (minutesOf(task.dueTime) - latest.current.range.first * 60) / 60 * HOUR : 0;
     let active = false;
+    let cancelled = false;
     let point = start;
     let frame = 0;
     const scroller = scrollerOf(grid.current);
 
-    const update = () => setDrag({ task, x: point.x, y: point.y, minutes: minutesAt(point.x, point.y) });
+    const dropTarget = () => targetAt(point.x, point.y, offset, task.dueTime !== null);
+    const update = () => setDrag({ task, x: point.x, y: point.y, target: dropTarget() });
     // Perto da borda da área rolável, a página rola para alcançar as horas fora da tela.
     const scroll = () => {
       frame = 0;
@@ -127,6 +142,7 @@ function useScheduleDrag({ tasks, grid, range, onDrop }: {
       frame = requestAnimationFrame(scroll);
     };
     const move = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId || cancelled) return;
       point = { x: moveEvent.clientX, y: moveEvent.clientY };
       if (!active) {
         if (Math.hypot(point.x - start.x, point.y - start.y) < DRAG_THRESHOLD) return;
@@ -139,32 +155,48 @@ function useScheduleDrag({ tasks, grid, range, onDrop }: {
       update();
       if (!frame) frame = requestAnimationFrame(scroll);
     };
+    const clearPreview = () => {
+      active = false;
+      cancelAnimationFrame(frame);
+      document.documentElement.classList.remove("tl-dragging");
+      row.classList.remove("tl-source");
+      setDrag(null);
+    };
     const finish = (drop: boolean) => {
+      cancelDrag.current = null;
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
       window.removeEventListener("keydown", key, true);
-      cancelAnimationFrame(frame);
-      document.documentElement.classList.remove("tl-dragging");
-      row.classList.remove("tl-source");
+      if (active || cancelled) swallowNextClick();
       if (!active) return;
-      swallowNextClick();
-      setDrag(null);
-      const minutes = drop ? minutesAt(point.x, point.y) : null;
-      if (minutes !== null) latest.current.onDrop(task, clock(minutes));
+      clearPreview();
+      const target = drop ? dropTarget() : null;
+      if (target === null) return;
+      const time = target === "untimed" ? null : clock(target);
+      const current = latest.current.tasks.find((item) => item.id === task.id);
+      if (current?.status === "active" && current.dueTime !== time) latest.current.onDrop(current, time);
     };
-    const up = () => finish(true);
-    const cancel = () => finish(false);
+    const up = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
+      point = { x: upEvent.clientX, y: upEvent.clientY };
+      finish(true);
+    };
+    const cancel = (cancelEvent: PointerEvent) => {
+      if (cancelEvent.pointerId === pointerId) finish(false);
+    };
     const key = (keyEvent: KeyboardEvent) => {
       if (keyEvent.key !== "Escape" || !active) return;
       keyEvent.preventDefault();
       keyEvent.stopPropagation();
-      finish(false);
+      cancelled = true;
+      clearPreview();
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
     window.addEventListener("keydown", key, true);
+    cancelDrag.current = () => finish(false);
   };
 
   return { drag, onPointerDown };
@@ -216,14 +248,22 @@ export function DayTimeline({ reference, timed, untimed, overdue, actions, mobil
   const hours = Array.from({ length: last - first + 1 }, (_, index) => first + index);
   const top = (minutes: number) => (minutes - first * 60) / 60 * HOUR;
   const grid = useRef<HTMLDivElement>(null);
+  const untimedZone = useRef<HTMLDivElement>(null);
+  const slotPreview = useRef<HTMLDivElement>(null);
+  const pointerPreview = useRef<HTMLDivElement>(null);
   const { drag, onPointerDown } = useScheduleDrag({
-    tasks: untimed, grid, range: { first, last },
-    onDrop: (task, time) => void actions.reschedule(task, task.dueDate ?? reference, time),
+    tasks: [...timed, ...untimed], grid, untimedZone, range: { first, last }, mobile,
+    onDrop: (task, time) => {
+      flipFrom(task.id, time === null ? pointerPreview.current : slotPreview.current ?? pointerPreview.current);
+      void actions.reschedule(task, task.dueDate ?? reference, time);
+    },
   });
+  const minutes = typeof drag?.target === "number" ? drag.target : null;
+  const overUntimed = drag?.target === "untimed";
   const side = (
     <>
       {overdue.length > 0 && <FlatGroup title={t("Atrasadas")} late count={overdue.length} tasks={overdue} actions={actions} />}
-      <div className="tl-untimed" onPointerDown={onPointerDown}>
+      <div ref={untimedZone} className={`tl-untimed${overUntimed ? " drag-over" : ""}`} onPointerDown={onPointerDown}>
         <FlatGroup title={t("Sem horário")} count={untimed.length} tasks={untimed} actions={actions}
           empty={<p className="hint tl-empty">{t("Nada sem horário hoje.")}</p>} />
       </div>
@@ -259,7 +299,7 @@ export function DayTimeline({ reference, timed, untimed, overdue, actions, mobil
     <div className="tl-wrap">
       <section className="tl-day" aria-label={t("Com horário")}>
         <h2 className="tl-h">{t("Com horário")}<span className="count">{timed.length}</span></h2>
-        <div ref={grid} className={`tl-grid${drag ? " drag-over" : ""}`} style={{ height: hours.length * HOUR }}>
+        <div ref={grid} className={`tl-grid${drag ? " drag-over" : ""}`} style={{ height: hours.length * HOUR }} onPointerDown={onPointerDown}>
           {hours.map((hour) => (
             <div key={hour} className="tl-hour" style={{ top: (hour - first) * HOUR }} aria-hidden="true">
               <span>{String(hour).padStart(2, "0")}:00</span><i />
@@ -274,9 +314,9 @@ export function DayTimeline({ reference, timed, untimed, overdue, actions, mobil
             <TimelineBlock key={task.id} task={task} actions={actions} compact={lanes > 1}
               style={{ top: top(start) + 2, left: `calc(var(--tl-gutter) + (100% - var(--tl-gutter)) * ${lane} / ${lanes})`, width: `calc((100% - var(--tl-gutter)) / ${lanes} - 4px)`, position: "absolute" }} />
           ))}
-          {drag?.minutes != null && (
-            <div className="tl-drop" style={{ top: top(drag.minutes) + 2 }} aria-hidden="true">
-              <span className="tl-time">{clock(drag.minutes)}</span><span className="tl-drop-title">{drag.task.title}</span>
+          {drag && minutes !== null && (
+            <div ref={slotPreview} className="tl-drop" style={{ transform: `translateY(${top(minutes)}px)` }} aria-hidden="true">
+              <span className="tl-time">{clock(minutes)}</span><span className="tl-drop-title">{drag.task.title}</span>
             </div>
           )}
         </div>
@@ -284,11 +324,11 @@ export function DayTimeline({ reference, timed, untimed, overdue, actions, mobil
       </section>
       <div className="tl-side">{side}</div>
       {drag && (
-        <div className="tl-ghost" style={{ left: drag.x, top: drag.y }} aria-hidden="true">
-          {drag.minutes != null && <span className="tl-time">{clock(drag.minutes)}</span>}<span>{drag.task.title}</span>
+        <div ref={pointerPreview} className="tl-ghost" style={{ left: drag.x, top: drag.y }} aria-hidden="true">
+          {minutes !== null && <span className="tl-time">{clock(minutes)}</span>}<span>{drag.task.title}</span>
         </div>
       )}
-      <p className="sr-only" aria-live="polite">{drag?.minutes != null ? t("Horário: {0}", [clock(drag.minutes)]) : ""}</p>
+      <p className="sr-only" aria-live="polite">{minutes !== null ? t("Horário: {0}", [clock(minutes)]) : overUntimed ? t("Sem horário") : ""}</p>
     </div>
   );
 }

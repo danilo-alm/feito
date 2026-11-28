@@ -1315,12 +1315,17 @@ html.dark .tooltip{background:var(--surface-raised);color:var(--text)}
 .tl-side{display:flex;flex-direction:column;gap:0}
 /* Coluna estreita: na tarefa só aparece o "⋯" (editar e data ficam no menu). Arrastar até a régua define o horário. */
 .tl-side .t-acts .desktop-only{display:none}
-@media (pointer:fine){.tl-untimed .task{cursor:grab}}
+@media (pointer:fine){
+  .tl-untimed .task,.tl-grid .tl-block:not(.done-t),.tl-grid .tl-block:not(.done-t) .tl-title{cursor:grab}
+}
 html.tl-dragging,html.tl-dragging *{cursor:grabbing!important;user-select:none}
 .tl-grid.drag-over .tl-block{pointer-events:none}
-.tl-untimed .task.tl-source{opacity:.45}
-.tl-drop{position:absolute;left:var(--tl-gutter);right:4px;z-index:3;display:flex;align-items:center;gap:8px;min-height:40px;box-sizing:border-box;padding:0 10px;
-  border-radius:10px;border:1.5px dashed var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));pointer-events:none;--proj:var(--accent-text)}
+.tl-untimed .task.tl-source,.tl-grid .tl-block.tl-source{opacity:.45}
+.tl-untimed.drag-over>.task-group{outline:2px dashed var(--accent);outline-offset:2px}
+.tl-drop{position:absolute;top:2px;left:var(--tl-gutter);right:4px;z-index:3;display:flex;align-items:center;gap:8px;min-height:40px;box-sizing:border-box;padding:0 10px;
+  border-radius:10px;border:1.5px dashed var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));pointer-events:none;--proj:var(--accent-text);
+  transition:transform var(--dur-fast) var(--ease-out),opacity var(--dur-fast) var(--ease-out)}
+@starting-style{.tl-drop{opacity:0}}
 .tl-drop-title{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--text)}
 .tl-ghost{position:fixed;z-index:60;display:flex;align-items:center;gap:8px;max-width:260px;padding:7px 12px;border-radius:10px;transform:translate(12px,-50%);
   background:var(--surface-raised);border:1px solid var(--overlay-line);box-shadow:var(--lift);font-size:13.5px;pointer-events:none;--proj:var(--accent-text)}
