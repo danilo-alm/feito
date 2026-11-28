@@ -16,12 +16,13 @@ const INBOX_LAYOUT_HELP = "A Entrada não tem seções para virar colunas.";
 /** Onde o menu aparece: um projeto, a Entrada ou uma agenda (Hoje e Em breve, agrupadas por dia e só com o layout). */
 export type ViewScope = "project" | "inbox" | "agenda";
 
-export function ViewMenu({ view, scope, onChange, timeline }: {
+export function ViewMenu({ view, scope, onChange, timeline, hideCalendar = false }: {
   view: ProjectView;
   scope: ViewScope;
   onChange: (patch: Partial<{ layout: Layout; sortMode: SortMode; showCompleted: boolean }>) => void;
-  /** Hoje: a Linha do dia aparece como primeira opção de layout. */
+  /** Hoje: a Agenda aparece como primeira opção de layout. */
   timeline?: { on: boolean; onPick: () => void };
+  hideCalendar?: boolean;
 }) {
   const t = useT();
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
@@ -35,7 +36,8 @@ export function ViewMenu({ view, scope, onChange, timeline }: {
   // No celular não há Tabela: uma visão salva assim aparece como Lista, sem alterar o que está gravado.
   const layout: Layout = phone && view.layout === "table" ? "list" : view.layout;
   const timelineOn = !!timeline?.on;
-  const label = t("Mostrar: {0}", [timelineOn ? t("Linha do dia") : t(LAYOUT_LABEL[layout])]);
+  const layoutCount = (phone ? 3 : 4) - Number(hideCalendar) + Number(!!timeline);
+  const label = t("Mostrar: {0}", [timelineOn ? t("Agenda") : t(LAYOUT_LABEL[layout])]);
   const LayoutIcon = timelineOn ? IconClock : LAYOUT_ICON[layout];
   const on = (value: Layout) => !timelineOn && layout === value;
   const close = () => { setOpen(false); setSortOpen(false); };
@@ -54,16 +56,17 @@ export function ViewMenu({ view, scope, onChange, timeline }: {
       )}
       <div className="lbl" style={{ color: "var(--text-2)", fontSize: 12 }}>Layout</div>
       <div className="seg" role="radiogroup" aria-label={agenda ? t("Layout") : t("Layout do projeto")}
-        style={{ gridTemplateColumns: `repeat(${(phone ? 3 : 4) + (timeline ? 1 : 0)},minmax(0,1fr))` }}>
+        style={{ gridTemplateColumns: `repeat(${layoutCount},minmax(0,1fr))` }}>
         {timeline && <button type="button" className={`seg-o${timelineOn ? " on" : ""}`} role="radio" aria-checked={timelineOn}
-          onClick={() => !timelineOn && timeline.onPick()}><IconClock />{t("Linha do dia")}</button>}
+          onClick={() => !timelineOn && timeline.onPick()}><IconClock />{t("Agenda")}</button>}
         <button type="button" className={`seg-o${on("list") ? " on" : ""}`} role="radio" aria-checked={on("list")}
           onClick={() => !on("list") && onChange({ layout: "list" })}><IconList />{t("Lista")}</button>
         <button type="button" className={`seg-o${on("board") ? " on" : ""}`} role="radio" aria-checked={on("board")}
           disabled={isInbox} data-tooltip={isInbox ? t(INBOX_LAYOUT_HELP) : undefined} aria-description={isInbox ? t(INBOX_LAYOUT_HELP) : undefined}
           onClick={() => !on("board") && onChange({ layout: "board" })}><IconBoard />{t("Painel")}</button>
-        <button type="button" className={`seg-o${on("calendar") ? " on" : ""}`} role="radio" aria-checked={on("calendar")}
+        {!hideCalendar && <button type="button" className={`seg-o${on("calendar") ? " on" : ""}`} role="radio" aria-checked={on("calendar")}
           onClick={() => !on("calendar") && onChange({ layout: "calendar" })}><IconCalendar />{t("Calendário")}</button>
+        }
         {!phone && <button type="button" className={`seg-o${on("table") ? " on" : ""}`} role="radio" aria-checked={on("table")}
           onClick={() => !on("table") && onChange({ layout: "table" })}><IconTable />{t("Tabela")}</button>}
       </div>

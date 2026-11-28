@@ -625,7 +625,6 @@
   "Claro, escuro ou igual ao sistema.": "Clair, sombre ou comme le système.",
   "Mostrar indicador de sincronização": "Afficher l’indicateur de synchronisation",
   "Exibe a bolinha com o estado da sincronização neste dispositivo.": "Affiche la pastille avec l’état de la synchronisation sur cet appareil.",
-  "Agenda": "Agenda",
   "Fuso horário do perfil": "Fuseau horaire du profil",
   "Define o que é “Hoje” e quando uma tarefa fica atrasada.": "Définit ce qu’est “Aujourd’hui” et quand une tâche est en retard.",
   "Nenhum projeto arquivado.": "Aucun projet archivé.",
@@ -1020,10 +1019,10 @@
   "Feito Claro": "Feito Clair",
   "Feito Escuro": "Feito Sombre",
   "Feito Preto": "Feito Noir",
-  "Linha do dia": "Fil de la journée",
   "Com horário": "Avec horaire",
   "Agora, {0}": "Maintenant, {0}",
   "Nada sem horário hoje.": "Rien sans horaire aujourd’hui.",
   "Nenhuma tarefa com horário hoje.": "Aucune tâche avec horaire aujourd’hui.",
-  "Seções dos ajustes": "Sections des réglages"
+  "Seções dos ajustes": "Sections des réglages",
+  "Agenda": "Planning"
 }

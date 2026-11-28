@@ -625,7 +625,6 @@
   "Claro, escuro ou igual ao sistema.": "Light, dark or follow the system.",
   "Mostrar indicador de sincronização": "Show sync indicator",
   "Exibe a bolinha com o estado da sincronização neste dispositivo.": "Displays the dot with the sync status on this device.",
-  "Agenda": "Agenda",
   "Fuso horário do perfil": "Profile time zone",
   "Define o que é “Hoje” e quando uma tarefa fica atrasada.": "Defines what “Today” means and when a task becomes overdue.",
   "Nenhum projeto arquivado.": "No archived projects.",
@@ -1020,10 +1019,10 @@
   "Feito Claro": "Feito Light",
   "Feito Escuro": "Feito Dark",
   "Feito Preto": "Feito Black",
-  "Linha do dia": "Day timeline",
   "Com horário": "Scheduled",
   "Agora, {0}": "Now, {0}",
   "Nada sem horário hoje.": "Nothing without a time today.",
   "Nenhuma tarefa com horário hoje.": "No scheduled tasks today.",
-  "Seções dos ajustes": "Settings sections"
+  "Seções dos ajustes": "Settings sections",
+  "Agenda": "Schedule"
 }

@@ -18,15 +18,16 @@ type AgendaKey = "todayLayout" | "upcomingLayout";
 /** Grupo fixo de uma agenda: “Atrasadas” ou um dia. O usuário não edita os grupos, só vê as tarefas neles. */
 export type AgendaGroup = { key: string; title: string; tasks: TaskItem[]; date?: string; late?: boolean };
 
-/** Layout de uma agenda; Hoje também tem a Linha do dia. */
+/** Layout de uma agenda; Hoje também tem a Agenda por horário. */
 export type AgendaView = Layout | "timeline";
 
-/** Layout de Hoje ou Em breve, guardado nas preferências da conta e aplicado na hora. Hoje abre na Linha do dia. */
+/** Layout de Hoje ou Em breve, guardado nas preferências da conta e aplicado na hora. Hoje abre na Agenda. */
 export function useAgendaLayout(key: AgendaKey) {
   const app = useApp();
   const preferences = app.me.preferences;
   const timeline = key === "todayLayout" && preferences.todayTimeline !== false;
-  const layout: AgendaView = timeline ? "timeline" : preferences[key] ?? "list";
+  const savedLayout = preferences[key] ?? "list";
+  const layout: AgendaView = timeline ? "timeline" : key === "todayLayout" && savedLayout === "calendar" ? "list" : savedLayout;
   const setLayout = (next: AgendaView) => {
     if (next === layout) return;
     const patch: Partial<Preferences> = next === "timeline" ? { todayTimeline: true }
@@ -49,7 +50,8 @@ export function AgendaViewMenu({ layout, onChange, withTimeline = false }: {
 }) {
   const view: ProjectView = { layout: layout === "timeline" ? "list" : layout, sortMode: "date", showCompleted: false };
   return <ViewMenu view={view} scope="agenda" onChange={(patch) => patch.layout && onChange(patch.layout)}
-    timeline={withTimeline ? { on: layout === "timeline", onPick: () => onChange("timeline") } : undefined} />;
+    timeline={withTimeline ? { on: layout === "timeline", onPick: () => onChange("timeline") } : undefined}
+    hideCalendar={withTimeline} />;
 }
 
 /** Quadro somente leitura: uma coluna por grupo da agenda. */

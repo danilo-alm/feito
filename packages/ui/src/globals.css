@@ -318,8 +318,13 @@ h1,h2,h3,p{margin:0}
 .m-prio svg.fill{fill:currentColor;stroke:currentColor}
 .t-meta>span>span,.t-meta>button>span{font-weight:500}
 /* Seções em cartões: título no topo do cartão, tarefas separadas por linhas finas por dentro. */
-.task-group,.list-group{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0 14px;margin:0 0 16px;box-shadow:var(--shadow)}
-.task-group>.sec-h,.list-group>.sec-h,.list-group+.list-group .sec-h{padding:12px 2px 10px}
+/* A margem esquerda do cartão guarda o puxador de arrastar e a seta das subtarefas, que ficam à esquerda da bolinha;
+   o título da seção recua até a margem normal. */
+.task-group,.list-group{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0 14px 0 34px;margin:0 0 16px;box-shadow:var(--shadow)}
+.task-group>.sec-h,.list-group>.sec-h,.list-group+.list-group .sec-h{padding:12px 2px 10px;margin-left:-20px}
+/* Sem puxador (toque, celular, coluna estreita da agenda): margem curta dos dois lados. */
+@media (hover:none),(pointer:coarse){.task-group,.list-group{padding-left:14px}.task-group>.sec-h,.list-group>.sec-h,.list-group+.list-group .sec-h{margin-left:0}}
+.tl-side .task-group{padding-left:14px}.tl-side .task-group>.sec-h{margin-left:0}.tl-side .grip{display:none}
 .task-group .task,.list-group .task{background:var(--surface)}
 .task-group>.task:last-child,.list-group>.task:last-child{border-bottom:0}
 .task-group:not(:has(.task)):not(:has(.empty)){padding-bottom:4px}
@@ -1086,6 +1091,8 @@ textarea.project-heading-input{resize:none;overflow:hidden}
   .project-head{padding:0 16px!important}
   .page-h .title{font-size:28px}
   .tabbar{display:grid;position:fixed}
+  .task-group,.list-group{padding-left:14px}
+  .task-group>.sec-h,.list-group>.sec-h,.list-group+.list-group .sec-h{margin-left:0}
   /* Fundo esmaecido atrás da pílula: a lista some por baixo dela em vez de cruzar as abas. */
   .app::after{content:"";position:fixed;left:0;right:0;bottom:0;height:calc(var(--mobile-tabbar-height) + 20px);background:linear-gradient(to top,var(--bg) 45%,color-mix(in srgb,var(--bg) 0%,transparent));pointer-events:none;z-index:4}
   .fab{display:grid;position:fixed}
@@ -1251,7 +1258,7 @@ html.dark .tooltip{background:var(--surface-raised);color:var(--text)}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
 
-/* ---------- Linha do dia (Hoje) ---------- */
+/* ---------- Agenda (Hoje) ---------- */
 .col.col-wide{max-width:1080px;container-type:inline-size}
 .tl-wrap{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:28px;align-items:start;margin-top:4px}
 .tl-h{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:0 4px;font-size:14px;font-weight:700}
@@ -1279,6 +1286,17 @@ html.dark .tooltip{background:var(--surface-raised);color:var(--text)}
 .tl-project{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2);white-space:nowrap;flex:none;max-width:40%;overflow:hidden}
 .tl-project>span{overflow:hidden;text-overflow:ellipsis}
 .tl-side{display:flex;flex-direction:column;gap:0}
+/* Coluna estreita: na tarefa só aparece o "⋯" (editar e data ficam no menu). Arrastar até a régua define o horário. */
+.tl-side .t-acts .desktop-only{display:none}
+@media (pointer:fine){.tl-untimed .task{cursor:grab}}
+html.tl-dragging,html.tl-dragging *{cursor:grabbing!important;user-select:none}
+.tl-grid.drag-over .tl-block{pointer-events:none}
+.tl-drop{position:absolute;left:var(--tl-gutter);right:4px;z-index:3;display:flex;align-items:center;gap:8px;min-height:40px;box-sizing:border-box;padding:0 10px;
+  border-radius:10px;border:1.5px dashed var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));pointer-events:none;--proj:var(--accent-text)}
+.tl-drop-title{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--text)}
+.tl-ghost{position:fixed;z-index:60;display:flex;align-items:center;gap:8px;max-width:260px;padding:7px 12px;border-radius:10px;transform:translate(12px,-50%);
+  background:var(--surface-raised);border:1px solid var(--overlay-line);box-shadow:var(--lift);font-size:13.5px;pointer-events:none;--proj:var(--accent-text)}
+.tl-ghost>span:last-child{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .tl-empty{padding:8px 4px 12px}
 /* Pouca largura: as colunas se empilham e o bloco estreito mostra só o ícone do projeto. */
 @container (max-width:760px){.tl-wrap{grid-template-columns:minmax(0,1fr)}}

@@ -625,7 +625,6 @@
   "Claro, escuro ou igual ao sistema.": "Chiaro, scuro o come il sistema.",
   "Mostrar indicador de sincronização": "Mostra indicatore di sincronizzazione",
   "Exibe a bolinha com o estado da sincronização neste dispositivo.": "Mostra il pallino con lo stato della sincronizzazione su questo dispositivo.",
-  "Agenda": "Agenda",
   "Fuso horário do perfil": "Fuso orario del profilo",
   "Define o que é “Hoje” e quando uma tarefa fica atrasada.": "Definisce cosa significa “Oggi” e quando un’attività è in ritardo.",
   "Nenhum projeto arquivado.": "Nessun progetto archiviato.",
@@ -1020,10 +1019,10 @@
   "Feito Claro": "Feito Chiaro",
   "Feito Escuro": "Feito Scuro",
   "Feito Preto": "Feito Nero",
-  "Linha do dia": "Linea del giorno",
   "Com horário": "Con orario",
   "Agora, {0}": "Adesso, {0}",
   "Nada sem horário hoje.": "Niente senza orario oggi.",
   "Nenhuma tarefa com horário hoje.": "Nessuna attività con orario oggi.",
-  "Seções dos ajustes": "Sezioni delle impostazioni"
+  "Seções dos ajustes": "Sezioni delle impostazioni",
+  "Agenda": "Programma"
 }
